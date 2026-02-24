@@ -36,18 +36,33 @@ function switchWorkout(name) {
   prefillLastWorkout();
 }
 
+// Render exercises with number inputs, checkbox, remove button for custom
 function renderExercises() {
   const container = document.getElementById("exercise-container");
   container.innerHTML = "";
-  workouts[currentWorkout].forEach(ex => {
+
+  workouts[currentWorkout].forEach((ex, i) => {
     const row = document.createElement("div");
     row.className = "exercise-row";
+
+    let isCustom = typeof ex === "object" && ex.custom;
+    let name = isCustom ? ex.name : ex;
+
     row.innerHTML = `
-      <label>${ex}</label>
+      <label>${name}</label>
       <input type="number" placeholder="Reps" min="0">
       <input type="number" placeholder="Weight" min="0">
       <input type="checkbox">
+      ${isCustom ? '<button class="remove-btn">Remove</button>' : ''}
     `;
+
+    if (isCustom) {
+      row.querySelector(".remove-btn").addEventListener("click", () => {
+        workouts[currentWorkout].splice(i, 1); // remove custom exercise
+        renderExercises();
+      });
+    }
+
     container.appendChild(row);
   });
 }
@@ -56,7 +71,8 @@ function renderExercises() {
 function addCustomExercise() {
   const name = prompt("Enter exercise name:");
   if (!name) return;
-  workouts[currentWorkout].push(name);
+
+  workouts[currentWorkout].push({ name: name, custom: true });
   renderExercises();
 }
 
@@ -125,7 +141,7 @@ function prefillLastWorkout() {
   }
 }
 
-// ---------- Chart Progress ----------
+// ---------- Chart Progress with PR Highlight ----------
 function updateChart() {
   const filter = document.getElementById("exercise-filter").value;
   const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]");
@@ -133,28 +149,37 @@ function updateChart() {
   let datasets = [];
   let labels = logs.map(l => new Date(l.t).toLocaleDateString());
 
+  const prMap = {}; // Track PR per exercise
+
   if (filter === "all") {
-    // Show all exercises (simplified: last 3 exercises per workout)
     const allEx = new Set();
     logs.forEach(l => l.e.forEach(ex => allEx.add(ex.n)));
     datasets = Array.from(allEx).map(name => {
+      let maxWeight = 0;
+      const data = logs.map(l => {
+        const ex = l.e.find(e => e.n === name);
+        if (!ex) return null;
+        if (ex.w > (prMap[name] || 0)) prMap[name] = ex.w;
+        return ex.w;
+      });
       return {
-        label: name,
-        data: logs.map(l => {
-          const ex = l.e.find(e => e.n === name);
-          return ex ? ex.w : null;
-        }),
+        label: `${name} (PR: ${prMap[name] || 0})`,
+        data,
         borderColor: getRandomColor(),
         fill: false
       };
     });
   } else {
+    let maxWeight = 0;
+    const data = logs.map(l => {
+      const ex = l.e.find(e => e.n === filter);
+      if (!ex) return null;
+      if (ex.w > maxWeight) maxWeight = ex.w;
+      return ex.w;
+    });
     datasets = [{
-      label: filter,
-      data: logs.map(l => {
-        const ex = l.e.find(e => e.n === filter);
-        return ex ? ex.w : null;
-      }),
+      label: `${filter} (PR: ${maxWeight})`,
+      data,
       borderColor: "blue",
       fill: false
     }];
@@ -165,12 +190,7 @@ function updateChart() {
   chart = new Chart(ctx, {
     type: "line",
     data: { labels, datasets },
-    options: {
-      responsive: true,
-      scales: {
-        y: { beginAtZero: true }
-      }
-    }
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
   });
 
   updateExerciseFilter();
