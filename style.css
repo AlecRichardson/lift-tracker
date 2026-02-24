@@ -45,29 +45,34 @@ header h1 {flex:1;text-align:center;margin:0;}
 hr {border:1px solid #444;}
 main {padding:10px;}
 .page {display:block;}
-.exercise-row, #selected-exercise-container .exercise-row, .history-item {
+.exercise-row, .history-item {
   border:1px solid #444;
   border-radius:8px;
-  padding:8px;
-  margin-bottom:5px;
+  padding:10px;
+  margin-bottom:10px;
   background:#2C2F33;
 }
-.exercise-header {display:flex;justify-content:space-between;cursor:pointer;}
-.exercise-row label {display:block;font-weight:bold;margin-bottom:5px;color:#FFFFFF;}
-.set-row {display:flex;align-items:center;margin-bottom:3px;}
+.exercise-header {
+  display:flex; justify-content:space-between; cursor:pointer;
+}
+.exercise-header span.progress-link {
+  font-size:12px; color:#7289DA; text-decoration:underline; cursor:pointer;
+  margin-left:10px;
+}
+.set-container {display:none; margin-top:5px;}
+.set-row {display:flex; align-items:center; margin-bottom:5px; gap:5px;}
 .set-row span {width:50px;}
 .set-row input[type=number], input[type=text] {
-  width:60px;
-  margin-right:5px;
+  width:70px; margin-right:5px;
   background:#23272A;
   color:white;
   border:1px solid #99AAB5;
-  padding:2px 4px;
+  padding:3px 6px;
   border-radius:6px;
 }
 .set-row input[type=checkbox]{margin-left:5px;}
 .set-row input.pr{border:2px solid #43B581;}
-.buttons button {margin-right:5px;padding:8px 12px;margin-top:5px;font-size:16px;background:#B0B0B0;border:none;color:#2C2F33;border-radius:8px;cursor:pointer;transition:background 0.2s;}
+.buttons button {margin-right:5px;padding:8px 12px;margin-top:10px;font-size:16px;background:#B0B0B0;border:none;color:#2C2F33;border-radius:8px;cursor:pointer;transition:background 0.2s;}
 .buttons button:hover{background:#D0D0D0;}
 #history-container .history-item {cursor:pointer;}
 #progressChart {background:#2C2F33;border-radius:5px;margin-top:10px;}
