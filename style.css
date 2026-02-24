@@ -1,69 +1,112 @@
 body {
-  font-family: Arial, sans-serif;
   margin: 0;
-  padding: 0;
+  font-family: Arial, sans-serif;
 }
 
 header {
+  display: flex;
+  align-items: center;
   background: #333;
   color: white;
   padding: 10px;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 100;
 }
 
-nav {
-  display: flex;
-  overflow-x: auto;
-}
-
-nav button {
+header h1 {
   flex: 1;
-  padding: 10px;
-  margin: 0 2px;
-  color: #333;
-  background: #fff;
+  text-align: center;
+  margin: 0;
+}
+
+.hamburger-btn {
+  font-size: 24px;
+  background: none;
   border: none;
-  border-radius: 5px;
-  min-width: 80px;
+  color: white;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  left: -250px;
+  width: 250px;
+  height: 100%;
+  background: #222;
+  color: white;
+  padding: 10px;
+  transition: left 0.3s;
+  z-index: 200;
+}
+
+.drawer.open {
+  left: 0;
+}
+
+.drawer button {
+  display: block;
+  width: 100%;
+  margin: 5px 0;
+  padding: 10px;
+  background: #444;
+  border: none;
+  color: white;
+  text-align: left;
+  font-size: 16px;
+}
+
+.drawer .close-btn {
+  background: none;
+  font-size: 20px;
+  text-align: right;
+  margin-bottom: 10px;
 }
 
 main {
   padding: 10px;
 }
 
+.page {
+  display: block;
+}
+
 .exercise-row {
-  display: flex;
-  flex-wrap: wrap;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 8px;
   margin-bottom: 5px;
-  align-items: center;
 }
 
 .exercise-row label {
-  flex: 1 0 120px;
+  display: block;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.exercise-row .set-row {
+  display: flex;
+  margin-bottom: 3px;
 }
 
 .exercise-row input[type=number] {
-  width: 70px;
-  margin: 0 5px;
-  padding: 5px;
-}
-
-.exercise-row input[type=checkbox] {
-  margin-left: 10px;
-}
-
-.buttons {
-  margin-top: 15px;
+  width: 60px;
+  margin-right: 5px;
 }
 
 .buttons button {
   margin-right: 5px;
   padding: 8px 12px;
+  margin-top: 5px;
 }
 
-canvas {
-  max-width: 100%;
-  margin-top: 10px;
+#history-container .history-item {
+  border: 1px solid #ccc;
+  padding: 8px;
+  margin-bottom: 5px;
+  border-radius: 5px;
+}
+
+#history-container button {
+  margin-left: 5px;
 }
