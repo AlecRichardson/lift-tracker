@@ -9,32 +9,50 @@
 </head>
 <body>
 
+<!-- Hamburger Drawer -->
+<div id="hamburger-menu" class="drawer">
+  <button class="close-btn" onclick="toggleDrawer()">✕</button>
+  <h3>Menu</h3>
+  <button onclick="showPage('workout'); toggleDrawer()">Workout</button>
+  <button onclick="showPage('progress'); toggleDrawer()">Progress</button>
+  <button onclick="showPage('history'); toggleDrawer()">History</button>
+</div>
+
+<!-- Top bar -->
 <header>
-  <nav id="nav-bar">
-    <button onclick="switchWorkout('Push A')">Push A</button>
-    <button onclick="switchWorkout('Push B')">Push B</button>
-    <button onclick="switchWorkout('Pull A')">Pull A</button>
-    <button onclick="switchWorkout('Pull B')">Pull B</button>
-    <button onclick="switchWorkout('Legs')">Legs</button>
-  </nav>
+  <button class="hamburger-btn" onclick="toggleDrawer()">☰</button>
+  <h1>Workout Tracker</h1>
 </header>
 
 <main>
-  <h2 id="workout-title">Push A</h2>
-  <div id="exercise-container"></div>
+  <!-- Workout Page -->
+  <div id="page-workout" class="page">
+    <h2 id="workout-title">Push A</h2>
+    <select id="workout-select" onchange="switchWorkout(this.value)"></select>
+    <div id="exercise-container"></div>
 
-  <div class="buttons">
-    <button onclick="addCustomExercise()">Add Custom Exercise</button>
-    <button onclick="resetWorkout()">Reset Workout</button>
-    <button onclick="saveWorkout()">Save Workout</button>
+    <div class="buttons">
+      <button onclick="addCustomExercise()">Add Exercise</button>
+      <button onclick="resetWorkout()">Reset Workout</button>
+      <button onclick="saveWorkout()">Save Workout</button>
+    </div>
   </div>
 
-  <h3>Progress Chart</h3>
-  <label for="exercise-filter">Filter by Exercise:</label>
-  <select id="exercise-filter" onchange="updateChart()">
-    <option value="all">All Exercises</option>
-  </select>
-  <canvas id="progressChart"></canvas>
+  <!-- Progress Page -->
+  <div id="page-progress" class="page" style="display:none;">
+    <h2>Progress Chart</h2>
+    <label for="exercise-filter">Filter by Exercise:</label>
+    <select id="exercise-filter" onchange="updateChart()">
+      <option value="all">All Exercises</option>
+    </select>
+    <canvas id="progressChart"></canvas>
+  </div>
+
+  <!-- History Page -->
+  <div id="page-history" class="page" style="display:none;">
+    <h2>Workout History</h2>
+    <div id="history-container"></div>
+  </div>
 </main>
 
 <script src="app.js"></script>
