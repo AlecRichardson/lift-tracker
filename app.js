@@ -1,4 +1,4 @@
-// ----------- Workout Data -----------
+// ---------------- Workout Data ----------------
 const workouts={
 "Push A":[
 {name:"Barbell Bench Press",sets:4,repRange:"8–10"},
@@ -37,7 +37,7 @@ const workouts={
 let currentWorkout="Push A";
 let chart=null;
 
-// ----------- Drawer -----------
+// ---------------- Drawer ----------------
 const drawer=document.getElementById("hamburger-menu");
 document.querySelector(".hamburger-btn").addEventListener("click",()=>drawer.classList.toggle("open"));
 document.querySelector(".close-btn").addEventListener("click",()=>drawer.classList.remove("open"));
@@ -45,14 +45,13 @@ document.getElementById("drawer-workout").addEventListener("click",()=>{showPage
 document.getElementById("drawer-progress").addEventListener("click",()=>{showPage("progress"); drawer.classList.remove("open");});
 document.getElementById("drawer-history").addEventListener("click",()=>{showPage("history"); drawer.classList.remove("open");});
 
-// ----------- Page Switch -----------
+// ---------------- Page Switch ----------------
 function showPage(page){
   document.querySelectorAll(".page").forEach(p=>p.style.display="none");
   document.getElementById("page-"+page).style.display="block";
 }
 
-// ----------- Workout Page -----------
-function switchWorkout(name){currentWorkout=name;renderWorkout();prefillLastWorkout();}
+// ---------------- Workout Page ----------------
 function renderWorkout(){
   const container=document.getElementById("exercise-container");
   container.innerHTML="";
@@ -80,6 +79,7 @@ function renderWorkout(){
   });
 }
 
+// Add / Reset / Save Workout
 document.getElementById("add-exercise").addEventListener("click",()=>{
   const name=prompt("Exercise name:");
   if(!name) return;
@@ -89,6 +89,7 @@ document.getElementById("add-exercise").addEventListener("click",()=>{
   renderWorkout();
 });
 document.getElementById("reset-workout").addEventListener("click",()=>document.querySelectorAll("#exercise-container input").forEach(input=>{input.value=""; if(input.type==="checkbox") input.checked=false;}));
+
 document.getElementById("save-workout").addEventListener("click",saveWorkout);
 
 function saveWorkout(){
@@ -109,26 +110,11 @@ function saveWorkout(){
   localStorage.setItem("workoutLogs",JSON.stringify(logs));
   alert("Workout saved!");
   renderHistory();
+  updateExerciseFilter();
   updateChart();
 }
 
-function prefillLastWorkout(){
-  const logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]").reverse();
-  const last=logs.find(l=>l.w===currentWorkout);
-  if(!last) return;
-  const rows=document.querySelectorAll("#exercise-container .exercise-row");
-  rows.forEach((row,i)=>{
-    const setContainer=row.querySelector(".set-container");
-    last.e[i].s.forEach((s,j)=>{
-      const inputs=setContainer.querySelectorAll(".set-row")[j].querySelectorAll("input");
-      inputs[0].value=s.r;
-      inputs[1].value=s.w;
-      inputs[2].checked=s.c;
-    });
-  });
-}
-
-// ----------- History Page -----------
+// ---------------- Workout History ----------------
 function renderHistory(){
   const container=document.getElementById("history-container");
   container.innerHTML="";
@@ -136,21 +122,83 @@ function renderHistory(){
   logs.forEach((log,i)=>{
     const div=document.createElement("div");
     div.className="history-item";
-    div.innerHTML=`<span><strong>${log.w}</strong> - ${new Date(log.t).toLocaleString()}</span>
-      <button onclick="removeHistory(${i})">Remove</button>`;
+
+    const title=document.createElement("span");
+    title.innerHTML=`<strong>${log.w}</strong> - ${new Date(log.t).toLocaleString()}`;
+    title.addEventListener("click",()=>{ /* toggle exercises */ });
+    title.style.cursor="pointer";
+    div.appendChild(title);
+
+    const removeBtn=document.createElement("button");
+    removeBtn.textContent="Remove";
+    removeBtn.addEventListener("click",()=>{
+      let logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
+      logs.splice(logs.length-1-i,1);
+      localStorage.setItem("workoutLogs",JSON.stringify(logs));
+      renderHistory();
+      updateChart();
+    });
+    div.appendChild(removeBtn);
+
+    const exContainer=document.createElement("div");
+    exContainer.className="history-exercises";
+    log.e.forEach((ex,j)=>{
+      const exDiv=document.createElement("div");
+      const exTitle=document.createElement("div");
+      exTitle.textContent=ex.n;
+      exTitle.style.cursor="pointer";
+      exTitle.addEventListener("click",()=>{
+        showPage("progress");
+        document.getElementById("exercise-filter").value=ex.n;
+        updateChart();
+      });
+      exDiv.appendChild(exTitle);
+
+      ex.s.forEach((set,k)=>{
+        const row=document.createElement("div");
+        row.className="set-row";
+        row.innerHTML=`Set ${k+1}: 
+          <input type="number" value="${set.r}" min="0">
+          <input type="number" value="${set.w}" min="0">`;
+        row.querySelectorAll("input").forEach((input,idx)=>{
+          input.addEventListener("change",()=>{
+            const logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
+            const revIdx=logs.length-1-i;
+            if(idx===0) logs[revIdx].e[j].s[k].r=Number(input.value);
+            if(idx===1) logs[revIdx].e[j].s[k].w=Number(input.value);
+            localStorage.setItem("workoutLogs",JSON.stringify(logs));
+            updateExerciseFilter();
+            updateChart();
+          });
+        });
+        exDiv.appendChild(row);
+      });
+
+      exContainer.appendChild(exDiv);
+    });
+    div.appendChild(exContainer);
     container.appendChild(div);
   });
+  updateExerciseFilter();
 }
 
-function removeHistory(index){
-  let logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
-  logs.splice(logs.length-1-index,1);
-  localStorage.setItem("workoutLogs",JSON.stringify(logs));
-  renderHistory();
-  updateChart();
+// ---------------- Exercise Filter ----------------
+function updateExerciseFilter(){
+  const logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
+  const exSet=new Set();
+  logs.forEach(l=>l.e.forEach(ex=>exSet.add(ex.n)));
+  const filter=document.getElementById("exercise-filter");
+  filter.innerHTML='<option value="all">All Exercises</option>';
+  Array.from(exSet).forEach(name=>{
+    const opt=document.createElement("option");
+    opt.value=name;
+    opt.text=name;
+    filter.appendChild(opt);
+  });
+  filter.addEventListener("change",updateChart);
 }
 
-// ----------- Progress Page -----------
+// ---------------- Progress Chart ----------------
 function updateChart(){
   const filter=document.getElementById("exercise-filter").value;
   const logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
@@ -163,27 +211,34 @@ function updateChart(){
       const data=logs.map(l=>{
         const ex=l.e.find(e=>e.n===name);
         if(!ex) return null;
-        return Math.max(...ex.s.map(s=>s.w));
+        return ex.s.reduce((a,b)=>a+b.w,0)/ex.s.length;
       });
       return {label:name,data:data,borderColor:getRandomColor(),fill:false};
     });
-  }else{
+  } else {
     const data=logs.map(l=>{
       const ex=l.e.find(e=>e.n===filter);
       if(!ex) return null;
-      return Math.max(...ex.s.map(s=>s.w));
+      return ex.s.reduce((a,b)=>a+b.w,0)/ex.s.length;
     });
     datasets=[{label:filter,data:data,borderColor:"blue",fill:false}];
   }
   if(chart) chart.destroy();
   const ctx=document.getElementById("progressChart").getContext("2d");
-  chart=new Chart(ctx,{type:"line",data:{labels,datasets},options:{responsive:true,scales:{y:{beginAtZero:true}}}});
+  chart=new Chart(ctx,{
+    type:"line",
+    data:{labels,datasets},
+    options:{
+      responsive:true,
+      scales:{y:{beginAtZero:true}}
+    }
+  });
 }
 
-// ----------- Helpers -----------
+// ---------------- Helpers ----------------
 function getRandomColor(){const letters='0123456789ABCDEF';let color='#';for(let i=0;i<6;i++)color+=letters[Math.floor(Math.random()*16)];return color;}
 
-// ----------- Init -----------
+// ---------------- Init ----------------
 showPage("workout");
 renderWorkout();
 renderHistory();
