@@ -13,12 +13,16 @@
 <div id="hamburger-menu" class="drawer">
   <button class="close-btn">✕</button>
   <h3>Menu</h3>
-  <button id="drawer-workout">Workout</button>
-  <button id="drawer-progress">Progress</button>
+  <button class="template-btn" data-workout="Push A">Push A</button>
+  <button class="template-btn" data-workout="Push B">Push B</button>
+  <button class="template-btn" data-workout="Pull A">Pull A</button>
+  <button class="template-btn" data-workout="Pull B">Pull B</button>
+  <button class="template-btn" data-workout="Legs">Legs</button>
+  <hr>
   <button id="drawer-history">History</button>
+  <button id="drawer-progress">Progress</button>
 </div>
 
-<!-- Top bar -->
 <header>
   <button class="hamburger-btn">☰</button>
   <h1>Workout Tracker</h1>
@@ -28,6 +32,9 @@
   <!-- Workout Page -->
   <div id="page-workout" class="page">
     <h2 id="workout-title">Push A</h2>
+    <div class="buttons">
+      <button id="load-last">Load Last Workout</button>
+    </div>
     <div id="exercise-container"></div>
     <div class="buttons">
       <button id="add-exercise">Add Exercise</button>
@@ -40,9 +47,7 @@
   <div id="page-progress" class="page" style="display:none;">
     <h2>Progress Chart</h2>
     <label for="exercise-filter">Filter by Exercise:</label>
-    <select id="exercise-filter">
-      <option value="all">All Exercises</option>
-    </select>
+    <select id="exercise-filter"><option value="all">All Exercises</option></select>
     <canvas id="progressChart"></canvas>
   </div>
 
@@ -50,6 +55,11 @@
   <div id="page-history" class="page" style="display:none;">
     <h2>Workout History</h2>
     <div id="history-container"></div>
+    <div id="selected-workout-container" style="display:none;">
+      <h3 id="selected-workout-title"></h3>
+      <div id="selected-exercise-container"></div>
+      <button id="update-selected">Save Changes</button>
+    </div>
   </div>
 </main>
 
