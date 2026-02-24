@@ -30,7 +30,7 @@ header h1 {
 .drawer {
   position: fixed;
   top: 0;
-  left: -275px;
+  left: -250px;
   width: 250px;
   height: 100%;
   background: #222;
@@ -65,7 +65,7 @@ main { padding: 10px; }
 
 .page { display: block; }
 
-.exercise-row {
+.exercise-row, .history-exercises div {
   border: 1px solid #ccc;
   border-radius: 5px;
   padding: 8px;
@@ -103,9 +103,11 @@ main { padding: 10px; }
   padding: 8px;
   margin-bottom: 5px;
   border-radius: 5px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+}
+
+#history-container .history-item span {
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 #history-container button {
