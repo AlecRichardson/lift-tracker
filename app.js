@@ -1,242 +1,212 @@
-// ---------- Workout Data with Sets × Rep Ranges ----------
+// ---------- Workout Data with sets x repRange ----------
 const workouts = {
-  "Push A": [
-    { name: "Barbell Bench Press", sets: 4, repRange: "8–10" },
-    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" },
-    { name: "Incline Dumbbell Press", sets: 3, repRange: "8–10" },
-    { name: "Rope Tricep Pushdowns", sets: 3, repRange: "10–12" },
-    { name: "Overhead DB Tricep Extension", sets: 3, repRange: "10" },
-    { name: "Face Pulls", sets: 3, repRange: "12–15" }
+  "Push A":[
+    {name:"Barbell Bench Press",sets:4,repRange:"8–10"},
+    {name:"Dumbbell Lateral Raise",sets:4,repRange:"12–15"},
+    {name:"Incline Dumbbell Press",sets:3,repRange:"8–10"},
+    {name:"Rope Tricep Pushdowns",sets:3,repRange:"10–12"},
+    {name:"Overhead DB Tricep Extension",sets:3,repRange:"10"},
+    {name:"Face Pulls",sets:3,repRange:"12–15"}
   ],
-  "Push B": [
-    { name: "Incline DB Press", sets: 4, repRange: "8–10" },
-    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" },
-    { name: "Machine Chest Press", sets: 3, repRange: "10" },
-    { name: "Face Pulls", sets: 3, repRange: "12–15" },
-    { name: "Assisted Dips", sets: 3, repRange: "8–10" },
-    { name: "Rope Tricep Pushdowns", sets: 2, repRange: "12" }
+  "Push B":[
+    {name:"Incline DB Press",sets:4,repRange:"8–10"},
+    {name:"Dumbbell Lateral Raise",sets:4,repRange:"12–15"},
+    {name:"Machine Chest Press",sets:3,repRange:"10"},
+    {name:"Face Pulls",sets:3,repRange:"12–15"},
+    {name:"Assisted Dips",sets:3,repRange:"8–10"},
+    {name:"Rope Tricep Pushdowns",sets:2,repRange:"12"}
   ],
-  "Pull A": [
-    { name: "Barbell Bent-Over Row", sets: 4, repRange: "8–10" },
-    { name: "Dumbbell Hammer Curl", sets: 4, repRange: "10" },
-    { name: "Lat Pulldown", sets: 3, repRange: "8–10" },
-    { name: "Barbell Curl", sets: 3, repRange: "10" },
-    { name: "Seated Cable Row", sets: 3, repRange: "10" },
-    { name: "Cable Curl", sets: 2, repRange: "12" }
+  "Pull A":[
+    {name:"Barbell Bent-Over Row",sets:4,repRange:"8–10"},
+    {name:"Dumbbell Hammer Curl",sets:4,repRange:"10"},
+    {name:"Lat Pulldown",sets:3,repRange:"8–10"},
+    {name:"Barbell Curl",sets:3,repRange:"10"},
+    {name:"Seated Cable Row",sets:3,repRange:"10"},
+    {name:"Cable Curl",sets:2,repRange:"12"}
   ],
-  "Pull B": [
-    { name: "Lat Pulldown (diff grip)", sets: 4, repRange: "8–10" },
-    { name: "Barbell Curl", sets: 4, repRange: "8–10" },
-    { name: "Seated Row", sets: 3, repRange: "10" },
-    { name: "Dumbbell Hammer Curl", sets: 3, repRange: "10" },
-    { name: "Rear Delt Fly", sets: 3, repRange: "12–15" }
+  "Pull B":[
+    {name:"Lat Pulldown (diff grip)",sets:4,repRange:"8–10"},
+    {name:"Barbell Curl",sets:4,repRange:"8–10"},
+    {name:"Seated Row",sets:3,repRange:"10"},
+    {name:"Dumbbell Hammer Curl",sets:3,repRange:"10"},
+    {name:"Rear Delt Fly",sets:3,repRange:"12–15"}
   ],
-  "Legs": [
-    { name: "Squat", sets: 4, repRange: "8–10" },
-    { name: "Leg Curl", sets: 4, repRange: "8–10" },
-    { name: "Leg Press", sets: 4, repRange: "8–12" },
-    { name: "Leg Extension", sets: 2, repRange: "12–15" }
+  "Legs":[
+    {name:"Squat",sets:4,repRange:"8–10"},
+    {name:"Leg Curl",sets:4,repRange:"8–10"},
+    {name:"Leg Press",sets:4,repRange:"8–12"},
+    {name:"Leg Extension",sets:2,repRange:"12–15"}
   ]
 };
 
-// ---------- Global Variables ----------
 let currentWorkout = "Push A";
-let chart = null;
+let chart=null;
 
-// ---------- Switch Workout ----------
-function switchWorkout(name) {
-  currentWorkout = name;
-  document.getElementById("workout-title").innerText = name;
-  renderExercises();
+// ---------- Hamburger Drawer ----------
+function toggleDrawer(){
+  document.getElementById("hamburger-menu").classList.toggle("open");
+}
+
+function showPage(page){
+  document.querySelectorAll(".page").forEach(p=>p.style.display="none");
+  document.getElementById("page-"+page).style.display="block";
+}
+
+// ---------- Workout Page ----------
+function switchWorkout(name){
+  currentWorkout=name;
+  document.getElementById("workout-title").innerText=name;
+  renderWorkout();
   prefillLastWorkout();
 }
 
-// ---------- Render Exercises ----------
-function renderExercises() {
-  const container = document.getElementById("exercise-container");
-  container.innerHTML = "";
-
-  workouts[currentWorkout].forEach((ex, i) => {
-    const row = document.createElement("div");
-    row.className = "exercise-row";
-
-    let isCustom = typeof ex === "object" && ex.custom;
-    let name = ex.name;
-    let sets = ex.sets || "";
-    let repRange = ex.repRange || "";
-
-    row.innerHTML = `
-      <label>${name} ${sets ? `(${sets}x${repRange})` : ""}</label>
-      <input type="number" placeholder="Reps" min="0">
-      <input type="number" placeholder="Weight" min="0">
-      <input type="checkbox">
-      ${isCustom ? '<button class="remove-btn">Remove</button>' : ''}
-    `;
-
-    if (isCustom) {
-      row.querySelector(".remove-btn").addEventListener("click", () => {
-        workouts[currentWorkout].splice(i, 1);
-        renderExercises();
-      });
+function renderWorkout(){
+  const container=document.getElementById("exercise-container");
+  container.innerHTML="";
+  workouts[currentWorkout].forEach((ex,i)=>{
+    const row=document.createElement("div");
+    row.className="exercise-row";
+    let isCustom=ex.custom||false;
+    row.innerHTML=`<label>${ex.name} (${ex.sets}x${ex.repRange})</label>
+      <div class="set-container"></div>
+      ${isCustom?'<button class="remove-btn">Remove</button>':''}`;
+    const setContainer=row.querySelector(".set-container");
+    for(let s=0;s<ex.sets;s++){
+      const setRow=document.createElement("div");
+      setRow.className="set-row";
+      setRow.innerHTML=`<span>Set ${s+1}:</span>
+        <input type="number" placeholder="Reps" min="0">
+        <input type="number" placeholder="Weight" min="0">
+        <input type="checkbox">`;
+      setContainer.appendChild(setRow);
     }
-
+    if(isCustom) row.querySelector(".remove-btn").addEventListener("click",()=>{
+      workouts[currentWorkout].splice(i,1);
+      renderWorkout();
+    });
     container.appendChild(row);
   });
 }
 
-// ---------- Add Custom Exercise ----------
-function addCustomExercise() {
-  const name = prompt("Enter exercise name:");
-  if (!name) return;
-
-  workouts[currentWorkout].push({ name: name, custom: true, sets: "", repRange: "" });
-  renderExercises();
+function addCustomExercise(){
+  const name=prompt("Exercise name:");
+  const sets=Number(prompt("Number of sets:"))||1;
+  const repRange=prompt("Rep range:")||"";
+  workouts[currentWorkout].push({name:name,sets:sets,repRange:repRange,custom:true});
+  renderWorkout();
 }
 
-// ---------- Reset Workout ----------
-function resetWorkout() {
-  document.querySelectorAll("#exercise-container .exercise-row").forEach(row => {
-    row.querySelectorAll("input").forEach(input => {
-      if (input.type === "checkbox") input.checked = false;
-      else input.value = "";
-    });
+function resetWorkout(){
+  document.querySelectorAll("#exercise-container input").forEach(input=>{
+    if(input.type==="checkbox") input.checked=false;
+    else input.value="";
   });
 }
 
 // ---------- Save Workout ----------
-function saveWorkout() {
-  const rows = document.querySelectorAll("#exercise-container .exercise-row");
-  const exercises = [];
-  rows.forEach(row => {
-    const [nameLabel, repsInput, weightInput, checkbox] = row.children;
-    exercises.push({
-      n: nameLabel.innerText,
-      r: Number(repsInput.value) || 0,
-      w: Number(weightInput.value) || 0,
-      c: checkbox.checked
+function saveWorkout(){
+  const rows=document.querySelectorAll("#exercise-container .exercise-row");
+  const exercises=[];
+  rows.forEach(row=>{
+    const exName=row.querySelector("label").innerText.split(" (")[0];
+    const setContainer=row.querySelector(".set-container");
+    const sets=[];
+    setContainer.querySelectorAll(".set-row").forEach(setRow=>{
+      const inputs=setRow.querySelectorAll("input");
+      sets.push({r:Number(inputs[0].value)||0,w:Number(inputs[1].value)||0,c:inputs[2].checked});
     });
+    exercises.push({n:exName,s:sets});
   });
-
-  const log = {
-    t: new Date().toISOString(),
-    w: currentWorkout,
-    e: exercises
-  };
-
-  // Save to localStorage
-  let logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]");
+  const log={t:new Date().toISOString(),w:currentWorkout,e:exercises};
+  let logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
   logs.push(log);
-  localStorage.setItem("workoutLogs", JSON.stringify(logs));
-
-  // Download small .txt file
-  const blob = new Blob([JSON.stringify(log)], {type: "text/plain"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${currentWorkout}_${Date.now()}.txt`;
-  a.click();
-
+  localStorage.setItem("workoutLogs",JSON.stringify(logs));
   alert("Workout saved!");
+  renderHistory();
   updateChart();
 }
 
-// ---------- Pre-fill Last Workout ----------
-function prefillLastWorkout() {
-  const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]").reverse();
-  for (let log of logs) {
-    if (log.w === currentWorkout) {
-      const rows = document.querySelectorAll("#exercise-container .exercise-row");
-      rows.forEach((row, i) => {
-        if (log.e[i]) {
-          const [_, repsInput, weightInput, checkbox] = row.children;
-          repsInput.value = log.e[i].r || "";
-          weightInput.value = log.e[i].w || "";
-          checkbox.checked = log.e[i].c || false;
-        }
-      });
-      break;
-    }
-  }
-}
-
-// ---------- Chart Progress with PR Highlight ----------
-function updateChart() {
-  const filter = document.getElementById("exercise-filter").value;
-  const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]");
-
-  let datasets = [];
-  let labels = logs.map(l => new Date(l.t).toLocaleDateString());
-
-  const prMap = {};
-
-  if (filter === "all") {
-    const allEx = new Set();
-    logs.forEach(l => l.e.forEach(ex => allEx.add(ex.n)));
-    datasets = Array.from(allEx).map(name => {
-      const data = logs.map(l => {
-        const ex = l.e.find(e => e.n === name);
-        if (!ex) return null;
-        if (ex.w > (prMap[name] || 0)) prMap[name] = ex.w;
-        return ex.w;
-      });
-      return {
-        label: `${name} (PR: ${prMap[name] || 0})`,
-        data,
-        borderColor: getRandomColor(),
-        fill: false
-      };
+function prefillLastWorkout(){
+  const logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]").reverse();
+  const last=logs.find(l=>l.w===currentWorkout);
+  if(!last) return;
+  const rows=document.querySelectorAll("#exercise-container .exercise-row");
+  rows.forEach((row,i)=>{
+    const setContainer=row.querySelector(".set-container");
+    last.e[i].s.forEach((s,j)=>{
+      const inputs=setContainer.querySelectorAll(".set-row")[j].querySelectorAll("input");
+      inputs[0].value=s.r;
+      inputs[1].value=s.w;
+      inputs[2].checked=s.c;
     });
-  } else {
-    let maxWeight = 0;
-    const data = logs.map(l => {
-      const ex = l.e.find(e => e.n === filter);
-      if (!ex) return null;
-      if (ex.w > maxWeight) maxWeight = ex.w;
-      return ex.w;
-    });
-    datasets = [{
-      label: `${filter} (PR: ${maxWeight})`,
-      data,
-      borderColor: "blue",
-      fill: false
-    }];
-  }
-
-  if (chart) chart.destroy();
-  const ctx = document.getElementById("progressChart").getContext("2d");
-  chart = new Chart(ctx, {
-    type: "line",
-    data: { labels, datasets },
-    options: { responsive: true, scales: { y: { beginAtZero: true } } }
-  });
-
-  updateExerciseFilter();
-}
-
-// ---------- Exercise Filter Dropdown ----------
-function updateExerciseFilter() {
-  const filter = document.getElementById("exercise-filter");
-  const allEx = new Set();
-  const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]");
-  logs.forEach(l => l.e.forEach(ex => allEx.add(ex.n)));
-  const currentOptions = Array.from(filter.options).map(o => o.value);
-  allEx.forEach(name => {
-    if (!currentOptions.includes(name)) {
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.text = name;
-      filter.appendChild(opt);
-    }
   });
 }
 
-// ---------- Helpers ----------
-function getRandomColor() {
-  const letters = '0123456789ABCDEF';
-  let color = '#';
-  for (let i=0;i<6;i++) color += letters[Math.floor(Math.random()*16)];
-  return color;
+// ---------- History Page ----------
+function renderHistory(){
+  const container=document.getElementById("history-container");
+  container.innerHTML="";
+  const logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]").reverse();
+  logs.forEach((log,i)=>{
+    const div=document.createElement("div");
+    div.className="history-item";
+    div.innerHTML=`<strong>${log.w}</strong> - ${new Date(log.t).toLocaleString()}
+      <button onclick="removeHistory(${i})">Remove</button>`;
+    container.appendChild(div);
+  });
+}
+
+function removeHistory(index){
+  let logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
+  logs.splice(logs.length-1-index,1);
+  localStorage.setItem("workoutLogs",JSON.stringify(logs));
+  renderHistory();
+  updateChart();
+}
+
+// ---------- Progress Page ----------
+function updateChart(){
+  const filter=document.getElementById("exercise-filter").value;
+  const logs=JSON.parse(localStorage.getItem("workoutLogs")||"[]");
+  const labels=logs.map(l=>new Date(l.t).toLocaleDateString());
+  let prMap={};
+  let datasets=[];
+  if(filter==="all"){
+    const allEx=new Set();
+    logs.forEach(l=>l.e.forEach(ex=>allEx.add(ex.n)));
+    datasets=Array.from(allEx).map(name=>{
+      const data=logs.map(l=>{
+        const ex=l.e.find(e=>e.n===name);
+        if(!ex) return null;
+        let maxWeight=Math.max(...ex.s.map(s=>s.w));
+        if(!prMap[name]||maxWeight>prMap[name]) prMap[name]=maxWeight;
+        return maxWeight;
+      });
+      return {label:`${name} (PR:${prMap[name]})`,data:borderColor=getRandomColor(),fill:false};
+    });
+  }else{
+    let maxWeight=0;
+    const data=logs.map(l=>{
+      const ex=l.e.find(e=>e.n===filter);
+      if(!ex) return null;
+      let w=Math.max(...ex.s.map(s=>s.w));
+      if(w>maxWeight) maxWeight=w;
+      return w;
+    });
+    datasets=[{label:`${filter} (PR:${maxWeight})`,data:data,borderColor:"blue",fill:false}];
+  }
+  if(chart) chart.destroy();
+  const ctx=document.getElementById("progressChart").getContext("2d");
+  chart=new Chart(ctx,{type:"line",data:{labels,datasets},options:{responsive:true,scales:{y:{beginAtZero:true}}}});
 }
 
 // ---------- Init ----------
+Object.keys(workouts).forEach(w=>{
+  const opt=document.createElement("option");
+  opt.value=w;
+  opt.text=w;
+  document.getElementById("workout-select").appendChild(opt);
+});
 switchWorkout(currentWorkout);
+renderHistory();
 updateChart();
