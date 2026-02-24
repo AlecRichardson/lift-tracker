@@ -11,16 +11,16 @@
 
 <!-- Hamburger Drawer -->
 <div id="hamburger-menu" class="drawer">
-  <button class="close-btn" onclick="toggleDrawer()">✕</button>
+  <button class="close-btn">✕</button>
   <h3>Menu</h3>
-  <button onclick="showPage('workout'); toggleDrawer()">Workout</button>
-  <button onclick="showPage('progress'); toggleDrawer()">Progress</button>
-  <button onclick="showPage('history'); toggleDrawer()">History</button>
+  <button id="drawer-workout">Workout</button>
+  <button id="drawer-progress">Progress</button>
+  <button id="drawer-history">History</button>
 </div>
 
 <!-- Top bar -->
 <header>
-  <button class="hamburger-btn" onclick="toggleDrawer()">☰</button>
+  <button class="hamburger-btn">☰</button>
   <h1>Workout Tracker</h1>
 </header>
 
@@ -28,13 +28,11 @@
   <!-- Workout Page -->
   <div id="page-workout" class="page">
     <h2 id="workout-title">Push A</h2>
-    <select id="workout-select" onchange="switchWorkout(this.value)"></select>
     <div id="exercise-container"></div>
-
     <div class="buttons">
-      <button onclick="addCustomExercise()">Add Exercise</button>
-      <button onclick="resetWorkout()">Reset Workout</button>
-      <button onclick="saveWorkout()">Save Workout</button>
+      <button id="add-exercise">Add Exercise</button>
+      <button id="reset-workout">Reset Workout</button>
+      <button id="save-workout">Save Workout</button>
     </div>
   </div>
 
@@ -42,7 +40,7 @@
   <div id="page-progress" class="page" style="display:none;">
     <h2>Progress Chart</h2>
     <label for="exercise-filter">Filter by Exercise:</label>
-    <select id="exercise-filter" onchange="updateChart()">
+    <select id="exercise-filter">
       <option value="all">All Exercises</option>
     </select>
     <canvas id="progressChart"></canvas>
