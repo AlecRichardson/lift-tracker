@@ -30,7 +30,7 @@ header h1 {
 .drawer {
   position: fixed;
   top: 0;
-  left: -250px;
+  left: -275px;
   width: 250px;
   height: 100%;
   background: #222;
