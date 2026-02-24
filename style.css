@@ -1,115 +1,28 @@
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-}
+body {margin:0;font-family:Arial,sans-serif;}
 
-header {
-  display: flex;
-  align-items: center;
-  background: #333;
-  color: white;
-  padding: 10px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
+header {display:flex;align-items:center;background:#333;color:white;padding:10px;position:sticky;top:0;z-index:100;}
+header h1 {flex:1;text-align:center;margin:0;}
+.hamburger-btn {font-size:24px;background:none;border:none;color:white;cursor:pointer;}
 
-header h1 {
-  flex: 1;
-  text-align: center;
-  margin: 0;
-}
+.drawer {position:fixed;top:0;left:-275px;width:250px;height:100%;background:#222;color:white;padding:10px;transition:left 0.3s ease;z-index:200;}
+.drawer.open {left:0;}
+.drawer button {display:block;width:100%;margin:5px 0;padding:10px;background:#444;border:none;color:white;font-size:16px;text-align:left;}
+.drawer .close-btn {background:none;font-size:20px;text-align:right;margin-bottom:10px;}
+hr {border:1px solid #555;}
 
-.hamburger-btn {
-  font-size: 24px;
-  background: none;
-  border: none;
-  color: white;
-}
+main {padding:10px;}
+.page {display:block;}
 
-.drawer {
-  position: fixed;
-  top: 0;
-  left: -250px;
-  width: 250px;
-  height: 100%;
-  background: #222;
-  color: white;
-  padding: 10px;
-  transition: left 0.3s ease;
-  z-index: 200;
-}
+.exercise-row, #selected-exercise-container .exercise-row {border:1px solid #ccc;border-radius:5px;padding:8px;margin-bottom:5px;}
+.exercise-header {display:flex;justify-content:space-between;cursor:pointer;}
+.exercise-row label {display:block;font-weight:bold;margin-bottom:5px;}
 
-.drawer.open { left: 0; }
+.set-row {display:flex;align-items:center;margin-bottom:3px;}
+.set-row span {width:50px;}
+.set-row input[type=number] {width:60px;margin-right:5px;}
+.set-row input.pr {border:2px solid green;}
 
-.drawer button {
-  display: block;
-  width: 100%;
-  margin: 5px 0;
-  padding: 10px;
-  background: #444;
-  border: none;
-  color: white;
-  font-size: 16px;
-  text-align: left;
-}
-
-.drawer .close-btn {
-  background: none;
-  font-size: 20px;
-  text-align: right;
-  margin-bottom: 10px;
-}
-
-main { padding: 10px; }
-
-.page { display: block; }
-
-.exercise-row, .history-exercises div {
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  padding: 8px;
-  margin-bottom: 5px;
-}
-
-.exercise-row label {
-  display: block;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.set-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 3px;
-}
-
-.set-row span { width: 50px; }
-
-.set-row input[type=number] {
-  width: 60px;
-  margin-right: 5px;
-}
-
-.buttons button {
-  margin-right: 5px;
-  padding: 8px 12px;
-  margin-top: 5px;
-  font-size: 16px;
-}
-
-#history-container .history-item {
-  border: 1px solid #ccc;
-  padding: 8px;
-  margin-bottom: 5px;
-  border-radius: 5px;
-}
-
-#history-container .history-item span {
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-#history-container button {
-  margin-left: 5px;
-}
+.buttons button {margin-right:5px;padding:8px 12px;margin-top:5px;font-size:16px;}
+#history-container .history-item {border:1px solid #ccc;padding:8px;margin-bottom:5px;border-radius:5px;cursor:pointer;}
+#history-container button {margin-left:5px;}
+#selected-exercise-container input[type=number] {width:60px;margin-right:5px;margin-bottom:3px;}
