@@ -1,34 +1,49 @@
-// ---------- Workout Data ----------
+// ---------- Workout Data with Sets × Rep Ranges ----------
 const workouts = {
   "Push A": [
-    "Barbell Bench Press", "Dumbbell Lateral Raise",
-    "Incline Dumbbell Press", "Rope Tricep Pushdowns",
-    "Overhead DB Tricep Extension", "Face Pulls"
+    { name: "Barbell Bench Press", sets: 4, repRange: "8–10" },
+    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" },
+    { name: "Incline Dumbbell Press", sets: 3, repRange: "8–10" },
+    { name: "Rope Tricep Pushdowns", sets: 3, repRange: "10–12" },
+    { name: "Overhead DB Tricep Extension", sets: 3, repRange: "10" },
+    { name: "Face Pulls", sets: 3, repRange: "12–15" }
   ],
   "Push B": [
-    "Incline DB Press", "Dumbbell Lateral Raise",
-    "Machine Chest Press", "Face Pulls",
-    "Assisted Dips", "Rope Tricep Pushdowns"
+    { name: "Incline DB Press", sets: 4, repRange: "8–10" },
+    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" },
+    { name: "Machine Chest Press", sets: 3, repRange: "10" },
+    { name: "Face Pulls", sets: 3, repRange: "12–15" },
+    { name: "Assisted Dips", sets: 3, repRange: "8–10" },
+    { name: "Rope Tricep Pushdowns", sets: 2, repRange: "12" }
   ],
   "Pull A": [
-    "Barbell Bent-Over Row", "Dumbbell Hammer Curl",
-    "Lat Pulldown", "Barbell Curl",
-    "Seated Cable Row", "Cable Curl"
+    { name: "Barbell Bent-Over Row", sets: 4, repRange: "8–10" },
+    { name: "Dumbbell Hammer Curl", sets: 4, repRange: "10" },
+    { name: "Lat Pulldown", sets: 3, repRange: "8–10" },
+    { name: "Barbell Curl", sets: 3, repRange: "10" },
+    { name: "Seated Cable Row", sets: 3, repRange: "10" },
+    { name: "Cable Curl", sets: 2, repRange: "12" }
   ],
   "Pull B": [
-    "Lat Pulldown (diff grip)", "Barbell Curl",
-    "Seated Row", "Dumbbell Hammer Curl",
-    "Rear Delt Fly"
+    { name: "Lat Pulldown (diff grip)", sets: 4, repRange: "8–10" },
+    { name: "Barbell Curl", sets: 4, repRange: "8–10" },
+    { name: "Seated Row", sets: 3, repRange: "10" },
+    { name: "Dumbbell Hammer Curl", sets: 3, repRange: "10" },
+    { name: "Rear Delt Fly", sets: 3, repRange: "12–15" }
   ],
   "Legs": [
-    "Squat", "Leg Curl", "Leg Press", "Leg Extension"
+    { name: "Squat", sets: 4, repRange: "8–10" },
+    { name: "Leg Curl", sets: 4, repRange: "8–10" },
+    { name: "Leg Press", sets: 4, repRange: "8–12" },
+    { name: "Leg Extension", sets: 2, repRange: "12–15" }
   ]
 };
 
+// ---------- Global Variables ----------
 let currentWorkout = "Push A";
 let chart = null;
 
-// ---------- UI Rendering ----------
+// ---------- Switch Workout ----------
 function switchWorkout(name) {
   currentWorkout = name;
   document.getElementById("workout-title").innerText = name;
@@ -36,7 +51,7 @@ function switchWorkout(name) {
   prefillLastWorkout();
 }
 
-// Render exercises with number inputs, checkbox, remove button for custom
+// ---------- Render Exercises ----------
 function renderExercises() {
   const container = document.getElementById("exercise-container");
   container.innerHTML = "";
@@ -46,10 +61,12 @@ function renderExercises() {
     row.className = "exercise-row";
 
     let isCustom = typeof ex === "object" && ex.custom;
-    let name = isCustom ? ex.name : ex;
+    let name = ex.name;
+    let sets = ex.sets || "";
+    let repRange = ex.repRange || "";
 
     row.innerHTML = `
-      <label>${name}</label>
+      <label>${name} ${sets ? `(${sets}x${repRange})` : ""}</label>
       <input type="number" placeholder="Reps" min="0">
       <input type="number" placeholder="Weight" min="0">
       <input type="checkbox">
@@ -58,7 +75,7 @@ function renderExercises() {
 
     if (isCustom) {
       row.querySelector(".remove-btn").addEventListener("click", () => {
-        workouts[currentWorkout].splice(i, 1); // remove custom exercise
+        workouts[currentWorkout].splice(i, 1);
         renderExercises();
       });
     }
@@ -72,7 +89,7 @@ function addCustomExercise() {
   const name = prompt("Enter exercise name:");
   if (!name) return;
 
-  workouts[currentWorkout].push({ name: name, custom: true });
+  workouts[currentWorkout].push({ name: name, custom: true, sets: "", repRange: "" });
   renderExercises();
 }
 
@@ -149,13 +166,12 @@ function updateChart() {
   let datasets = [];
   let labels = logs.map(l => new Date(l.t).toLocaleDateString());
 
-  const prMap = {}; // Track PR per exercise
+  const prMap = {};
 
   if (filter === "all") {
     const allEx = new Set();
     logs.forEach(l => l.e.forEach(ex => allEx.add(ex.n)));
     datasets = Array.from(allEx).map(name => {
-      let maxWeight = 0;
       const data = logs.map(l => {
         const ex = l.e.find(e => e.n === name);
         if (!ex) return null;
