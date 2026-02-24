@@ -1,69 +1,74 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Workout Tracker</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-
-<!-- Hamburger Drawer -->
-<div id="hamburger-menu" class="drawer">
-  <button class="close-btn">✕</button>
-  <h3>Menu</h3>
-  <button class="template-btn" data-workout="Push A">Push A</button>
-  <button class="template-btn" data-workout="Push B">Push B</button>
-  <button class="template-btn" data-workout="Pull A">Pull A</button>
-  <button class="template-btn" data-workout="Pull B">Pull B</button>
-  <button class="template-btn" data-workout="Legs">Legs</button>
-  <hr>
-  <button id="drawer-history">History</button>
-  <button id="drawer-progress">Progress</button>
-</div>
-
-<header>
-  <button class="hamburger-btn">☰</button>
-  <h1>Workout Tracker</h1>
-</header>
-
-<main>
-  <!-- Workout Page -->
-  <div id="page-workout" class="page">
-    <h2 id="workout-title">Push A</h2>
-    <div class="buttons">
-      <button id="load-last">Load Last Workout</button>
-    </div>
-    <div id="exercise-container"></div>
-    <div class="buttons">
-      <button id="add-exercise">Add Exercise</button>
-      <button id="reset-workout">Reset Workout</button>
-      <button id="save-workout">Save Workout</button>
-    </div>
-  </div>
-
-  <!-- Progress Page -->
-  <div id="page-progress" class="page" style="display:none;">
-    <h2>Progress Chart</h2>
-    <label for="exercise-filter">Filter by Exercise:</label>
-    <select id="exercise-filter"><option value="all">All Exercises</option></select>
-    <canvas id="progressChart"></canvas>
-    <p class="chart-desc">This chart shows your average weight per set for each exercise over time. Hover over points to see exact numbers.</p>
-  </div>
-
-  <!-- History Page -->
-  <div id="page-history" class="page" style="display:none;">
-    <h2>Workout History</h2>
-    <div id="history-container"></div>
-    <div id="selected-workout-container" style="display:none;">
-      <h3 id="selected-workout-title"></h3>
-      <div id="selected-exercise-container"></div>
-      <button id="update-selected">Save Changes</button>
-    </div>
-  </div>
-</main>
-
-<script src="app.js"></script>
-</body>
-</html>
+body {
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#2C2F33;
+  color:#FFFFFF;
+}
+header {
+  display:flex;
+  align-items:center;
+  background:#23272A;
+  color:white;
+  padding:10px;
+  position:sticky;
+  top:0;
+  z-index:100;
+}
+header h1 {flex:1;text-align:center;margin:0;}
+.hamburger-btn {font-size:24px;background:none;border:none;color:white;cursor:pointer;}
+.drawer {
+  position:fixed;
+  top:0; left:-275px;
+  width:250px;height:100%;
+  background:#23272A;color:white;
+  padding:10px;
+  transition:left 0.3s ease;
+  z-index:200;
+}
+.drawer.open {left:0;}
+.drawer button {
+  display:block;
+  width:100%;
+  margin:5px 0;
+  padding:10px;
+  background:#B0B0B0;
+  border:none;
+  color:#2C2F33;
+  font-size:16px;
+  text-align:left;
+  border-radius:8px;
+  cursor:pointer;
+  transition: background 0.2s;
+}
+.drawer button:hover {background:#D0D0D0;}
+.drawer .close-btn {background:none;font-size:20px;text-align:right;margin-bottom:10px;}
+hr {border:1px solid #444;}
+main {padding:10px;}
+.page {display:block;}
+.exercise-row, #selected-exercise-container .exercise-row, .history-item {
+  border:1px solid #444;
+  border-radius:8px;
+  padding:8px;
+  margin-bottom:5px;
+  background:#2C2F33;
+}
+.exercise-header {display:flex;justify-content:space-between;cursor:pointer;}
+.exercise-row label {display:block;font-weight:bold;margin-bottom:5px;color:#FFFFFF;}
+.set-row {display:flex;align-items:center;margin-bottom:3px;}
+.set-row span {width:50px;}
+.set-row input[type=number], input[type=text] {
+  width:60px;
+  margin-right:5px;
+  background:#23272A;
+  color:white;
+  border:1px solid #99AAB5;
+  padding:2px 4px;
+  border-radius:6px;
+}
+.set-row input[type=checkbox]{margin-left:5px;}
+.set-row input.pr{border:2px solid #43B581;}
+.buttons button {margin-right:5px;padding:8px 12px;margin-top:5px;font-size:16px;background:#B0B0B0;border:none;color:#2C2F33;border-radius:8px;cursor:pointer;transition:background 0.2s;}
+.buttons button:hover{background:#D0D0D0;}
+#history-container .history-item {cursor:pointer;}
+#progressChart {background:#2C2F33;border-radius:5px;margin-top:10px;}
+.chart-desc {font-size:12px;color:#99AAB5;margin-top:5px;}
