@@ -30,7 +30,6 @@ function renderWorkout(){
     const header=document.createElement("div"); header.className="exercise-header"; header.textContent=`${ex.name} (${ex.sets}x${ex.repRange})`;
     const setContainer=document.createElement("div"); setContainer.className="set-container"; setContainer.style.display="block";
     header.addEventListener("click",()=>{setContainer.style.display=setContainer.style.display==="none"?"block":"none";});
-    ex.scontainer=setContainer;
     for(let s=0;s<ex.sets;s++){
       const setRow=document.createElement("div"); setRow.className="set-row";
       setRow.innerHTML=`<span>Set ${s+1}:</span><input type="number" placeholder="Reps" min="0"><input type="number" placeholder="Weight" min="0"><input type="checkbox">`;
@@ -134,3 +133,5 @@ function getRandomColor(){const letters='0123456789ABCDEF';let color='#';for(let
 
 // ---------------- Init ----------------
 showPage("workout"); renderWorkout(); renderHistory(); updateExerciseFilter(); updateChart();
+
+}); // End of DOMContentLoaded
