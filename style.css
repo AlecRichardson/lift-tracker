@@ -36,13 +36,11 @@ header h1 {
   background: #222;
   color: white;
   padding: 10px;
-  transition: left 0.3s;
+  transition: left 0.3s ease;
   z-index: 200;
 }
 
-.drawer.open {
-  left: 0;
-}
+.drawer.open { left: 0; }
 
 .drawer button {
   display: block;
@@ -52,8 +50,8 @@ header h1 {
   background: #444;
   border: none;
   color: white;
-  text-align: left;
   font-size: 16px;
+  text-align: left;
 }
 
 .drawer .close-btn {
@@ -63,13 +61,9 @@ header h1 {
   margin-bottom: 10px;
 }
 
-main {
-  padding: 10px;
-}
+main { padding: 10px; }
 
-.page {
-  display: block;
-}
+.page { display: block; }
 
 .exercise-row {
   border: 1px solid #ccc;
@@ -84,12 +78,15 @@ main {
   margin-bottom: 5px;
 }
 
-.exercise-row .set-row {
+.set-row {
   display: flex;
+  align-items: center;
   margin-bottom: 3px;
 }
 
-.exercise-row input[type=number] {
+.set-row span { width: 50px; }
+
+.set-row input[type=number] {
   width: 60px;
   margin-right: 5px;
 }
@@ -98,6 +95,7 @@ main {
   margin-right: 5px;
   padding: 8px 12px;
   margin-top: 5px;
+  font-size: 16px;
 }
 
 #history-container .history-item {
@@ -105,6 +103,9 @@ main {
   padding: 8px;
   margin-bottom: 5px;
   border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 #history-container button {
