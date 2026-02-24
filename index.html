@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workout Tracker</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<header>
+  <nav id="nav-bar">
+    <button onclick="switchWorkout('Push A')">Push A</button>
+    <button onclick="switchWorkout('Push B')">Push B</button>
+    <button onclick="switchWorkout('Pull A')">Pull A</button>
+    <button onclick="switchWorkout('Pull B')">Pull B</button>
+    <button onclick="switchWorkout('Legs')">Legs</button>
+  </nav>
+</header>
+
+<main>
+  <h2 id="workout-title">Push A</h2>
+  <div id="exercise-container"></div>
+
+  <div class="buttons">
+    <button onclick="addCustomExercise()">Add Custom Exercise</button>
+    <button onclick="resetWorkout()">Reset Workout</button>
+    <button onclick="saveWorkout()">Save Workout</button>
+  </div>
+
+  <h3>Progress Chart</h3>
+  <label for="exercise-filter">Filter by Exercise:</label>
+  <select id="exercise-filter" onchange="updateChart()">
+    <option value="all">All Exercises</option>
+  </select>
+  <canvas id="progressChart"></canvas>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
