@@ -2,41 +2,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const workouts = {
     "Push A": [
-      { name: "Barbell Bench Press", sets: 4, target: "8–10", superset: "A1" },
-      { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15", superset: "A1" },
-      { name: "Incline Dumbbell Press", sets: 3, target: "8–10", superset: "B1" },
-      { name: "Rope Tricep Pushdowns", sets: 3, target: "10–12", superset: "B1" },
-      { name: "Overhead Dumbbell Tricep Extension", sets: 3, target: "10", superset: "C1" },
-      { name: "Face Pulls", sets: 3, target: "12–15", superset: "C1" }
+      { name: "Barbell Bench Press", sets: 4, target: "8–10" },
+      { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15" },
+      { name: "Incline Dumbbell Press", sets: 3, target: "8–10" },
+      { name: "Rope Tricep Pushdowns", sets: 3, target: "10–12" },
+      { name: "Overhead Dumbbell Tricep Extension", sets: 3, target: "10" },
+      { name: "Face Pulls", sets: 3, target: "12–15" }
     ],
     "Pull A": [
-      { name: "Barbell Bent-Over Row", sets: 4, target: "8–10", superset: "A1" },
-      { name: "Dumbbell Hammer Curl", sets: 4, target: "10", superset: "A1" },
-      { name: "Lat Pulldown", sets: 3, target: "8–10", superset: "B1" },
-      { name: "Barbell Curl", sets: 3, target: "10", superset: "B1" },
-      { name: "Seated Cable Row", sets: 3, target: "10", superset: "C1" },
-      { name: "Cable Curl", sets: 3, target: "12", superset: "C1" }
+      { name: "Barbell Bent-Over Row", sets: 4, target: "8–10" },
+      { name: "Dumbbell Hammer Curl", sets: 4, target: "10" },
+      { name: "Lat Pulldown", sets: 3, target: "8–10" },
+      { name: "Barbell Curl", sets: 3, target: "10" },
+      { name: "Seated Cable Row", sets: 3, target: "10" },
+      { name: "Cable Curl", sets: 3, target: "12" }
     ],
     "Legs": [
-      { name: "Squat", sets: 4, target: "8–10", superset: "" },
-      { name: "Leg Curl", sets: 4, target: "8–10", superset: "B1" },
-      { name: "Leg Press", sets: 4, target: "8–12", superset: "B1" },
-      { name: "Leg Extension", sets: 3, target: "12–15", superset: "" }
+      { name: "Squat", sets: 4, target: "8–10" },
+      { name: "Leg Curl", sets: 4, target: "8–10" },
+      { name: "Leg Press", sets: 4, target: "8–12" },
+      { name: "Leg Extension", sets: 3, target: "12–15" }
     ],
     "Push B": [
-      { name: "Incline DB Press", sets: 4, target: "8–10", superset: "A1" },
-      { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15", superset: "A1" },
-      { name: "Machine Chest Press", sets: 3, target: "10", superset: "B1" },
-      { name: "Face Pulls", sets: 3, target: "12–15", superset: "B1" },
-      { name: "Assisted Dips", sets: 3, target: "8–10", superset: "C1" },
-      { name: "Rope Tricep Pushdowns", sets: 3, target: "12", superset: "C1" }
+      { name: "Incline DB Press", sets: 4, target: "8–10" },
+      { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15" },
+      { name: "Machine Chest Press", sets: 3, target: "10" },
+      { name: "Face Pulls", sets: 3, target: "12–15" },
+      { name: "Assisted Dips", sets: 3, target: "8–10" },
+      { name: "Rope Tricep Pushdowns", sets: 3, target: "12" }
     ],
     "Pull B": [
-      { name: "Lat Pulldown (diff grip)", sets: 4, target: "8–10", superset: "A1" },
-      { name: "Barbell Curl", sets: 4, target: "8–10", superset: "A1" },
-      { name: "Seated Row", sets: 3, target: "10", superset: "B1" },
-      { name: "Dumbbell Hammer Curl", sets: 3, target: "10", superset: "B1" },
-      { name: "Rear Delt Fly", sets: 3, target: "12–15", superset: "" }
+      { name: "Lat Pulldown (diff grip)", sets: 4, target: "8–10" },
+      { name: "Barbell Curl", sets: 4, target: "8–10" },
+      { name: "Seated Row", sets: 3, target: "10" },
+      { name: "Dumbbell Hammer Curl", sets: 3, target: "10" },
+      { name: "Rear Delt Fly", sets: 3, target: "12–15" }
     ]
   };
 
@@ -85,23 +85,42 @@ document.addEventListener("DOMContentLoaded", () => {
       showPage("historyPage");
     });
 
+  // ✅ AUTO PREFILL FROM LAST WORKOUT
+  function getLastWorkoutForDay(day){
+    const logs = getLogs().filter(l => l.d === day);
+    return logs.length ? logs[logs.length - 1] : null;
+  }
+
   function renderWorkout(){
     document.getElementById("pageTitle").textContent = currentDay;
     const container = document.getElementById("exerciseContainer");
     container.innerHTML = "";
+
+    const lastWorkout = getLastWorkoutForDay(currentDay);
 
     workouts[currentDay].forEach(ex=>{
       const div = document.createElement("div");
       div.className="exercise";
       div.innerHTML = `<h4>${ex.name} (${ex.sets}×${ex.target})</h4>`;
 
+      let lastSets = null;
+      if(lastWorkout){
+        const match = lastWorkout.e.find(e=>e.n===ex.name);
+        if(match) lastSets = match.s;
+      }
+
       for(let i=0;i<ex.sets;i++){
         const row = document.createElement("div");
         row.className="setRow";
+
+        const repsVal = lastSets?.[i]?.reps || "";
+        const weightVal = lastSets?.[i]?.weight || "";
+
         row.innerHTML = `
-          <input type="number" placeholder="Reps">
-          <input type="number" placeholder="Weight">
+          <input type="number" placeholder="Reps" value="${repsVal}">
+          <input type="number" placeholder="Weight" value="${weightVal}">
         `;
+
         div.appendChild(row);
       }
 
@@ -129,26 +148,47 @@ document.addEventListener("DOMContentLoaded", () => {
       logs.push({t:new Date().toISOString(),d:currentDay,e:exercises});
       saveLogs(logs);
 
-      if(navigator.vibrate) navigator.vibrate(100);
+      renderWorkout(); // refresh to update prefill logic
 
       const btn = document.getElementById("saveWorkout");
       btn.textContent="Saved ✅";
       setTimeout(()=>btn.textContent="Save Workout 💪",1500);
     });
 
+  // ✅ FIXED HISTORY TOGGLE
   function renderHistory(){
     const container=document.getElementById("historyList");
     container.innerHTML="";
     const logs=getLogs().slice().reverse();
 
     logs.forEach(log=>{
-      const div=document.createElement("div");
-      div.className="historyItem";
-      div.innerHTML=`<strong>${new Date(log.t).toLocaleDateString()} - ${log.d}</strong>`;
-      container.appendChild(div);
+      const wrapper=document.createElement("div");
+      wrapper.className="historyItem";
+
+      const header=document.createElement("div");
+      header.innerHTML=`<strong>${new Date(log.t).toLocaleDateString()} - ${log.d}</strong>`;
+
+      const details=document.createElement("div");
+      details.className="historyDetails hidden";
+
+      log.e.forEach(ex=>{
+        const exDiv=document.createElement("div");
+        exDiv.innerHTML=`<strong>${ex.n}</strong>: ${ex.s.map(s=>`${s.reps}x${s.weight}`).join(", ")}`;
+        details.appendChild(exDiv);
+      });
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(details);
+
+      wrapper.addEventListener("click", ()=>{
+        details.classList.toggle("hidden");
+      });
+
+      container.appendChild(wrapper);
     });
   }
 
+  // ✅ TOP SET CHART
   function renderChart(){
     const logs=getLogs();
     const select=document.getElementById("exerciseSelect");
