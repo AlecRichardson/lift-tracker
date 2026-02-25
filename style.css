@@ -22,21 +22,31 @@ body {
 }
 
 .deleteBtn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 90px;
   background: #ff4d4d;
   color: white;
   border: none;
-  padding: 10px 16px;
-  border-radius: 8px;
-  margin-left: 10px;
+  font-weight: bold;
 }
 
 .historyWrapper {
   position: relative;
   overflow: hidden;
+  border-radius: 10px;
+  margin-bottom: 10px;
 }
 
 .historyItem {
+  background: #2b2d31;
+  padding: 12px;
+  border-radius: 10px;
   transition: transform 0.2s ease;
+  position: relative;
+  z-index: 2;
   touch-action: pan-y;
 }
 /* Hamburger */
