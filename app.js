@@ -178,62 +178,90 @@ function showPage(page){
   });
 
   function renderHistory(){
-    const container=document.getElementById("historyList");
-    container.innerHTML="";
-    const logs=getLogs().slice().reverse();
+  const container=document.getElementById("historyList");
+  container.innerHTML="";
+  const logs=getLogs().slice().reverse();
 
-    logs.forEach((log,index)=>{
-      const wrapper=document.createElement("div");
-      wrapper.className="historyWrapper";
+  let openItem = null; // track currently swiped open item
 
-      const item=document.createElement("div");
-      item.className="historyItem";
-      item.innerHTML=`<strong>${formatTimestamp(log.t)} - ${log.d}</strong>`;
+  logs.forEach((log,index)=>{
+    const wrapper=document.createElement("div");
+    wrapper.className="historyWrapper";
 
-      const details=document.createElement("div");
-      details.className="historyDetails hidden";
+    const item=document.createElement("div");
+    item.className="historyItem";
+    item.innerHTML=`<strong>${formatTimestamp(log.t)} - ${log.d}</strong>`;
 
-      log.e.forEach(ex=>{
-        const exDiv=document.createElement("div");
-        exDiv.innerHTML=`<strong>${ex.n}</strong>: ${ex.s.map(s=>`${s.reps}x${s.weight}`).join(", ")}`;
-        details.appendChild(exDiv);
-      });
+    const details=document.createElement("div");
+    details.className="historyDetails hidden";
 
-      item.appendChild(details);
-
-      let startX=0;
-      item.addEventListener("touchstart",e=>{
-        startX=e.touches[0].clientX;
-      });
-
-      item.addEventListener("touchmove",e=>{
-        const diff=e.touches[0].clientX-startX;
-        if(diff<-50){
-          item.style.transform="translateX(-80px)";
-        }
-      });
-
-      item.addEventListener("touchend",()=>{
-        if(item.style.transform){
-          const delBtn=document.createElement("button");
-          delBtn.textContent="Delete";
-          delBtn.className="deleteBtn";
-          delBtn.onclick=()=>{
-            const all=getLogs();
-            all.splice(all.length-1-index,1);
-            saveLogs(all);
-            renderHistory();
-          };
-          wrapper.appendChild(delBtn);
-        }else{
-          details.classList.toggle("hidden");
-        }
-      });
-
-      wrapper.appendChild(item);
-      container.appendChild(wrapper);
+    log.e.forEach(ex=>{
+      const exDiv=document.createElement("div");
+      exDiv.innerHTML=`<strong>${ex.n}</strong>: ${ex.s.map(s=>`${s.reps}x${s.weight}`).join(", ")}`;
+      details.appendChild(exDiv);
     });
-  }
+
+    item.appendChild(details);
+
+    // Create inline delete button (hidden initially)
+    const deleteBtn=document.createElement("button");
+    deleteBtn.textContent="Delete";
+    deleteBtn.className="deleteBtn";
+    deleteBtn.style.display="none";
+
+    deleteBtn.addEventListener("click",(e)=>{
+      e.stopPropagation();
+      const all=getLogs();
+      all.splice(all.length-1-index,1);
+      saveLogs(all);
+      renderHistory();
+    });
+
+    wrapper.appendChild(item);
+    wrapper.appendChild(deleteBtn);
+    container.appendChild(wrapper);
+
+    let startX=0;
+    let moved=false;
+
+    item.addEventListener("touchstart",e=>{
+      startX=e.touches[0].clientX;
+      moved=false;
+    });
+
+    item.addEventListener("touchmove",e=>{
+      const diff=e.touches[0].clientX-startX;
+
+      if(diff<-50){ // swipe left
+        moved=true;
+
+        // close any open item first
+        if(openItem && openItem!==item){
+          openItem.style.transform="translateX(0)";
+          openItem.nextSibling.style.display="none";
+        }
+
+        item.style.transform="translateX(-80px)";
+        deleteBtn.style.display="inline-block";
+        openItem=item;
+      }
+
+      if(diff>50){ // swipe right
+        moved=true;
+        item.style.transform="translateX(0)";
+        deleteBtn.style.display="none";
+        openItem=null;
+      }
+    });
+
+    item.addEventListener("touchend",()=>{
+      if(!moved){
+        // treat as normal tap
+        details.classList.toggle("hidden");
+      }
+    });
+  });
+}
 
   function renderChart(){
     const logs=getLogs();
