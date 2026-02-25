@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lift Tracker</title>
 
-  <meta name="theme-color" content="#1e1f22">
+  <meta name="theme-color" content="#1e1f22" />
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -15,46 +15,45 @@
 <!-- Drawer -->
 <div id="drawer" class="drawer">
   <div class="drawer-header">
-    <span>Menu</span>
-    <button id="close-drawer">✕</button>
+    <h3>Menu</h3>
+    <button id="closeDrawer">✕</button>
   </div>
 
-  <button class="nav-workout" data-workout="Push A">Push A</button>
-  <button class="nav-workout" data-workout="Push B">Push B</button>
-  <button class="nav-workout" data-workout="Pull A">Pull A</button>
-  <button class="nav-workout" data-workout="Pull B">Pull B</button>
-  <button class="nav-workout" data-workout="Legs">Legs</button>
+  <button class="navWorkout" data-day="Push A">Push A</button>
+  <button class="navWorkout" data-day="Pull A">Pull A</button>
+  <button class="navWorkout" data-day="Legs">Legs</button>
+  <button class="navWorkout" data-day="Push B">Push B</button>
+  <button class="navWorkout" data-day="Pull B">Pull B</button>
 
-  <hr>
+  <hr />
 
-  <button id="nav-progress">Progress</button>
-  <button id="nav-history">History</button>
+  <button id="navProgress">Progress</button>
+  <button id="navHistory">History</button>
 </div>
 
 <!-- Topbar -->
 <div class="topbar">
-  <button id="hamburger-btn" class="hamburger">☰</button>
-  <h2 id="workout-title">Push A</h2>
+  <button id="hamburger">☰</button>
+  <h2 id="pageTitle">Push A</h2>
 </div>
 
 <!-- Workout Page -->
-<div id="page-workout" class="page">
-  <div id="exercise-container"></div>
-  <button id="save-workout" class="primary-btn">Save Workout</button>
+<div id="workoutPage" class="page">
+  <div id="exerciseContainer"></div>
+  <button id="saveWorkout" class="primaryBtn">Save Workout</button>
 </div>
 
 <!-- Progress Page -->
-<div id="page-progress" class="page hidden">
+<div id="progressPage" class="page hidden">
   <h3>Progress</h3>
-
-  <select id="exercise-filter"></select>
-  <canvas id="progressChart"></canvas>
+  <select id="exerciseSelect"></select>
+  <canvas id="chart"></canvas>
 </div>
 
 <!-- History Page -->
-<div id="page-history" class="page hidden">
+<div id="historyPage" class="page hidden">
   <h3>Workout History</h3>
-  <div id="history-container"></div>
+  <div id="historyList"></div>
 </div>
 
 <script src="app.js"></script>
