@@ -1,81 +1,166 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lift Tracker</title>
+document.addEventListener("DOMContentLoaded", () => {
 
-  <meta name="theme-color" content="#1e1f22">
+/* =====================
+   WORKOUT TEMPLATES
+===================== */
 
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
+const workouts = {
+  "Push A": [
+    { name: "Barbell Bench Press", sets: 4, repRange: "8–10" },
+    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" },
+    { name: "Incline Dumbbell Press", sets: 3, repRange: "8–10" }
+  ],
+  "Push B": [
+    { name: "Incline DB Press", sets: 4, repRange: "8–10" },
+    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" }
+  ],
+  "Pull A": [
+    { name: "Barbell Row", sets: 4, repRange: "8–10" },
+    { name: "Hammer Curl", sets: 3, repRange: "10" }
+  ],
+  "Pull B": [
+    { name: "Lat Pulldown", sets: 4, repRange: "8–10" },
+    { name: "Barbell Curl", sets: 3, repRange: "10" }
+  ],
+  "Legs": [
+    { name: "Squat", sets: 4, repRange: "8–10" },
+    { name: "Leg Press", sets: 4, repRange: "8–12" }
+  ]
+};
 
-<!-- Drawer -->
-<div id="drawer" class="drawer">
-  <h3>Workouts</h3>
+let currentWorkout = "Push A";
+let chart = null;
 
-  <button class="nav-workout" data-workout="Push A">Push A</button>
-  <button class="nav-workout" data-workout="Push B">Push B</button>
-  <button class="nav-workout" data-workout="Pull A">Pull A</button>
-  <button class="nav-workout" data-workout="Pull B">Pull B</button>
-  <button class="nav-workout" data-workout="Legs">Legs</button>
+/* =====================
+   UTIL
+===================== */
 
-  <hr>
+function getLogs() {
+  return JSON.parse(localStorage.getItem("workoutLogs") || "[]");
+}
 
-  <button id="nav-progress">Progress</button>
-  <button id="nav-history">History</button>
+function saveLogs(logs) {
+  localStorage.setItem("workoutLogs", JSON.stringify(logs));
+}
 
-  <hr>
+/* =====================
+   NAVIGATION
+===================== */
 
-  <button id="export-data">Export Data</button>
+const drawer = document.getElementById("drawer");
+const pages = {
+  workout: document.getElementById("page-workout"),
+  progress: document.getElementById("page-progress"),
+  history: document.getElementById("page-history")
+};
 
-  <label class="import-label">
-    Import Data
-    <input type="file" id="import-data" hidden>
-  </label>
-</div>
+function showPage(page) {
+  Object.values(pages).forEach(p => p.classList.add("hidden"));
+  pages[page].classList.remove("hidden");
+  drawer.classList.remove("open");
+}
 
-<!-- Top Bar -->
-<div class="topbar">
-  <button id="hamburger-btn" class="hamburger">☰</button>
-  <h2 id="workout-title">Push A</h2>
-</div>
+document.getElementById("hamburger-btn")
+  .addEventListener("click", () => drawer.classList.toggle("open"));
 
-<!-- Workout Page -->
-<div id="page-workout" class="page">
-  <div id="exercise-container"></div>
-  <button id="save-workout" class="primary-btn">Save Workout</button>
-</div>
+document.querySelectorAll(".nav-workout").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentWorkout = btn.dataset.workout;
+    renderWorkout();
+    showPage("workout");
+  });
+});
 
-<!-- Progress Page -->
-<div id="page-progress" class="page hidden">
-  <h3>Progress</h3>
+document.getElementById("nav-progress")
+  .addEventListener("click", () => showPage("progress"));
 
-  <select id="exercise-filter"></select>
+document.getElementById("nav-history")
+  .addEventListener("click", () => showPage("history"));
 
-  <select id="chart-type">
-    <option value="avg">Average Weight</option>
-    <option value="volume">Total Volume</option>
-    <option value="max">Max Weight</option>
-  </select>
+/* =====================
+   RENDER WORKOUT
+===================== */
 
-  <canvas id="progressChart"></canvas>
+function renderWorkout() {
+  const container = document.getElementById("exercise-container");
+  container.innerHTML = "";
+  document.getElementById("workout-title").textContent = currentWorkout;
 
-  <small class="chart-desc">
-    Avg = average weight per workout.  
-    Volume = total weight lifted (reps × weight).  
-    Max = highest weight used that workout.
-  </small>
-</div>
+  workouts[currentWorkout].forEach(ex => {
 
-<!-- History Page -->
-<div id="page-history" class="page hidden">
-  <h3>Workout History</h3>
-  <div id="history-container"></div>
-</div>
+    const row = document.createElement("div");
+    row.className = "exercise-row";
 
-<script src="app.js"></script>
-</body>
-</html>
+    const header = document.createElement("div");
+    header.className = "exercise-header";
+    header.textContent = `${ex.name} (${ex.sets}x${ex.repRange})`;
+
+    const setContainer = document.createElement("div");
+    setContainer.style.display = "none";
+
+    header.addEventListener("click", () => {
+      setContainer.style.display =
+        setContainer.style.display === "none" ? "block" : "none";
+    });
+
+    for (let i = 0; i < ex.sets; i++) {
+      const setRow = document.createElement("div");
+      setRow.className = "set-row";
+
+      setRow.innerHTML = `
+        <input type="number" placeholder="Reps">
+        <input type="number" placeholder="Weight">
+      `;
+
+      setContainer.appendChild(setRow);
+    }
+
+    row.appendChild(header);
+    row.appendChild(setContainer);
+    container.appendChild(row);
+  });
+}
+
+/* =====================
+   SAVE WORKOUT
+===================== */
+
+document.getElementById("save-workout")
+  .addEventListener("click", () => {
+
+    const exercises = [];
+
+    document.querySelectorAll(".exercise-row").forEach(row => {
+      const name = row.querySelector(".exercise-header")
+        .textContent.split(" (")[0];
+
+      const sets = [];
+
+      row.querySelectorAll(".set-row").forEach(setRow => {
+        const inputs = setRow.querySelectorAll("input");
+        sets.push({
+          r: Number(inputs[0].value) || 0,
+          w: Number(inputs[1].value) || 0
+        });
+      });
+
+      exercises.push({ n: name, s: sets });
+    });
+
+    const logs = getLogs();
+
+    logs.push({
+      t: new Date().toISOString(),
+      w: currentWorkout,
+      e: exercises
+    });
+
+    saveLogs(logs);
+
+    alert("Workout Saved 💪");
+  });
+
+renderWorkout();
+showPage("workout");
+
+});
