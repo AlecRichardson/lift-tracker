@@ -8,7 +8,6 @@
   <meta name="theme-color" content="#1e1f22">
 
   <link rel="stylesheet" href="style.css">
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -16,20 +15,22 @@
 <!-- Drawer -->
 <div id="drawer" class="drawer">
   <h3>Workouts</h3>
-  <button onclick="location.reload()">Push A</button>
-  <button>Push B</button>
-  <button>Pull A</button>
-  <button>Pull B</button>
-  <button>Legs</button>
+
+  <button class="nav-workout" data-workout="Push A">Push A</button>
+  <button class="nav-workout" data-workout="Push B">Push B</button>
+  <button class="nav-workout" data-workout="Pull A">Pull A</button>
+  <button class="nav-workout" data-workout="Pull B">Pull B</button>
+  <button class="nav-workout" data-workout="Legs">Legs</button>
 
   <hr>
 
-  <button onclick="showPage('progress')">Progress</button>
-  <button onclick="showPage('history')">History</button>
+  <button id="nav-progress">Progress</button>
+  <button id="nav-history">History</button>
 
   <hr>
 
   <button id="export-data">Export Data</button>
+
   <label class="import-label">
     Import Data
     <input type="file" id="import-data" hidden>
@@ -38,7 +39,7 @@
 
 <!-- Top Bar -->
 <div class="topbar">
-  <button class="hamburger" onclick="toggleDrawer()">☰</button>
+  <button id="hamburger-btn" class="hamburger">☰</button>
   <h2 id="workout-title">Push A</h2>
 </div>
 
@@ -49,7 +50,7 @@
 </div>
 
 <!-- Progress Page -->
-<div id="page-progress" class="page" style="display:none;">
+<div id="page-progress" class="page hidden">
   <h3>Progress</h3>
 
   <select id="exercise-filter"></select>
@@ -63,14 +64,14 @@
   <canvas id="progressChart"></canvas>
 
   <small class="chart-desc">
-    Avg = average weight per workout.
-    Volume = total weight lifted (reps × weight).
+    Avg = average weight per workout.  
+    Volume = total weight lifted (reps × weight).  
     Max = highest weight used that workout.
   </small>
 </div>
 
 <!-- History Page -->
-<div id="page-history" class="page" style="display:none;">
+<div id="page-history" class="page hidden">
   <h3>Workout History</h3>
   <div id="history-container"></div>
 </div>
