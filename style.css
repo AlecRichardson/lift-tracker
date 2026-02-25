@@ -1,3 +1,6 @@
+* {
+  box-sizing: border-box;
+}
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
@@ -95,18 +98,20 @@ body {
 /* Sets inline */
 .setRow {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 6px;
 }
 
 .setRow input {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;              /* 🔥 prevents overflow */
   padding: 10px;
   font-size: 16px;
   border-radius: 8px;
   border: none;
   background: #3a3c42;
   color: white;
+  box-sizing: border-box;    /* 🔥 ensures padding doesn’t expand width */
 }
 
 .setRow input:focus {
