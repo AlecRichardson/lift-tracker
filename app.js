@@ -39,6 +39,10 @@ function getLogs() {
   return JSON.parse(localStorage.getItem("workoutLogs") || "[]");
 }
 
+function toggleDrawer() {
+  document.getElementById("drawer").classList.toggle("open");
+}
+
 function saveLogs(logs) {
   localStorage.setItem("workoutLogs", JSON.stringify(logs));
 }
