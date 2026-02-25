@@ -56,7 +56,46 @@ document.addEventListener("DOMContentLoaded", () => {
       minute:"2-digit"
     });
   }
+  document.querySelectorAll(".navWorkout").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    currentDay = btn.dataset.day;
+    renderWorkout();
+    showPage("workoutPage");
+  });
+});
 
+document.getElementById("navHistory")
+  .addEventListener("click",()=>{
+    renderHistory();
+    showPage("historyPage");
+  });
+
+document.getElementById("navProgress")
+  .addEventListener("click",()=>{
+    renderChart();
+    showPage("progressPage");
+  });
+const drawer = document.getElementById("drawer");
+
+document.getElementById("hamburger")
+  .addEventListener("click", () => {
+    drawer.classList.add("open");
+  });
+
+document.getElementById("closeDrawer")
+  .addEventListener("click", () => {
+    drawer.classList.remove("open");
+  });
+
+function showPage(page){
+  document.querySelectorAll(".page")
+    .forEach(p => p.classList.add("hidden"));
+
+  document.getElementById(page)
+    .classList.remove("hidden");
+
+  drawer.classList.remove("open");
+}
   function saveDraft(){
     const draft=[];
     document.querySelectorAll(".exercise").forEach(ex=>{
