@@ -182,11 +182,23 @@ function showPage(page){
   container.innerHTML="";
   const logs=getLogs().slice().reverse();
 
-  let openItem = null; // track currently swiped open item
+  let openItem = null;
 
   logs.forEach((log,index)=>{
     const wrapper=document.createElement("div");
     wrapper.className="historyWrapper";
+
+    const deleteBtn=document.createElement("button");
+    deleteBtn.className="deleteBtn";
+    deleteBtn.textContent="Delete";
+
+    deleteBtn.addEventListener("click",(e)=>{
+      e.stopPropagation();
+      const all=getLogs();
+      all.splice(all.length-1-index,1);
+      saveLogs(all);
+      renderHistory();
+    });
 
     const item=document.createElement("div");
     item.className="historyItem";
@@ -203,60 +215,51 @@ function showPage(page){
 
     item.appendChild(details);
 
-    // Create inline delete button (hidden initially)
-    const deleteBtn=document.createElement("button");
-    deleteBtn.textContent="Delete";
-    deleteBtn.className="deleteBtn";
-    deleteBtn.style.display="none";
-
-    deleteBtn.addEventListener("click",(e)=>{
-      e.stopPropagation();
-      const all=getLogs();
-      all.splice(all.length-1-index,1);
-      saveLogs(all);
-      renderHistory();
-    });
-
-    wrapper.appendChild(item);
     wrapper.appendChild(deleteBtn);
+    wrapper.appendChild(item);
     container.appendChild(wrapper);
 
     let startX=0;
-    let moved=false;
+    let currentX=0;
+    let isSwiping=false;
 
     item.addEventListener("touchstart",e=>{
       startX=e.touches[0].clientX;
-      moved=false;
+      isSwiping=false;
     });
 
     item.addEventListener("touchmove",e=>{
       const diff=e.touches[0].clientX-startX;
 
-      if(diff<-50){ // swipe left
-        moved=true;
+      if(diff<0){ // swipe left
+        isSwiping=true;
 
-        // close any open item first
         if(openItem && openItem!==item){
           openItem.style.transform="translateX(0)";
-          openItem.nextSibling.style.display="none";
         }
 
-        item.style.transform="translateX(-80px)";
-        deleteBtn.style.display="inline-block";
+        currentX=Math.max(diff,-90);
+        item.style.transform=`translateX(${currentX}px)`;
         openItem=item;
       }
 
-      if(diff>50){ // swipe right
-        moved=true;
-        item.style.transform="translateX(0)";
-        deleteBtn.style.display="none";
-        openItem=null;
+      if(diff>0 && openItem===item){ // swipe right
+        isSwiping=true;
+        currentX=Math.min(diff-90,0);
+        item.style.transform=`translateX(${currentX}px)`;
       }
     });
 
     item.addEventListener("touchend",()=>{
-      if(!moved){
-        // treat as normal tap
+      if(isSwiping){
+        if(currentX < -45){
+          item.style.transform="translateX(-90px)";
+          openItem=item;
+        } else {
+          item.style.transform="translateX(0)";
+          openItem=null;
+        }
+      } else {
         details.classList.toggle("hidden");
       }
     });
