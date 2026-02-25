@@ -1,8 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
 
-/* =========================
-   WORKOUT TEMPLATES
-========================= */
+/* =====================
+   TEMPLATES
+===================== */
 
 const workouts = {
   "Push A": [
@@ -31,169 +31,28 @@ const workouts = {
 let currentWorkout = "Push A";
 let chart = null;
 
-/* =========================
-   PAGE NAVIGATION
-========================= */
+/* =====================
+   UTIL
+===================== */
 
-function showPage(page) {
-  document.querySelectorAll(".page").forEach(p => p.style.display = "none");
-  document.getElementById("page-" + page).style.display = "block";
+function getLogs() {
+  return JSON.parse(localStorage.getItem("workoutLogs") || "[]");
 }
 
-const drawer = document.getElementById("hamburger-menu");
-
-document.querySelector(".hamburger-btn").addEventListener("click", () => {
-  drawer.classList.toggle("open");
-});
-
-document.querySelector(".close-btn").addEventListener("click", () => {
-  drawer.classList.remove("open");
-});
-
-document.querySelectorAll(".template-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    saveTempWorkout();
-    currentWorkout = btn.dataset.workout;
-    renderWorkout();
-    loadTempWorkout();
-    showPage("workout");
-    drawer.classList.remove("open");
-  });
-});
-
-document.getElementById("drawer-history").addEventListener("click", () => {
-  saveTempWorkout();
-  renderHistory();
-  showPage("history");
-  drawer.classList.remove("open");
-});
-
-document.getElementById("drawer-progress").addEventListener("click", () => {
-  saveTempWorkout();
-  updateChart();
-  showPage("progress");
-  drawer.classList.remove("open");
-});
-
-/* =========================
-   WORKOUT RENDER
-========================= */
-
-function renderWorkout() {
-  document.getElementById("workout-title").textContent = currentWorkout;
-  const container = document.getElementById("exercise-container");
-  container.innerHTML = "";
-
-  workouts[currentWorkout].forEach(ex => {
-
-    const row = document.createElement("div");
-    row.className = "exercise-row";
-
-    const header = document.createElement("div");
-    header.className = "exercise-header";
-
-    header.innerHTML = `
-      <span>${ex.name} (${ex.sets}x${ex.repRange})</span>
-      <span class="progress-link">View Progress</span>
-    `;
-
-    const setContainer = document.createElement("div");
-    setContainer.className = "set-container";
-    setContainer.style.display = "none"; // collapsed default
-
-    for (let i = 0; i < ex.sets; i++) {
-      const setRow = document.createElement("div");
-      setRow.className = "set-row";
-
-      setRow.innerHTML = `
-        <span>Set ${i + 1}</span>
-        <input type="number" placeholder="Reps" min="0">
-        <input type="number" placeholder="Weight" min="0">
-        <input type="checkbox">
-      `;
-
-      setContainer.appendChild(setRow);
-    }
-
-    header.addEventListener("click", () => {
-      setContainer.style.display =
-        setContainer.style.display === "none" ? "block" : "none";
-    });
-
-    header.querySelector(".progress-link").addEventListener("click", (e) => {
-      e.stopPropagation();
-      saveTempWorkout();
-      document.getElementById("exercise-filter").value = ex.name;
-      updateChart();
-      showPage("progress");
-    });
-
-    row.appendChild(header);
-    row.appendChild(setContainer);
-    container.appendChild(row);
-  });
+function saveLogs(logs) {
+  localStorage.setItem("workoutLogs", JSON.stringify(logs));
 }
 
-/* =========================
-   TEMP WORKOUT SAVE / LOAD
-========================= */
+/* =====================
+   AUTO SAVE (LIVE)
+===================== */
 
 function saveTempWorkout() {
-  const rows = document.querySelectorAll("#exercise-container .exercise-row");
+  const rows = document.querySelectorAll(".exercise-row");
   const exercises = [];
 
   rows.forEach(row => {
-    const exName = row.querySelector(".exercise-header span").innerText.split(" (")[0];
-    const sets = [];
-
-    row.querySelectorAll(".set-row").forEach(setRow => {
-      const inputs = setRow.querySelectorAll("input");
-      sets.push({
-        r: Number(inputs[0].value) || 0,
-        w: Number(inputs[1].value) || 0,
-        c: inputs[2].checked
-      });
-    });
-
-    exercises.push({ n: exName, s: sets });
-  });
-
-  const tempWorkout = {
-    w: currentWorkout,
-    e: exercises
-  };
-
-  localStorage.setItem("tempWorkout", JSON.stringify(tempWorkout));
-}
-
-function loadTempWorkout() {
-  const temp = JSON.parse(localStorage.getItem("tempWorkout") || "null");
-  if (!temp || temp.w !== currentWorkout) return;
-
-  const rows = document.querySelectorAll("#exercise-container .exercise-row");
-
-  rows.forEach((row, i) => {
-    if (!temp.e[i]) return;
-
-    temp.e[i].s.forEach((set, j) => {
-      const inputs = row.querySelectorAll(".set-row")[j].querySelectorAll("input");
-      inputs[0].value = set.r;
-      inputs[1].value = set.w;
-      inputs[2].checked = set.c;
-    });
-  });
-}
-
-/* =========================
-   SAVE WORKOUT (PERMANENT)
-========================= */
-
-document.getElementById("save-workout").addEventListener("click", () => {
-  const rows = document.querySelectorAll("#exercise-container .exercise-row");
-  const exercises = [];
-
-  rows.forEach(row => {
-    const exName = row.querySelector(".exercise-header span").innerText.split(" (")[0];
+    const name = row.dataset.name;
     const sets = [];
 
     row.querySelectorAll(".set-row").forEach(setRow => {
@@ -204,145 +63,205 @@ document.getElementById("save-workout").addEventListener("click", () => {
       });
     });
 
-    exercises.push({ n: exName, s: sets });
+    exercises.push({ n: name, s: sets });
   });
 
-  const log = {
-    t: new Date().toISOString(),
+  localStorage.setItem("tempWorkout", JSON.stringify({
     w: currentWorkout,
     e: exercises
-  };
+  }));
+}
 
-  const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]");
-  logs.push(log);
-  localStorage.setItem("workoutLogs", JSON.stringify(logs));
+function loadTempWorkout() {
+  const temp = JSON.parse(localStorage.getItem("tempWorkout") || "null");
+  if (!temp || temp.w !== currentWorkout) return;
 
-  localStorage.removeItem("tempWorkout");
-
-  alert("Workout Saved!");
-  updateExerciseFilter();
-  updateChart();
-});
-
-/* =========================
-   HISTORY
-========================= */
-
-function renderHistory() {
-  const container = document.getElementById("history-container");
-  container.innerHTML = "";
-
-  const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]").reverse();
-
-  logs.forEach(log => {
-    const div = document.createElement("div");
-    div.className = "history-item";
-    div.innerHTML = `${log.w} - ${new Date(log.t).toLocaleString()}`;
-
-    const detail = document.createElement("div");
-    detail.style.display = "none";
-    detail.style.marginTop = "12px";
-
-    div.addEventListener("click", () => {
-      detail.style.display =
-        detail.style.display === "none" ? "block" : "none";
+  document.querySelectorAll(".exercise-row").forEach((row, i) => {
+    temp.e[i]?.s.forEach((set, j) => {
+      const inputs = row.querySelectorAll(".set-row")[j].querySelectorAll("input");
+      inputs[0].value = set.r;
+      inputs[1].value = set.w;
     });
-
-    log.e.forEach(ex => {
-      const exDiv = document.createElement("div");
-      exDiv.className = "exercise-row";
-      exDiv.innerHTML = `<strong>${ex.n}</strong>`;
-
-      ex.s.forEach((set, i) => {
-        const row = document.createElement("div");
-        row.className = "set-row";
-        row.innerHTML = `
-          Set ${i + 1}
-          <input type="number" value="${set.r}">
-          <input type="number" value="${set.w}">
-        `;
-        row.addEventListener("click", e => e.stopPropagation());
-        exDiv.appendChild(row);
-      });
-
-      detail.appendChild(exDiv);
-    });
-
-    div.appendChild(detail);
-    container.appendChild(div);
   });
 }
 
-/* =========================
-   CHART
-========================= */
+/* =====================
+   WORKOUT RENDER
+===================== */
 
-function updateExerciseFilter() {
-  const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]");
-  const set = new Set();
+function renderWorkout() {
+  const container = document.getElementById("exercise-container");
+  container.innerHTML = "";
+  document.getElementById("workout-title").textContent = currentWorkout;
 
-  logs.forEach(l => l.e.forEach(ex => set.add(ex.n)));
+  workouts[currentWorkout].forEach(ex => {
 
-  const filter = document.getElementById("exercise-filter");
-  filter.innerHTML = `<option value="all">All Exercises</option>`;
+    const row = document.createElement("div");
+    row.className = "exercise-row";
+    row.dataset.name = ex.name;
 
-  set.forEach(name => {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    filter.appendChild(opt);
+    const header = document.createElement("div");
+    header.className = "exercise-header";
+    header.innerHTML = `<span>${ex.name} (${ex.sets}x${ex.repRange})</span>
+                        <span class="progress-link">View Progress</span>`;
+
+    const setContainer = document.createElement("div");
+    setContainer.className = "set-container";
+    setContainer.style.display = "none";
+
+    header.addEventListener("click", () => {
+      setContainer.style.display =
+        setContainer.style.display === "none" ? "block" : "none";
+    });
+
+    header.querySelector(".progress-link").addEventListener("click", e => {
+      e.stopPropagation();
+      saveTempWorkout();
+      document.getElementById("exercise-filter").value = ex.name;
+      updateChart();
+      showPage("progress");
+    });
+
+    for (let i = 0; i < ex.sets; i++) {
+      const setRow = document.createElement("div");
+      setRow.className = "set-row";
+      setRow.innerHTML = `
+        <span>Set ${i+1}</span>
+        <input type="number" placeholder="Reps">
+        <input type="number" placeholder="Weight">
+      `;
+
+      setRow.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", saveTempWorkout);
+      });
+
+      setContainer.appendChild(setRow);
+    }
+
+    row.appendChild(header);
+    row.appendChild(setContainer);
+    container.appendChild(row);
   });
 
-  filter.addEventListener("change", updateChart);
+  loadTempWorkout();
+}
+
+/* =====================
+   SAVE WORKOUT
+===================== */
+
+document.getElementById("save-workout").addEventListener("click", () => {
+
+  const rows = document.querySelectorAll(".exercise-row");
+  const exercises = [];
+
+  rows.forEach(row => {
+    const sets = [];
+
+    row.querySelectorAll(".set-row").forEach(setRow => {
+      const inputs = setRow.querySelectorAll("input");
+      sets.push({
+        r: Number(inputs[0].value) || 0,
+        w: Number(inputs[1].value) || 0
+      });
+    });
+
+    exercises.push({ n: row.dataset.name, s: sets });
+  });
+
+  const logs = getLogs();
+  logs.push({
+    t: new Date().toISOString(),
+    w: currentWorkout,
+    e: exercises
+  });
+
+  saveLogs(logs);
+  localStorage.removeItem("tempWorkout");
+
+  alert("Workout Saved 💪");
+  updateChart();
+});
+
+/* =====================
+   CHART
+===================== */
+
+function calculateMetric(ex, type) {
+  if (type === "avg")
+    return ex.s.reduce((a,b)=>a+b.w,0)/ex.s.length;
+
+  if (type === "volume")
+    return ex.s.reduce((a,b)=>a+(b.w*b.r),0);
+
+  if (type === "max")
+    return Math.max(...ex.s.map(s=>s.w));
 }
 
 function updateChart() {
   const filter = document.getElementById("exercise-filter").value;
-  const logs = JSON.parse(localStorage.getItem("workoutLogs") || "[]");
+  const type = document.getElementById("chart-type")?.value || "avg";
+  const logs = getLogs();
 
-  const labels = logs.map(l =>
-    new Date(l.t).toLocaleDateString()
-  );
+  const labels = logs.map(l => new Date(l.t).toLocaleDateString());
 
   const data = logs.map(l => {
-    const ex = l.e.find(e => e.n === filter);
-    if (!ex) return null;
-    return ex.s.reduce((a, b) => a + b.w, 0) / ex.s.length;
+    const ex = l.e.find(e=>e.n===filter);
+    if(!ex) return null;
+    return calculateMetric(ex,type);
   });
 
   if (chart) chart.destroy();
 
-  const ctx = document.getElementById("progressChart").getContext("2d");
-
-  chart = new Chart(ctx, {
+  chart = new Chart(document.getElementById("progressChart"), {
     type: "line",
     data: {
-      labels: labels,
+      labels,
       datasets: [{
         label: filter,
-        data: data,
-        borderColor: "#7289DA",
-        fill: false
+        data,
+        borderColor: "#7289DA"
       }]
     },
     options: {
-      responsive: true,
-      scales: {
-        y: { beginAtZero: false }
-      }
+      responsive:true,
+      scales:{ y:{ beginAtZero:false } }
     }
   });
 }
 
-/* =========================
-   INIT
-========================= */
+/* =====================
+   EXPORT / IMPORT
+===================== */
+
+document.getElementById("export-data")?.addEventListener("click", () => {
+  const blob = new Blob([localStorage.getItem("workoutLogs")], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "workouts.json";
+  a.click();
+});
+
+document.getElementById("import-data")?.addEventListener("change", e => {
+  const reader = new FileReader();
+  reader.onload = function() {
+    localStorage.setItem("workoutLogs", reader.result);
+    alert("Imported!");
+    updateChart();
+  };
+  reader.readAsText(e.target.files[0]);
+});
+
+/* =====================
+   NAV
+===================== */
+
+function showPage(page){
+  document.querySelectorAll(".page").forEach(p=>p.style.display="none");
+  document.getElementById("page-"+page).style.display="block";
+}
 
 renderWorkout();
-loadTempWorkout();
-renderHistory();
-updateExerciseFilter();
-updateChart();
 showPage("workout");
 
 });
