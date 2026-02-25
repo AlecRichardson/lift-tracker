@@ -15,7 +15,30 @@ body {
   display: flex;
   align-items: center;
 }
+.chartInfo {
+  font-size: 14px;
+  color: #bbb;
+  margin-bottom: 10px;
+}
 
+.deleteBtn {
+  background: #ff4d4d;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-left: 10px;
+}
+
+.historyWrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.historyItem {
+  transition: transform 0.2s ease;
+  touch-action: pan-y;
+}
 /* Hamburger */
 #hamburger {
   background: none;
