@@ -81,13 +81,12 @@ body {
 /* Sets stacked vertically for mobile */
 .setRow {
   display: flex;
-  flex-direction: column; /* stacked inputs */
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .setRow input {
-  width: 100%;
+  flex: 1;
   padding: 8px;
   border-radius: 8px;
   border: none;
