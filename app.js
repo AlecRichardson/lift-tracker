@@ -1,38 +1,38 @@
 document.addEventListener("DOMContentLoaded", () => {
 
 /* =====================
-   WORKOUT TEMPLATES
+   WORKOUT DATA
 ===================== */
 
 const workouts = {
   "Push A": [
-    { name: "Barbell Bench Press", sets: 4, repRange: "8–10" },
-    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" },
-    { name: "Incline Dumbbell Press", sets: 3, repRange: "8–10" }
+    { name: "Barbell Bench Press", sets: 4 },
+    { name: "Dumbbell Lateral Raise", sets: 4 },
+    { name: "Incline Dumbbell Press", sets: 3 }
   ],
   "Push B": [
-    { name: "Incline DB Press", sets: 4, repRange: "8–10" },
-    { name: "Dumbbell Lateral Raise", sets: 4, repRange: "12–15" }
+    { name: "Incline DB Press", sets: 4 },
+    { name: "Dumbbell Lateral Raise", sets: 4 }
   ],
   "Pull A": [
-    { name: "Barbell Row", sets: 4, repRange: "8–10" },
-    { name: "Hammer Curl", sets: 3, repRange: "10" }
+    { name: "Barbell Row", sets: 4 },
+    { name: "Hammer Curl", sets: 3 }
   ],
   "Pull B": [
-    { name: "Lat Pulldown", sets: 4, repRange: "8–10" },
-    { name: "Barbell Curl", sets: 3, repRange: "10" }
+    { name: "Lat Pulldown", sets: 4 },
+    { name: "Barbell Curl", sets: 3 }
   ],
   "Legs": [
-    { name: "Squat", sets: 4, repRange: "8–10" },
-    { name: "Leg Press", sets: 4, repRange: "8–12" }
+    { name: "Squat", sets: 4 },
+    { name: "Leg Press", sets: 4 }
   ]
 };
 
 let currentWorkout = "Push A";
-let chart = null;
+let chart;
 
 /* =====================
-   UTIL
+   STORAGE
 ===================== */
 
 function getLogs() {
@@ -48,34 +48,18 @@ function saveLogs(logs) {
 ===================== */
 
 const drawer = document.getElementById("drawer");
-const pages = {
-  workout: document.getElementById("page-workout"),
-  progress: document.getElementById("page-progress"),
-  history: document.getElementById("page-history")
-};
-
-function showPage(page) {
-  Object.values(pages).forEach(p => p.classList.add("hidden"));
-  pages[page].classList.remove("hidden");
-  drawer.classList.remove("open");
-}
 
 document.getElementById("hamburger-btn")
-  .addEventListener("click", () => drawer.classList.toggle("open"));
+  .addEventListener("click", () => drawer.classList.add("open"));
 
-document.querySelectorAll(".nav-workout").forEach(btn => {
-  btn.addEventListener("click", () => {
-    currentWorkout = btn.dataset.workout;
-    renderWorkout();
-    showPage("workout");
-  });
-});
+document.getElementById("close-drawer")
+  .addEventListener("click", () => drawer.classList.remove("open"));
 
-document.getElementById("nav-progress")
-  .addEventListener("click", () => showPage("progress"));
-
-document.getElementById("nav-history")
-  .addEventListener("click", () => showPage("history"));
+function showPage(id) {
+  document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+  document.getElementById("page-" + id).classList.remove("hidden");
+  drawer.classList.remove("open");
+}
 
 /* =====================
    RENDER WORKOUT
@@ -87,20 +71,19 @@ function renderWorkout() {
   document.getElementById("workout-title").textContent = currentWorkout;
 
   workouts[currentWorkout].forEach(ex => {
-
     const row = document.createElement("div");
     row.className = "exercise-row";
 
     const header = document.createElement("div");
     header.className = "exercise-header";
-    header.textContent = `${ex.name} (${ex.sets}x${ex.repRange})`;
+    header.textContent = ex.name;
 
-    const setContainer = document.createElement("div");
-    setContainer.style.display = "none";
+    const setsDiv = document.createElement("div");
+    setsDiv.style.display = "none";
 
     header.addEventListener("click", () => {
-      setContainer.style.display =
-        setContainer.style.display === "none" ? "block" : "none";
+      setsDiv.style.display =
+        setsDiv.style.display === "none" ? "block" : "none";
     });
 
     for (let i = 0; i < ex.sets; i++) {
@@ -112,11 +95,11 @@ function renderWorkout() {
         <input type="number" placeholder="Weight">
       `;
 
-      setContainer.appendChild(setRow);
+      setsDiv.appendChild(setRow);
     }
 
     row.appendChild(header);
-    row.appendChild(setContainer);
+    row.appendChild(setsDiv);
     container.appendChild(row);
   });
 }
@@ -131,9 +114,7 @@ document.getElementById("save-workout")
     const exercises = [];
 
     document.querySelectorAll(".exercise-row").forEach(row => {
-      const name = row.querySelector(".exercise-header")
-        .textContent.split(" (")[0];
-
+      const name = row.querySelector(".exercise-header").textContent;
       const sets = [];
 
       row.querySelectorAll(".set-row").forEach(setRow => {
@@ -156,11 +137,112 @@ document.getElementById("save-workout")
     });
 
     saveLogs(logs);
+    renderHistory();
+    renderChart();
 
     alert("Workout Saved 💪");
   });
 
+/* =====================
+   HISTORY
+===================== */
+
+function renderHistory() {
+  const container = document.getElementById("history-container");
+  container.innerHTML = "";
+
+  const logs = getLogs().reverse();
+
+  logs.forEach(log => {
+    const item = document.createElement("div");
+    item.className = "history-item";
+    item.textContent =
+      `${new Date(log.t).toLocaleDateString()} - ${log.w}`;
+    container.appendChild(item);
+  });
+}
+
+/* =====================
+   CHART
+===================== */
+
+function renderChart() {
+  const logs = getLogs();
+  const filter = document.getElementById("exercise-filter");
+
+  filter.innerHTML = "";
+
+  const exerciseSet = new Set();
+
+  logs.forEach(log =>
+    log.e.forEach(ex => exerciseSet.add(ex.n))
+  );
+
+  exerciseSet.forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    filter.appendChild(opt);
+  });
+
+  if (!filter.value) return;
+
+  const labels = logs.map(l =>
+    new Date(l.t).toLocaleDateString()
+  );
+
+  const data = logs.map(log => {
+    const ex = log.e.find(e => e.n === filter.value);
+    if (!ex) return 0;
+    return ex.s.reduce((sum, set) => sum + set.w, 0) / ex.s.length;
+  });
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(
+    document.getElementById("progressChart"),
+    {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: filter.value,
+          data,
+          borderColor: "#7289da"
+        }]
+      }
+    }
+  );
+}
+
+document.getElementById("exercise-filter")
+  .addEventListener("change", renderChart);
+
+/* =====================
+   WORKOUT NAV BUTTONS
+===================== */
+
+document.querySelectorAll(".nav-workout")
+  .forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentWorkout = btn.dataset.workout;
+      renderWorkout();
+      showPage("workout");
+    });
+  });
+
+document.getElementById("nav-progress")
+  .addEventListener("click", () => {
+    renderChart();
+    showPage("progress");
+  });
+
+document.getElementById("nav-history")
+  .addEventListener("click", () => {
+    renderHistory();
+    showPage("history");
+  });
+
 renderWorkout();
-showPage("workout");
 
 });
