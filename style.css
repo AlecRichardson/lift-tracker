@@ -12,7 +12,6 @@ body {
   display: flex;
   align-items: center;
 }
-
 #hamburger {
   background: none;
   border: none;
@@ -26,7 +25,7 @@ body {
 .drawer {
   position: fixed;
   top: 0;
-  left: -300px;
+  left: -260px;
   width: 260px;
   height: 100%;
   background: #2b2d31;
@@ -35,71 +34,34 @@ body {
   z-index: 1000;
   overflow-y: auto;
 }
-
-.drawer.open {
-  left: 0;
-}
-
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-#closeDrawer {
-  background: none;
-  border: 1px solid #ff5c5c;
-  color: #ff5c5c;
-  width: 40px;
-  font-size: 20px;
-  border-radius: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-#closeDrawer:hover {
-  background: #ff5c5c;
-  color: #fff;
-}
-
-.drawer button {
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  background: #3a3c42;
-  color: white;
-  cursor: pointer;
-}
+.drawer.open { left: 0; }
+.drawer-header { display: flex; justify-content: space-between; align-items: center; }
+#closeDrawer { cursor: pointer; border: none; background: #ff5c5c; color: #fff; padding: 4px 8px; border-radius: 6px; }
 
 /* Pages */
-.page {
-  padding: 16px;
-}
+.page { padding: 16px; }
+.hidden { display: none; }
 
-.hidden {
-  display: none;
-}
-
-/* Exercise Card */
+/* Exercises */
 .exercise {
   background: #2b2d31;
   padding: 12px;
   margin-bottom: 12px;
   border-radius: 10px;
 }
+.exercise h4 { margin: 0 0 8px 0; }
 
-.exercise h4 {
-  margin: 0 0 4px 0;
-}
-
-/* Sets inline */
+/* Sets and labels */
 .setRow {
   display: flex;
   gap: 10px;
   margin-bottom: 6px;
+  align-items: center;
 }
-
+.setRow label {
+  font-size: 14px;
+  min-width: 40px;
+}
 .setRow input {
   flex: 1;
   padding: 8px;
@@ -110,7 +72,7 @@ body {
   color: white;
 }
 
-/* Save Button */
+/* Sticky Save */
 .primaryBtn {
   position: sticky;
   bottom: 16px;
@@ -123,21 +85,24 @@ body {
   margin: 16px;
   cursor: pointer;
 }
+.saveFeedback {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #43b581;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  display: none;
+  font-weight: bold;
+}
 
 /* Scrollable workout container */
-#workoutContainer {
-  max-height: calc(100vh - 160px);
-  overflow-y: auto;
-  padding-bottom: 80px;
-}
+#workoutContainer { max-height: calc(100vh - 160px); overflow-y: auto; padding-bottom: 80px; }
 
 /* History Items */
-.historyWrapper {
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
+.historyWrapper { position: relative; overflow: hidden; margin-bottom: 8px; }
 .historyItem {
   background: #2b2d31;
   padding: 12px;
@@ -145,17 +110,8 @@ body {
   cursor: pointer;
   transition: transform 0.2s ease;
 }
-
-.historyDetails {
-  margin-top: 6px;
-  padding-left: 12px;
-  font-size: 14px;
-  color: #ccc;
-}
-
-.historyDetails.hidden {
-  display: none;
-}
+.historyDetails { margin-top: 6px; padding-left: 12px; font-size: 14px; color: #ccc; }
+.historyDetails.hidden { display: none; }
 
 .deleteBtn {
   position: absolute;
@@ -166,8 +122,8 @@ body {
   background: #ff5c5c;
   color: #fff;
   border: none;
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 8px 8px 0;
   font-weight: bold;
   cursor: pointer;
-  z-index: -9999;
+  z-index: 1;
 }
