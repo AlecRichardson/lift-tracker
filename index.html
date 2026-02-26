@@ -36,14 +36,15 @@
 
 <!-- Workout Page -->
 <div id="workoutPage" class="page">
+  <button id="loadLastBtn" class="primaryBtn">Load Last Workout</button>
   <div id="exerciseContainer"></div>
-  <button id="saveWorkout" class="primaryBtn">Save Workout</button>
+  <button id="saveWorkout" class="primaryBtn saveBtn">💾 Save Workout</button>
 </div>
 
 <!-- Progress Page -->
 <div id="progressPage" class="page hidden">
   <h3>Progress</h3>
-  <p id="chartInfo">This chart shows your average weight per exercise for each workout.</p>
+  <p id="chartInfo">Select an exercise to see average weight progression over time.</p>
   <select id="exerciseSelect"></select>
   <canvas id="chart"></canvas>
 </div>
