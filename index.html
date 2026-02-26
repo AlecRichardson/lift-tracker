@@ -16,11 +16,13 @@
       <h3>Menu</h3>
       <button id="closeDrawer">✕</button>
     </div>
+
     <button class="navWorkout" data-day="Push A">Push A</button>
     <button class="navWorkout" data-day="Pull A">Pull A</button>
     <button class="navWorkout" data-day="Legs">Legs</button>
     <button class="navWorkout" data-day="Push B">Push B</button>
     <button class="navWorkout" data-day="Pull B">Pull B</button>
+
     <hr />
     <button id="navProgress">Progress</button>
     <button id="navHistory">History</button>
@@ -34,18 +36,18 @@
 
   <!-- Workout Page -->
   <div id="workoutPage" class="page">
-    <div id="exerciseContainer"></div>
+    <div id="workoutContainer"></div>
     <button id="saveWorkout" class="primaryBtn">Save Workout</button>
   </div>
 
   <!-- Progress Page -->
   <div id="progressPage" class="page hidden">
     <h3>Progress</h3>
-    <div id="chartInfo">
-      Chart shows your estimated 1RM for your top set per workout. Calculated as weight × (1 + reps/30).
-    </div>
+    <p id="chartInfo">
+      Shows the progression of your **heaviest set per workout** over time.
+    </p>
     <select id="exerciseSelect"></select>
-    <canvas id="chart"></canvas>
+    <canvas id="progressChart"></canvas>
   </div>
 
   <!-- History Page -->
@@ -54,8 +56,6 @@
     <div id="historyList"></div>
   </div>
 
-  <!-- Firebase -->
-  <script type="module" src="firebase.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
