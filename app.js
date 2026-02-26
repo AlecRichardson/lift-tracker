@@ -1,20 +1,3 @@
-/* =====================================================
-   🏋️ LIFT TRACKER FEATURE LIST
-=====================================================
-
-1. User System (No Auth)
-2. Workout Templates (Push A/B, Pull A/B, Legs)
-3. Draft Storage
-4. Save Workout
-5. History (click to toggle sets, swipe to delete)
-6. Progress Chart (Top Set / 1RM / Volume toggle)
-7. Responsive UI / Styling
-8. Navigation (drawer + hamburger)
-9. Manage Templates (custom workout creation placeholder)
-10. Smooth UX Enhancements
-
-===================================================== */
-
 import { db } from "./firebase.js";
 import {
   collection,
@@ -26,9 +9,9 @@ import {
   orderBy
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
-// ------------------------------
-// 1️⃣ SIMPLE USER SYSTEM
-// ------------------------------
+/* =====================================================
+   🔐 SIMPLE USER SYSTEM (NO AUTH)
+===================================================== */
 let userId = localStorage.getItem("userId");
 let displayName = localStorage.getItem("displayName");
 
@@ -38,14 +21,13 @@ if (!userId) {
 }
 
 if (!displayName) {
-  displayName = prompt("Enter your name:");
-  if (!displayName) displayName = "Lifter";
+  displayName = prompt("Enter your name:") || "Lifter";
   localStorage.setItem("displayName", displayName);
 }
 
-// ------------------------------
-// 2️⃣ FIRESTORE HELPERS
-// ------------------------------
+/* =====================================================
+   📦 FIRESTORE HELPERS
+===================================================== */
 function userWorkoutsCollection() {
   return collection(db, "users", userId, "workouts");
 }
@@ -53,12 +35,15 @@ function userWorkoutsCollection() {
 async function getLogs() {
   const q = query(userWorkoutsCollection(), orderBy("t"));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snapshot.docs.map(d => ({
+    id: d.id,
+    ...d.data()
+  }));
 }
 
-// ------------------------------
-// 3️⃣ WORKOUT TEMPLATES
-// ------------------------------
+/* =====================================================
+   🚀 WORKOUT TEMPLATES
+===================================================== */
 window.workouts = {
   "Push A": [
     { name: "Barbell Bench Press", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
@@ -99,48 +84,93 @@ window.workouts = {
   ]
 };
 
-// ------------------------------
-// 4️⃣ APP LOGIC
-// ------------------------------
-document.addEventListener("DOMContentLoaded", () => {
+/* =====================================================
+   🏋️ MAIN APP
+===================================================== */
+document.addEventListener("DOMContentLoaded", async () => {
   let currentDay = "Push A";
   let chart = null;
 
-  const container = document.getElementById("exerciseContainer");
-  const saveBtn = document.getElementById("saveWorkout");
   const drawer = document.getElementById("drawer");
 
-  // ------------------------------
-  // DRAFT WORKOUT
-  // ------------------------------
-  function saveDraft(data) { localStorage.setItem("draftWorkout", JSON.stringify(data)); }
-  function getDraft() { return JSON.parse(localStorage.getItem("draftWorkout") || "[]"); }
-  function clearDraft() { localStorage.removeItem("draftWorkout"); }
+  // Drawer
+  document.getElementById("hamburger")?.addEventListener("click", () => {
+    drawer?.classList.add("open");
+  });
+  document.getElementById("closeDrawer")?.addEventListener("click", () => {
+    drawer?.classList.remove("open");
+  });
 
   // ------------------------------
-  // RENDER WORKOUT
+  // Navigation
+  // ------------------------------
+  function showPage(pageId) {
+    document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+    document.getElementById(pageId)?.classList.remove("hidden");
+    drawer?.classList.remove("open");
+  }
+
+  document.querySelectorAll(".navWorkout").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentDay = btn.dataset.day;
+      renderWorkout();
+      showPage("workoutPage");
+    });
+  });
+
+  document.getElementById("navHistory")?.addEventListener("click", () => {
+    renderHistory();
+    showPage("historyPage");
+  });
+  document.getElementById("navProgress")?.addEventListener("click", () => {
+    renderChart();
+    showPage("progressPage");
+  });
+
+  // ------------------------------
+  // Draft helpers
+  // ------------------------------
+  function saveDraft(data) {
+    localStorage.setItem("draftWorkout", JSON.stringify(data));
+  }
+  function getDraft() {
+    return JSON.parse(localStorage.getItem("draftWorkout")) || null;
+  }
+  function clearDraft() {
+    localStorage.removeItem("draftWorkout");
+  }
+
+  // ------------------------------
+  // Render Workout
   // ------------------------------
   async function renderWorkout() {
+    const container = document.getElementById("exerciseContainer");
     if (!container) return;
+
     container.innerHTML = "";
+    const template = [...(window.workouts[currentDay] || [])];
+
+    // Prefill last workout
     const logs = await getLogs();
-    const lastLog = logs.reverse().find(l => l.d === currentDay);
-    const draft = getDraft();
+    const lastLog = logs.filter(l => l.d === currentDay).pop();
 
     let currentSuperset = "";
-    const exercises = window.workouts[currentDay] || [];
-    exercises.forEach(ex => {
+    template.forEach(ex => {
+      // Superset Header
       if (ex.superset && ex.superset !== currentSuperset) {
         const supDiv = document.createElement("div");
-        supDiv.className = "exercise superset";
-        supDiv.innerHTML = `<h4>Superset ${ex.superset}</h4>`;
+        supDiv.className = "exercise supersetHeader";
+        supDiv.textContent = `Superset ${ex.superset}`;
         container.appendChild(supDiv);
         currentSuperset = ex.superset;
       }
 
-      const div = document.createElement("div");
-      div.className = "exercise";
-      div.innerHTML = `<h4>${ex.name} (${ex.sets}×${ex.target})</h4>`;
+      const exDiv = document.createElement("div");
+      exDiv.className = "exercise";
+
+      // Name + Sets x Reps
+      const setsText = `${ex.sets}×${ex.target}`;
+      exDiv.innerHTML = `<h4>${ex.name} (${setsText})</h4>`;
 
       for (let i = 0; i < ex.sets; i++) {
         const row = document.createElement("div");
@@ -153,56 +183,55 @@ document.addEventListener("DOMContentLoaded", () => {
         weightInput.type = "number";
         weightInput.placeholder = "Weight";
 
-        // Prefill from last workout
+        // Prefill last workout
         if (lastLog) {
-          const matchEx = lastLog.e.find(e => e.n === ex.name);
-          if (matchEx && matchEx.s[i]) {
-            repsInput.value = matchEx.s[i].reps || 0;
-            weightInput.value = matchEx.s[i].weight || 0;
+          const match = lastLog.e.find(le => le.n === ex.name);
+          if (match && match.s[i]) {
+            repsInput.value = match.s[i].reps || "";
+            weightInput.value = match.s[i].weight || "";
           }
-        }
-
-        // Prefill from draft
-        const draftSet = draft.shift();
-        if (draftSet) {
-          repsInput.value = draftSet.reps || repsInput.value;
-          weightInput.value = draftSet.weight || weightInput.value;
         }
 
         row.appendChild(repsInput);
         row.appendChild(weightInput);
-        div.appendChild(row);
+        exDiv.appendChild(row);
       }
-      container.appendChild(div);
+
+      container.appendChild(exDiv);
     });
   }
 
   // ------------------------------
-  // AUTO SAVE DRAFT
+  // Auto Save Draft
   // ------------------------------
-  container.addEventListener("input", () => {
-    const data = [];
-    container.querySelectorAll(".setRow").forEach(row => {
-      const [reps, weight] = row.querySelectorAll("input");
-      data.push({ reps: +reps.value || 0, weight: +weight.value || 0 });
+  document.addEventListener("input", () => {
+    const draft = [];
+    document.querySelectorAll(".setRow").forEach(row => {
+      const inputs = row.querySelectorAll("input");
+      draft.push({
+        reps: inputs[0].value || 0,
+        weight: inputs[1].value || 0
+      });
     });
-    saveDraft(data);
+    saveDraft(draft);
   });
 
   // ------------------------------
-  // SAVE WORKOUT
+  // Save Workout
   // ------------------------------
-  saveBtn?.addEventListener("click", async () => {
+  document.getElementById("saveWorkout")?.addEventListener("click", async () => {
     const exercises = [];
-    container.querySelectorAll(".exercise").forEach(exDiv => {
-      if (exDiv.classList.contains("superset")) return;
-      const name = exDiv.querySelector("h4")?.textContent.split(" (")[0];
-      if (!name) return;
+    document.querySelectorAll(".exercise").forEach(ex => {
+      const name = ex.querySelector("h4")?.textContent.split(" (")[0];
+      if (!name || ex.classList.contains("supersetHeader")) return;
 
       const sets = [];
-      exDiv.querySelectorAll(".setRow").forEach(row => {
-        const [reps, weight] = row.querySelectorAll("input");
-        sets.push({ reps: +reps.value || 0, weight: +weight.value || 0 });
+      ex.querySelectorAll(".setRow").forEach(row => {
+        const inputs = row.querySelectorAll("input");
+        sets.push({
+          reps: Number(inputs[0].value) || 0,
+          weight: Number(inputs[1].value) || 0
+        });
       });
       exercises.push({ n: name, s: sets });
     });
@@ -218,11 +247,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ------------------------------
-  // HISTORY
+  // History
   // ------------------------------
   async function renderHistory() {
     const container = document.getElementById("historyList");
     if (!container) return;
+
     container.innerHTML = "";
     const logs = (await getLogs()).reverse();
     let openItem = null;
@@ -234,7 +264,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "deleteBtn";
       deleteBtn.textContent = "Delete";
-      deleteBtn.style.height = "90%";
       deleteBtn.addEventListener("click", async e => {
         e.stopPropagation();
         await deleteDoc(doc(db, "users", userId, "workouts", log.id));
@@ -243,26 +272,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const item = document.createElement("div");
       item.className = "historyItem";
-      item.innerHTML = `<strong>${log.d} - ${new Date(log.t).toLocaleString()}</strong>`;
+      item.innerHTML = `<strong>${formatTimestamp(log.t)} - ${log.d}</strong>`;
 
       const details = document.createElement("div");
       details.className = "historyDetails hidden";
       log.e.forEach(ex => {
         const exDiv = document.createElement("div");
-        exDiv.textContent = `${ex.n}: ${ex.s.map(s => `${s.reps}x${s.weight}`).join(", ")}`;
+        exDiv.innerHTML = `<strong>${ex.n}</strong>: ${ex.s.map(s => `${s.reps}x${s.weight}`).join(", ")}`;
         details.appendChild(exDiv);
       });
 
       item.appendChild(details);
-      wrapper.appendChild(item);
       wrapper.appendChild(deleteBtn);
+      wrapper.appendChild(item);
       container.appendChild(wrapper);
 
-      let startX = 0;
-      let currentX = 0;
-      let isSwiping = false;
+      let startX = 0, currentX = 0, isSwiping = false;
 
-      item.addEventListener("touchstart", e => { startX = e.touches[0].clientX; isSwiping = false; });
+      item.addEventListener("touchstart", e => {
+        startX = e.touches[0].clientX;
+        isSwiping = false;
+      });
+
       item.addEventListener("touchmove", e => {
         const diff = e.touches[0].clientX - startX;
         if (diff < 0) {
@@ -272,48 +303,72 @@ document.addEventListener("DOMContentLoaded", () => {
           item.style.transform = `translateX(${currentX}px)`;
           openItem = item;
         }
-        if (diff > 0 && openItem === item) {
-          isSwiping = true;
-          currentX = Math.min(diff - 90, 0);
-          item.style.transform = `translateX(${currentX}px)`;
-        }
       });
+
       item.addEventListener("touchend", () => {
         if (isSwiping) {
-          if (currentX < -45) { item.style.transform = "translateX(-90px)"; openItem = item; }
-          else { item.style.transform = "translateX(0)"; openItem = null; }
-        } else { details.classList.toggle("hidden"); }
+          if (currentX < -45) item.style.transform = "translateX(-90px)";
+          else {
+            item.style.transform = "translateX(0)";
+            openItem = null;
+          }
+        } else {
+          details.classList.toggle("hidden");
+        }
       });
     });
   }
 
   // ------------------------------
-  // PROGRESS CHART PLACEHOLDER
+  // Progress Chart
   // ------------------------------
   async function renderChart() {
-    // Implementation can toggle Top Set / 1RM / Volume
-    // Left as placeholder, can reimplement previous logic
+    const logs = await getLogs();
+    const select = document.getElementById("exerciseSelect");
+    if (!select) return;
+
+    select.innerHTML = "";
+    const exerciseSet = new Set();
+    logs.forEach(l => l.e.forEach(e => exerciseSet.add(e.n)));
+    exerciseSet.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+    if (!select.value && select.options.length) select.value = select.options[0].value;
+
+    const labels = [], data = [];
+    logs.forEach(l => {
+      const ex = l.e.find(e => e.n === select.value);
+      if (!ex) return;
+      const avg = ex.s.reduce((a, b) => a + (b.weight || 0), 0) / ex.s.length;
+      labels.push(new Date(l.t).toLocaleDateString());
+      data.push(avg);
+    });
+
+    if (chart) chart.destroy();
+    const ctx = document.getElementById("chart")?.getContext("2d");
+    if (!ctx) return;
+
+    chart = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets: [{ label: select.value, data, borderColor: "#7289da", tension: 0.3 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: "#fff" } }, x: { ticks: { color: "#fff" } } } }
+    });
+  }
+  document.getElementById("exerciseSelect")?.addEventListener("change", renderChart);
+
+  // ------------------------------
+  // Helpers
+  // ------------------------------
+  function formatTimestamp(ts) {
+    const date = new Date(ts);
+    return date.toLocaleString("en-US", { month: "long", day: "numeric", weekday: "long", hour: "numeric", minute: "2-digit" });
   }
 
   // ------------------------------
-  // NAVIGATION
-  // ------------------------------
-  document.getElementById("hamburger")?.addEventListener("click", () => drawer?.classList.add("open"));
-  document.getElementById("closeDrawer")?.addEventListener("click", () => drawer?.classList.remove("open"));
-
-  document.querySelectorAll(".navWorkout").forEach(btn => {
-    btn.addEventListener("click", () => { currentDay = btn.dataset.day; renderWorkout(); document.getElementById("pageTitle").textContent = currentDay; drawer?.classList.remove("open"); });
-  });
-  document.getElementById("navHistory")?.addEventListener("click", () => { renderHistory(); showPage("historyPage"); });
-  document.getElementById("navProgress")?.addEventListener("click", () => { renderChart(); showPage("progressPage"); });
-
-  function showPage(pageId) {
-    document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
-    document.getElementById(pageId)?.classList.remove("hidden");
-  }
-
-  // ------------------------------
-  // INITIAL RENDER
+  // Initial Render
   // ------------------------------
   renderWorkout();
 });
