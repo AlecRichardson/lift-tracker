@@ -115,7 +115,7 @@ body {
 
 .setRow input {
   flex: 1;
-  min-width: 0; /* prevents overflow on small screens */
+  min-width: 0;
   padding: 8px;
   font-size: 16px;
   border-radius: 8px;
@@ -171,7 +171,6 @@ body {
   display: none;
 }
 
-/* DELETE BUTTON */
 .deleteBtn {
   background: #ff5c5c;
   color: white;
@@ -196,7 +195,7 @@ body {
 /* ===============================
    PROGRESS CHART
 =============================== */
-#progressChart {
+#chart {
   width: 100% !important;
   max-height: 300px;
   background: #2b2d31;
@@ -204,7 +203,6 @@ body {
   margin-top: 8px;
 }
 
-/* Chart info text */
 #chartInfo {
   font-size: 14px;
   color: #ccc;
