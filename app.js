@@ -1,192 +1,311 @@
-import { db, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from "./firebase.js";
+import { db } from "./firebase.js";
+import {
+  collection, addDoc, getDocs, deleteDoc,
+  doc, query, orderBy
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+/* =====================================================
+   🔐 USER SYSTEM (NO AUTH)
+===================================================== */
+let userId = localStorage.getItem("userId") || crypto.randomUUID();
+localStorage.setItem("userId", userId);
+
+let displayName = localStorage.getItem("displayName");
+if (!displayName) {
+  displayName = prompt("Enter your name:") || "Lifter";
+  localStorage.setItem("displayName", displayName);
+}
+
+/* =====================================================
+   📦 FIRESTORE HELPERS
+===================================================== */
+function userWorkoutsCollection() {
+  return collection(db, "users", userId, "workouts");
+}
+
+async function getLogs() {
+  const q = query(userWorkoutsCollection(), orderBy("t"));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/* =====================================================
+   🏋️ WORKOUT TEMPLATES
+===================================================== */
+const templates = {
+  "Push A": [
+    "Barbell Bench Press", "Dumbbell Lateral Raise",
+    "Incline Dumbbell Press", "Rope Tricep Pushdowns",
+    "Overhead Dumbbell Tricep Extension", "Face Pulls"
+  ],
+  "Pull A": [
+    "Barbell Bent-Over Row", "Dumbbell Hammer Curl",
+    "Lat Pulldown", "Barbell Curl", "Seated Cable Row", "Cable Curl"
+  ],
+  "Legs": ["Squat", "Leg Curl", "Leg Press", "Leg Extension"],
+  "Push B": [
+    "Incline DB Press", "Dumbbell Lateral Raise",
+    "Machine Chest Press", "Face Pulls", "Assisted Dips", "Rope Tricep Pushdowns"
+  ],
+  "Pull B": [
+    "Lat Pulldown (diff grip)", "Barbell Curl",
+    "Seated Row", "Dumbbell Hammer Curl", "Rear Delt Fly"
+  ]
+};
 
 document.addEventListener("DOMContentLoaded", () => {
 
-  // ------------------------------
-  // SIMPLE USER SYSTEM
-  // ------------------------------
-  let userId = localStorage.getItem("userId");
-  let displayName = localStorage.getItem("displayName");
-
-  if (!userId) {
-    userId = crypto.randomUUID();
-    localStorage.setItem("userId", userId);
-  }
-
-  if (!displayName) {
-    displayName = prompt("Enter your name:") || "Lifter";
-    localStorage.setItem("displayName", displayName);
-  }
-
-  // ------------------------------
-  // WORKOUT TEMPLATES
-  // ------------------------------
-  const workouts = {
-    "Push A": ["Barbell Bench Press","Dumbbell Lateral Raise","Incline Dumbbell Press","Rope Tricep Pushdowns","Overhead Dumbbell Tricep Extension","Face Pulls"],
-    "Pull A": ["Barbell Bent-Over Row","Dumbbell Hammer Curl","Lat Pulldown","Barbell Curl","Seated Cable Row","Cable Curl"],
-    "Legs": ["Squat","Leg Curl","Leg Press","Leg Extension"],
-    "Push B": ["Incline DB Press","Dumbbell Lateral Raise","Machine Chest Press","Face Pulls","Assisted Dips","Rope Tricep Pushdowns"],
-    "Pull B": ["Lat Pulldown (diff grip)","Barbell Curl","Seated Row","Dumbbell Hammer Curl","Rear Delt Fly"]
-  };
-
   let currentDay = "Push A";
-  let chart = null;
+  let chart;
 
-  // ------------------------------
-  // LOCAL DRAFT HELPERS
-  // ------------------------------
-  function saveDraft(data){ localStorage.setItem("draftWorkout",JSON.stringify(data)); }
-  function getDraft(){ return JSON.parse(localStorage.getItem("draftWorkout")||"[]"); }
-  function clearDraft(){ localStorage.removeItem("draftWorkout"); }
-
-  // ------------------------------
-  // FIRESTORE HELPERS
-  // ------------------------------
-  function userWorkoutsCollection(){ return collection(db,"users",userId,"workouts"); }
-
-  async function getLogs() {
-    const q = query(userWorkoutsCollection(), orderBy("t"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(d=>({id:d.id,...d.data()}));
+  /* ===============================
+     📝 DRAFT STORAGE
+  =============================== */
+  function saveDraft(data) {
+    localStorage.setItem("draftWorkout", JSON.stringify(data));
   }
-
-  async function deleteLog(id){ await deleteDoc(doc(db,"users",userId,"workouts",id)); }
-
-  // ------------------------------
-  // DRAWER & NAV
-  // ------------------------------
-  const drawer=document.getElementById("drawer");
-  document.getElementById("hamburger").onclick=()=>drawer.classList.add("open");
-  document.getElementById("closeDrawer").onclick=()=>drawer.classList.remove("open");
-
-  function showPage(page){
-    document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
-    document.getElementById(page).classList.remove("hidden");
-    drawer.classList.remove("open");
+  function getDraft() {
+    return JSON.parse(localStorage.getItem("draftWorkout")) || null;
   }
+  function clearDraft() { localStorage.removeItem("draftWorkout"); }
 
-  document.querySelectorAll(".navWorkout").forEach(btn=>{
-    btn.onclick=()=>{ currentDay=btn.dataset.day; renderWorkout(); showPage("workoutPage"); };
-  });
-  document.getElementById("navProgress").onclick=()=>{ renderChart(); showPage("progressPage"); };
-  document.getElementById("navHistory").onclick=()=>{ renderHistory(); showPage("historyPage"); };
+  /* ===============================
+     🏋️ RENDER WORKOUT
+  =============================== */
+  async function renderWorkout() {
+    const container = document.getElementById("workoutContainer");
+    if (!container) return;
+    container.innerHTML = "";
 
-  // ------------------------------
-  // RENDER WORKOUT
-  // ------------------------------
-  function renderWorkout(){
-    const container=document.getElementById("exerciseContainer");
-    if(!container) return;
-    container.innerHTML="";
-    const template=workouts[currentDay]||[];
-    const draft=getDraft();
+    // Prefill from draft first
+    const draft = getDraft();
 
-    template.forEach((exName,exIndex)=>{
-      const div=document.createElement("div");
-      div.className="exercise";
-      div.innerHTML=`<h4>${exName}</h4>`;
-      for(let i=0;i<3;i++){
-        const row=document.createElement("div");
-        row.className="setRow";
-        const reps=document.createElement("input");
-        reps.placeholder="Reps"; reps.type="number";
-        const weight=document.createElement("input");
-        weight.placeholder="Weight"; weight.type="number";
-        const draftVal=draft[exIndex*3+i];
-        if(draftVal){ reps.value=draftVal.reps||""; weight.value=draftVal.weight||""; }
-        row.appendChild(reps); row.appendChild(weight); div.appendChild(row);
+    // Prefill from last workout
+    let lastWorkout = null;
+    try {
+      const logs = await getLogs();
+      lastWorkout = logs.filter(l => l.d === currentDay).pop();
+    } catch {}
+
+    templates[currentDay].forEach((exName, exIndex) => {
+      const exDiv = document.createElement("div");
+      exDiv.className = "exercise";
+      exDiv.innerHTML = `<h4>${exName}</h4>`;
+
+      for (let i = 0; i < 3; i++) {
+        const row = document.createElement("div");
+        row.className = "setRow";
+
+        const reps = document.createElement("input");
+        reps.type = "number"; reps.placeholder = "Reps";
+
+        const weight = document.createElement("input");
+        weight.type = "number"; weight.placeholder = "Weight";
+
+        // Prefill: last workout > draft
+        if (lastWorkout) {
+          const match = lastWorkout.e.find(e => e.n === exName);
+          if (match && match.s[i]) {
+            reps.value = match.s[i].reps;
+            weight.value = match.s[i].weight;
+          }
+        } else if (draft) {
+          const draftIndex = exIndex * 3 + i;
+          if (draft[draftIndex]) {
+            reps.value = draft[draftIndex].reps || "";
+            weight.value = draft[draftIndex].weight || "";
+          }
+        }
+
+        row.appendChild(reps);
+        row.appendChild(weight);
+        exDiv.appendChild(row);
       }
-      container.appendChild(div);
+
+      container.appendChild(exDiv);
     });
   }
 
-  // ------------------------------
-  // AUTO SAVE DRAFT
-  // ------------------------------
-  document.addEventListener("input",()=>{
-    const draft=[];
-    document.querySelectorAll(".setRow").forEach(row=>{
-      const inputs=row.querySelectorAll("input");
-      draft.push({reps:inputs[0].value,weight:inputs[1].value});
+  /* ===============================
+     🔄 AUTO SAVE DRAFT
+  =============================== */
+  document.addEventListener("input", () => {
+    const draft = [];
+    document.querySelectorAll(".setRow").forEach(row => {
+      const inputs = row.querySelectorAll("input");
+      draft.push({ reps: inputs[0].value, weight: inputs[1].value });
     });
     saveDraft(draft);
   });
 
-  // ------------------------------
-  // SAVE WORKOUT
-  // ------------------------------
-  document.getElementById("saveWorkout").onclick=async()=>{
-    const exercises=[];
-    document.querySelectorAll(".exercise").forEach(ex=>{
-      const name=ex.querySelector("h4")?.textContent;
-      const sets=[];
-      ex.querySelectorAll(".setRow").forEach(row=>{
-        const inputs=row.querySelectorAll("input");
-        sets.push({reps:+inputs[0].value||0,weight:+inputs[1].value||0});
+  /* ===============================
+     💾 SAVE WORKOUT
+  =============================== */
+  document.getElementById("saveWorkout").addEventListener("click", async () => {
+    const exercises = [];
+    document.querySelectorAll(".exercise").forEach(ex => {
+      const name = ex.querySelector("h4").textContent;
+      const sets = [];
+      ex.querySelectorAll(".setRow").forEach(row => {
+        const inputs = row.querySelectorAll("input");
+        sets.push({ reps: +inputs[0].value || 0, weight: +inputs[1].value || 0 });
       });
-      exercises.push({n:name,s:sets});
+      exercises.push({ n: name, s: sets });
     });
 
-    await addDoc(userWorkoutsCollection(),{t:new Date().toISOString(),d:currentDay,e:exercises});
-    clearDraft(); renderWorkout(); alert("Workout Saved 💪");
-  };
+    await addDoc(userWorkoutsCollection(), {
+      t: new Date().toISOString(),
+      d: currentDay,
+      e: exercises
+    });
+    clearDraft();
+    renderWorkout();
+    alert("Workout Saved 💪");
+  });
 
-  // ------------------------------
-  // HISTORY
-  // ------------------------------
-  async function renderHistory(){
-    const container=document.getElementById("historyList");
-    container.innerHTML="";
-    const logs=(await getLogs()).reverse();
+  /* ===============================
+     📜 HISTORY
+  =============================== */
+  async function renderHistory() {
+    const container = document.getElementById("historyList");
+    if (!container) return;
+    container.innerHTML = "";
 
-    logs.forEach(log=>{
-      const wrapper=document.createElement("div"); wrapper.className="historyWrapper";
+    const logs = (await getLogs()).reverse();
+    let openItem = null;
 
-      const deleteBtn=document.createElement("button");
-      deleteBtn.className="deleteBtn"; deleteBtn.textContent="Delete";
-      deleteBtn.onclick=async(e)=>{ e.stopPropagation(); await deleteLog(log.id); renderHistory(); };
+    logs.forEach(log => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "historyWrapper";
 
-      const item=document.createElement("div"); item.className="historyItem";
-      item.innerHTML=`<strong>${new Date(log.t).toLocaleString()} - ${log.d}</strong>`;
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "deleteBtn";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", async e => {
+        e.stopPropagation();
+        await deleteDoc(doc(db, "users", userId, "workouts", log.id));
+        renderHistory();
+      });
 
-      const details=document.createElement("div"); details.className="historyDetails hidden";
-      log.e.forEach(ex=>{
-        const exDiv=document.createElement("div");
-        exDiv.innerHTML=`<strong>${ex.n}</strong>: ${ex.s.map(s=>`${s.reps}x${s.weight}`).join(", ")}`;
+      const item = document.createElement("div");
+      item.className = "historyItem";
+      item.innerHTML = `<strong>${formatTimestamp(log.t)} - ${log.d}</strong>`;
+
+      const details = document.createElement("div");
+      details.className = "historyDetails hidden";
+
+      log.e.forEach(ex => {
+        const exDiv = document.createElement("div");
+        exDiv.innerHTML = `<strong>${ex.n}</strong>: ${ex.s.map(s => `${s.reps}x${s.weight}`).join(", ")}`;
         details.appendChild(exDiv);
       });
+
       item.appendChild(details);
-      item.onclick=()=>details.classList.toggle("hidden");
-
-      wrapper.appendChild(item); wrapper.appendChild(deleteBtn);
+      wrapper.appendChild(deleteBtn);
+      wrapper.appendChild(item);
       container.appendChild(wrapper);
+
+      // Swipe to reveal
+      let startX = 0, currentX = 0, isSwiping = false;
+      item.addEventListener("touchstart", e => { startX = e.touches[0].clientX; isSwiping = false; });
+      item.addEventListener("touchmove", e => {
+        const diff = e.touches[0].clientX - startX;
+        if (diff < 0) {
+          isSwiping = true;
+          if (openItem && openItem !== item) openItem.style.transform = "translateX(0)";
+          currentX = Math.max(diff, -90);
+          item.style.transform = `translateX(${currentX}px)`;
+          openItem = item;
+        }
+        if (diff > 0 && openItem === item) {
+          isSwiping = true;
+          currentX = Math.min(diff - 90, 0);
+          item.style.transform = `translateX(${currentX}px)`;
+        }
+      });
+      item.addEventListener("touchend", () => {
+        if (isSwiping) {
+          if (currentX < -45) { item.style.transform = "translateX(-90px)"; openItem = item; }
+          else { item.style.transform = "translateX(0)"; openItem = null; }
+        } else { details.classList.toggle("hidden"); }
+      });
     });
   }
 
-  // ------------------------------
-  // CHART
-  // ------------------------------
-  async function renderChart(){
-    const logs=await getLogs();
-    const dataPoints=[];
-    logs.forEach(log=>{
-      let best=0;
-      log.e.forEach(ex=>ex.s.forEach(set=>{ const est=set.weight*(1+set.reps/30); if(est>best) best=est; }));
-      if(best>0) dataPoints.push({x:new Date(log.t),y:Math.round(best)});
+  /* ===============================
+     📈 PROGRESS CHART
+  =============================== */
+  async function renderChart() {
+    const logs = await getLogs();
+    const exercisesSet = new Set();
+    logs.forEach(l => l.e.forEach(e => exercisesSet.add(e.n)));
+
+    const select = document.getElementById("exerciseSelect");
+    select.innerHTML = "";
+    exercisesSet.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name; opt.textContent = name;
+      select.appendChild(opt);
+    });
+    if (!select.value && select.options.length > 0) select.value = select.options[0].value;
+    if (!select.value) return;
+
+    const labels = [], data = [];
+    logs.forEach(l => {
+      const ex = l.e.find(e => e.n === select.value);
+      if (!ex) return;
+      const top = Math.max(...ex.s.map(s => s.weight));
+      labels.push(new Date(l.t).toLocaleDateString());
+      data.push(top);
     });
 
-    const ctx=document.getElementById("chart")?.getContext("2d");
-    if(!ctx) return;
-    if(chart) chart.destroy();
-    chart=new Chart(ctx,{
-      type:"line",
-      data:{datasets:[{label:"Estimated 1RM (Best Set per Workout)",data:dataPoints,borderColor:"#7289da",tension:0.3}]}
+    if (chart) chart.destroy();
+    const ctx = document.getElementById("progressChart")?.getContext("2d");
+    if (!ctx) return;
+
+    chart = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets: [{ label: select.value, data, borderColor: "#7289da", tension: 0.3 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: "#fff" } }, x: { ticks: { color: "#fff" } } } }
+    });
+  }
+  document.getElementById("exerciseSelect")?.addEventListener("change", renderChart);
+
+  /* ===============================
+     📅 FORMAT DATE
+  =============================== */
+  function formatTimestamp(ts) {
+    const date = new Date(ts);
+    return date.toLocaleString("en-US", {
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+      hour: "numeric",
+      minute: "2-digit"
     });
   }
 
-  // ------------------------------
-  // INITIAL RENDER
-  // ------------------------------
+  /* ===============================
+     📂 NAVIGATION
+  =============================== */
+  const drawer = document.getElementById("drawer");
+  document.getElementById("hamburger")?.addEventListener("click", () => drawer?.classList.add("open"));
+  document.getElementById("closeDrawer")?.addEventListener("click", () => drawer?.classList.remove("open"));
+
+  function showPage(page) {
+    document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+    document.getElementById(page)?.classList.remove("hidden");
+    drawer?.classList.remove("open");
+  }
+
+  document.querySelectorAll(".navWorkout").forEach(btn => {
+    btn.addEventListener("click", () => { currentDay = btn.dataset.day; renderWorkout(); showPage("workoutPage"); });
+  });
+  document.getElementById("navHistory")?.addEventListener("click", () => { renderHistory(); showPage("historyPage"); });
+  document.getElementById("navProgress")?.addEventListener("click", () => { renderChart(); showPage("progressPage"); });
+
+  /* ===============================
+     🚀 INIT
+  =============================== */
   renderWorkout();
-
 });
