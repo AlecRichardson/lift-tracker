@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lift Tracker</title>
-  <meta name="theme-color" content="#1e1f22" />
-  <link rel="stylesheet" href="style.css" />
+  <meta name="theme-color" content="#1e1f22">
+  <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -23,7 +23,7 @@
   <button class="navWorkout" data-day="Push B">Push B</button>
   <button class="navWorkout" data-day="Pull B">Pull B</button>
 
-  <hr />
+  <hr>
   <button id="navProgress">Progress</button>
   <button id="navHistory">History</button>
 </div>
@@ -37,17 +37,17 @@
 <!-- Workout Page -->
 <div id="workoutPage" class="page">
   <div id="exerciseContainer"></div>
-  <div class="bottomBar">
-    <button id="saveWorkout" class="primaryBtn">Save Workout 💪</button>
-  </div>
+  <button id="saveWorkout" class="primaryBtn">Save Workout</button>
 </div>
 
 <!-- Progress Page -->
 <div id="progressPage" class="page hidden">
   <h3>Progress</h3>
-  <p id="chartInfo" class="chartInfo"></p>
   <select id="exerciseSelect"></select>
-  <canvas id="chart"></canvas>
+  <p id="chartInfo" style="color:#ccc; font-size:14px; margin-bottom:8px;">
+    Each point shows the estimated 1RM of your best set per workout, calculated as weight × (1 + reps/30).
+  </p>
+  <canvas id="progressChart"></canvas>
 </div>
 
 <!-- History Page -->
