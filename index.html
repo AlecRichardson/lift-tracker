@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Lift Tracker</title>
-<meta name="theme-color" content="#1e1f22" />
-<link rel="stylesheet" href="style.css" />
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lift Tracker</title>
+  <meta name="theme-color" content="#1e1f22" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -26,6 +26,7 @@
   <hr />
   <button id="navProgress">Progress</button>
   <button id="navHistory">History</button>
+  <button id="navManageTemplates">Manage Templates</button>
 </div>
 
 <!-- Topbar -->
@@ -36,15 +37,15 @@
 
 <!-- Workout Page -->
 <div id="workoutPage" class="page">
-  <button id="loadLastBtn" class="primaryBtn">Load Last Workout</button>
+  <button id="loadLastWorkout" class="primaryBtn">Load Last Workout</button>
   <div id="exerciseContainer"></div>
-  <button id="saveWorkout" class="primaryBtn saveBtn">💾 Save Workout</button>
+  <button id="saveWorkout" class="primaryBtn">Save Workout</button>
 </div>
 
 <!-- Progress Page -->
 <div id="progressPage" class="page hidden">
   <h3>Progress</h3>
-  <p id="chartInfo">Select an exercise to see average weight progression over time.</p>
+  <p id="progressInfo">Chart shows average weight per exercise over time. Values are calculated from your logged sets.</p>
   <select id="exerciseSelect"></select>
   <canvas id="chart"></canvas>
 </div>
@@ -53,6 +54,13 @@
 <div id="historyPage" class="page hidden">
   <h3>Workout History</h3>
   <div id="historyList"></div>
+</div>
+
+<!-- Manage Templates Page -->
+<div id="manageTemplatesPage" class="page hidden">
+  <h3>Manage Templates</h3>
+  <button id="createTemplateBtn" class="primaryBtn">Create New Template</button>
+  <div id="templateList"></div>
 </div>
 
 <script type="module" src="app.js"></script>
