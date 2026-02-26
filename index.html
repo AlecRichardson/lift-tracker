@@ -26,7 +26,6 @@
   <hr />
   <button id="navProgress">Progress</button>
   <button id="navHistory">History</button>
-  <button id="navManageTemplates">Manage Templates</button>
 </div>
 
 <!-- Topbar -->
@@ -37,15 +36,15 @@
 
 <!-- Workout Page -->
 <div id="workoutPage" class="page">
-  <button id="loadLastWorkout" class="primaryBtn">Load Last Workout</button>
   <div id="exerciseContainer"></div>
   <button id="saveWorkout" class="primaryBtn">Save Workout</button>
+  <div id="saveAnimation" class="hidden">💾 Saved!</div>
 </div>
 
 <!-- Progress Page -->
 <div id="progressPage" class="page hidden">
   <h3>Progress</h3>
-  <p id="progressInfo">Chart shows average weight per exercise over time. Values are calculated from your logged sets.</p>
+  <p>This chart tracks your estimated progress based on the average weight lifted per exercise. We calculate the average of your recorded sets for each workout.</p>
   <select id="exerciseSelect"></select>
   <canvas id="chart"></canvas>
 </div>
@@ -54,13 +53,6 @@
 <div id="historyPage" class="page hidden">
   <h3>Workout History</h3>
   <div id="historyList"></div>
-</div>
-
-<!-- Manage Templates Page -->
-<div id="manageTemplatesPage" class="page hidden">
-  <h3>Manage Templates</h3>
-  <button id="createTemplateBtn" class="primaryBtn">Create New Template</button>
-  <div id="templateList"></div>
 </div>
 
 <script type="module" src="app.js"></script>
