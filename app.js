@@ -342,4 +342,6 @@ document.getElementById("navProgress")
    🔹 INIT
 ================================ */
 
-renderWorkout();
+document.addEventListener("DOMContentLoaded", () => {
+  renderWorkout();
+});
