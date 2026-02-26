@@ -1,24 +1,19 @@
-/* ===========================
-   Global
-=========================== */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
   background: #1e1f22;
   color: #ddd;
-  overflow-x: hidden; /* prevent horizontal scroll */
+  overflow-x: hidden;
 }
 
-/* ===========================
-   Topbar
-=========================== */
+/* Topbar */
 .topbar {
-  position: sticky;
-  top: 0;
   background: #2b2d31;
   padding: 14px;
   display: flex;
   align-items: center;
+  position: sticky;
+  top: 0;
   z-index: 1001;
 }
 
@@ -31,13 +26,11 @@ body {
   cursor: pointer;
 }
 
-/* ===========================
-   Drawer
-=========================== */
+/* Drawer */
 .drawer {
   position: fixed;
   top: 0;
-  left: -280px; /* hidden initially */
+  left: -260px;
   width: 260px;
   height: 100%;
   background: #2b2d31;
@@ -45,7 +38,6 @@ body {
   transition: left 0.25s ease;
   z-index: 1000;
   overflow-y: auto;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.5);
 }
 
 .drawer.open {
@@ -56,6 +48,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 }
 
 #closeDrawer {
@@ -67,10 +60,6 @@ body {
   border-radius: 6px;
   padding: 4px 8px;
   cursor: pointer;
-}
-#closeDrawer:hover {
-  background: #ff5c5c;
-  color: #fff;
 }
 
 .drawer button {
@@ -84,9 +73,7 @@ body {
   cursor: pointer;
 }
 
-/* ===========================
-   Pages
-=========================== */
+/* Pages */
 .page {
   padding: 16px;
 }
@@ -95,9 +82,7 @@ body {
   display: none;
 }
 
-/* ===========================
-   Exercise Card
-=========================== */
+/* Exercise Card */
 .exercise {
   background: #2b2d31;
   padding: 12px;
@@ -106,27 +91,16 @@ body {
 }
 
 .exercise h4 {
-  margin: 0 0 4px 0;
-  font-size: 16px;
+  margin: 0 0 6px 0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-}
-
-/* Superset Label */
-.supersetLabel {
-  background: #7289da;
-  color: #fff;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-left: 8px;
+  font-size: 16px;
 }
 
 /* Sets inline */
 .setRow {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 6px;
 }
 
@@ -138,7 +112,6 @@ body {
   border: none;
   background: #3a3c42;
   color: white;
-  min-width: 50px;
 }
 
 /* Save Button */
@@ -149,13 +122,13 @@ body {
   border: none;
   background: #7289da;
   color: white;
-  margin-top: 20px;
+  margin-top: 10px;
   cursor: pointer;
 }
 
 /* Scrollable workout container */
 #exerciseContainer {
-  max-height: calc(100vh - 180px);
+  max-height: calc(100vh - 250px);
   overflow-y: auto;
   padding-bottom: 20px;
 }
@@ -163,7 +136,7 @@ body {
 /* History Items */
 .historyWrapper {
   position: relative;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .historyItem {
@@ -171,9 +144,8 @@ body {
   padding: 12px;
   border-radius: 8px;
   cursor: pointer;
-  position: relative;
   z-index: 1;
-  overflow: hidden;
+  position: relative;
 }
 
 .historyDetails {
@@ -187,25 +159,27 @@ body {
   display: none;
 }
 
-/* Delete button swipe */
 .deleteBtn {
   position: absolute;
   right: 0;
   top: 0;
-  bottom: 4px; /* shorter than history item */
+  bottom: 0;
   width: 80px;
   background: #ff5c5c;
-  color: #fff;
   border: none;
-  border-radius: 0 8px 8px 0;
-  font-weight: bold;
-  cursor: pointer;
+  border-radius: 8px;
+  color: white;
   z-index: 0;
 }
 
-/* Chart Info */
-#chartInfo {
-  margin-bottom: 8px;
-  font-size: 14px;
-  color: #ccc;
+/* Progress */
+#progressChart {
+  background: #2b2d31;
+  border-radius: 10px;
+  margin-top: 12px;
+}
+
+/* Template list */
+#templateList {
+  margin-top: 12px;
 }
