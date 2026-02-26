@@ -208,4 +208,130 @@ document.addEventListener("DOMContentLoaded", () => {
       exercises.push({ n:name, s:sets });
     });
 
-    await addDoc(userWorkoutsCollection(), { t:new Date().toISOString
+    await addDoc(userWorkoutsCollection(), { t:new Date().toISOString(), d:currentDay, e:exercises });
+    clearDraft();
+    renderWorkout();
+  });
+
+  // -------------------- Draft Auto Save --------------------
+  document.addEventListener("input",()=>{
+    const draft=[];
+    document.querySelectorAll(".setRow").forEach(row=>{
+      const inputs=row.querySelectorAll("input");
+      draft.push({ reps: inputs[0].value||0, weight: inputs[1].value||0 });
+    });
+    saveDraft(draft);
+  });
+
+  // -------------------- Load Last Workout --------------------
+  document.getElementById("loadLastWorkout")?.addEventListener("click",()=>renderWorkout(true));
+
+  // -------------------- History --------------------
+  async function renderHistory(){
+    const container=document.getElementById("historyList");
+    if(!container) return;
+    container.innerHTML="";
+    const logs=(await getLogs()).reverse();
+    openHistoryItem=null;
+
+    logs.forEach(log=>{
+      const wrapper=document.createElement("div");
+      wrapper.className="historyWrapper";
+
+      const deleteBtn=document.createElement("button");
+      deleteBtn.className="deleteBtn";
+      deleteBtn.textContent="Delete";
+      deleteBtn.addEventListener("click", async e=>{
+        e.stopPropagation();
+        await deleteDoc(doc(db,"users",userId,"workouts",log.id));
+        renderHistory();
+      });
+
+      const item=document.createElement("div");
+      item.className="historyItem";
+      item.innerHTML=`<strong>${formatTimestamp(log.t)} - ${log.d}</strong>`;
+
+      const details=document.createElement("div");
+      details.className="historyDetails hidden";
+      log.e.forEach(ex=>{
+        const exDiv=document.createElement("div");
+        exDiv.textContent=`${ex.n}: ${ex.s.map(s=>`${s.reps}x${s.weight}`).join(", ")}`;
+        details.appendChild(exDiv);
+      });
+
+      item.appendChild(details);
+      wrapper.appendChild(deleteBtn);
+      wrapper.appendChild(item);
+      container.appendChild(wrapper);
+
+      // Swipe handling
+      let startX=0,currentX=0,isSwiping=false;
+      item.addEventListener("touchstart", e=>{ startX=e.touches[0].clientX; isSwiping=false; });
+      item.addEventListener("touchmove", e=>{
+        const diff=e.touches[0].clientX-startX;
+        if(diff<0){ isSwiping=true; currentX=Math.max(diff,-90); item.style.transform=`translateX(${currentX}px)`; if(openHistoryItem && openHistoryItem!==item) openHistoryItem.style.transform="translateX(0)"; openHistoryItem=item;}
+        if(diff>0 && openHistoryItem===item){ isSwiping=true; currentX=Math.min(diff,0); item.style.transform=`translateX(${currentX}px)`;}
+      });
+      item.addEventListener("touchend", ()=>{
+        if(isSwiping){ item.style.transform=(currentX<-45?"translateX(-90px)":"translateX(0)"); openHistoryItem=(currentX<-45?item:null);}
+        else details.classList.toggle("hidden");
+      });
+    });
+  }
+
+  // -------------------- Chart --------------------
+  async function renderChart(){
+    const logs=await getLogs();
+    const exerciseMap={};
+    logs.forEach(log=>{
+      log.e.forEach(ex=>{
+        if(!exerciseMap[ex.n]) exerciseMap[ex.n]=[];
+        const avgWeight=ex.s.reduce((a,b)=>a+b.weight,0)/ex.s.length;
+        exerciseMap[ex.n].push({x:new Date(log.t),y:avgWeight});
+      });
+    });
+
+    const select=document.getElementById("exerciseSelect");
+    select.innerHTML="";
+    Object.keys(exerciseMap).forEach(ex=>{
+      const opt=document.createElement("option");
+      opt.value=ex; opt.textContent=ex; select.appendChild(opt);
+    });
+
+    const ctx=document.getElementById("chart")?.getContext("2d");
+    if(!ctx) return;
+
+    if(window.chart) window.chart.destroy();
+    const data=exerciseMap[select.value]||[];
+    window.chart=new Chart(ctx,{type:"line",data:{datasets:[{label:select.value,data:data,borderWidth:2,tension:0.3}]}});
+
+    select.addEventListener("change",()=>{
+      const data=exerciseMap[select.value]||[];
+      window.chart.data.datasets[0].data=data;
+      window.chart.data.datasets[0].label=select.value;
+      window.chart.update();
+    });
+  }
+
+  // -------------------- Manage Templates --------------------
+  async function renderTemplates(){
+    const container=document.getElementById("templateList");
+    container.innerHTML="";
+    const templates=await getTemplates();
+    templates.forEach(t=>{
+      const div=document.createElement("div");
+      div.className="exercise";
+      div.innerHTML=`<h4>${t.name}</h4>`;
+      container.appendChild(div);
+    });
+  }
+
+  // -------------------- Utils --------------------
+  function formatTimestamp(ts){
+    const d=new Date(ts);
+    return d.toLocaleString("en-US",{month:"long",day:"numeric",weekday:"long",hour:"numeric",minute:"2-digit"});
+  }
+
+  // -------------------- Init --------------------
+  renderWorkout();
+});
