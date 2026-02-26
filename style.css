@@ -1,23 +1,19 @@
 /* ===============================
-   GLOBAL RESET
+   BASE
 =============================== */
-* {
-  box-sizing: border-box;
+body {
   margin: 0;
-  padding: 0;
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow-x: hidden; /* prevent side scroll */
   font-family: system-ui, -apple-system, sans-serif;
   background: #1e1f22;
   color: #ddd;
+  overflow-x: hidden;
 }
 
+.page { padding: 16px; }
+.hidden { display: none; }
+
 /* ===============================
-   TOPBAR
+   TOPBAR & DRAWER
 =============================== */
 .topbar {
   position: fixed;
@@ -29,45 +25,34 @@ html, body {
   display: flex;
   align-items: center;
   padding: 0 16px;
-  z-index: 1001;
+  z-index: 1002;
 }
 
 #hamburger {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 22px;
   color: white;
-  margin-right: 16px;
+  margin-right: 14px;
   cursor: pointer;
-  z-index: 1010;
 }
 
-/* ===============================
-   DRAWER
-=============================== */
 .drawer {
   position: fixed;
   top: 0;
-  left: -260px; /* fully off-screen */
+  left: -260px;
   width: 260px;
   height: 100%;
   background: #2b2d31;
   padding: 20px;
   transition: left 0.25s ease;
-  z-index: 1000;
+  z-index: 1001;
   overflow-y: auto;
 }
 
-.drawer.open {
-  left: 0;
-}
+.drawer.open { left: 0; }
 
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+.drawer-header { display: flex; justify-content: space-between; align-items: center; }
 
 #closeDrawer {
   background: none;
@@ -80,37 +65,17 @@ html, body {
   cursor: pointer;
 }
 
-#closeDrawer:hover {
-  background: #ff5c5c;
-  color: #fff;
-}
+#closeDrawer:hover { background: #ff5c5c; color: #fff; }
 
 .drawer button {
   width: 100%;
   margin-top: 10px;
-  padding: 12px;
+  padding: 10px;
   border-radius: 8px;
   border: none;
   background: #3a3c42;
   color: white;
   cursor: pointer;
-}
-
-.drawer button:hover {
-  background: #4a4c53;
-}
-
-/* ===============================
-   PAGES
-=============================== */
-.page {
-  padding: 72px 16px 16px 16px; /* leave space for fixed topbar */
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.hidden {
-  display: none;
 }
 
 /* ===============================
@@ -124,22 +89,21 @@ html, body {
 }
 
 .exercise h4 {
-  margin-bottom: 8px;
+  margin: 0;
   font-size: 16px;
+  display: inline-block;
 }
 
-/* ===============================
-   SET ROWS
-=============================== */
-.setRow {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 6px;
+.exercise span {
+  margin-left: 12px;
+  font-size: 14px;
+  color: #aaa;
 }
 
+/* Sets inline */
+.setRow { display: flex; gap: 10px; margin-top: 6px; }
 .setRow input {
   flex: 1;
-  min-width: 0; /* prevent overflowing */
   padding: 8px;
   font-size: 16px;
   border-radius: 8px;
@@ -147,14 +111,9 @@ html, body {
   background: #3a3c42;
   color: white;
 }
+.setRow input::placeholder { color: #aaa; }
 
-.setRow input::placeholder {
-  color: #aaa;
-}
-
-/* ===============================
-   SAVE BUTTON
-=============================== */
+/* Save Button */
 .primaryBtn {
   width: 100%;
   padding: 14px;
@@ -164,18 +123,16 @@ html, body {
   color: white;
   margin-top: 20px;
   cursor: pointer;
-  position: sticky;
-  bottom: 16px;
+  transition: transform 0.2s ease;
 }
+
+/* Scrollable workout container */
+#exerciseContainer { max-height: calc(100vh - 160px); overflow-y: auto; padding-bottom: 20px; }
 
 /* ===============================
-   HISTORY
+   HISTORY ITEMS
 =============================== */
-.historyWrapper {
-  position: relative;
-  overflow: hidden;
-}
-
+.historyWrapper { position: relative; overflow: hidden; }
 .historyItem {
   background: #2b2d31;
   padding: 12px;
@@ -183,54 +140,27 @@ html, body {
   margin-bottom: 8px;
   cursor: pointer;
   transition: transform 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   position: relative;
   z-index: 1;
-}
-
-.historyDetails {
-  margin-top: 6px;
-  padding-left: 12px;
-  font-size: 14px;
-  color: #ccc;
-}
-
-.historyDetails.hidden {
-  display: none;
 }
 
 .deleteBtn {
   position: absolute;
   right: 0;
-  top: 0;
-  bottom: 0;
-  width: 90px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 70px;
+  height: 36px;
   background: #ff5c5c;
   border: none;
   color: #fff;
   cursor: pointer;
-  border-radius: 0 8px 8px 0;
+  border-radius: 6px;
   z-index: 0;
 }
 
-.deleteBtn:hover {
-  background: #ff3b3b;
-}
-
-/* ===============================
-   PROGRESS PAGE
-=============================== */
-#progressChart {
-  background: #2b2d31;
-  border-radius: 10px;
-  margin-top: 16px;
-}
-
-#exerciseSelect {
-  width: 100%;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  background: #3a3c42;
-  color: white;
-  font-size: 16px;
-}
+.historyDetails { margin-top: 6px; padding-left: 12px; font-size: 14px; color: #ccc; }
+.historyDetails.hidden { display: none; }
