@@ -30,13 +30,13 @@ body {
 .drawer {
   position: fixed;
   top: 0;
-  left: -260px;
+  left: -300px;
   width: 260px;
   height: 100%;
   background: #2b2d31;
   padding: 20px;
   transition: left 0.25s ease;
-  z-index: 1000;
+  z-index: 1015;
   overflow-y: auto;
 }
 
