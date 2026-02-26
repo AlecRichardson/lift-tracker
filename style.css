@@ -8,15 +8,13 @@ body {
 
 /* Topbar */
 .topbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
   background: #2b2d31;
   padding: 14px;
   display: flex;
   align-items: center;
   z-index: 1020;
+  position: sticky;
+  top: 0;
 }
 
 #hamburger {
@@ -50,7 +48,6 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
 }
 
 #closeDrawer {
@@ -81,7 +78,7 @@ body {
 
 /* Pages */
 .page {
-  padding: 70px 16px 16px 16px;
+  padding: 16px;
 }
 
 .hidden {
@@ -94,38 +91,30 @@ body {
   padding: 12px;
   margin-bottom: 12px;
   border-radius: 10px;
-  display: flex;
-  flex-direction: column;
 }
 
 .exercise h4 {
-  margin: 0 0 4px 0;
-  font-size: 16px;
-}
-
-/* Superset label */
-.supersetLabel {
-  font-weight: bold;
-  margin-bottom: 6px;
+  margin: 0 0 6px 0;
+  display: flex;
+  justify-content: space-between;
 }
 
 /* Sets inline */
 .setRow {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 6px;
-  flex-wrap: wrap;
 }
 
 .setRow input {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 40px;
   padding: 8px;
   font-size: 16px;
   border-radius: 8px;
   border: none;
   background: #3a3c42;
   color: white;
-  min-width: 60px;
 }
 
 /* Save Button */
@@ -140,9 +129,16 @@ body {
   cursor: pointer;
 }
 
+#saveAnimation {
+  color: #fff;
+  text-align: center;
+  margin-top: 8px;
+  transition: opacity 0.5s;
+}
+
 /* Scrollable workout container */
 #exerciseContainer {
-  max-height: calc(100vh - 180px);
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
   padding-bottom: 20px;
 }
@@ -150,6 +146,7 @@ body {
 /* History Items */
 .historyWrapper {
   position: relative;
+  overflow: hidden;
   margin-bottom: 8px;
 }
 
@@ -158,8 +155,8 @@ body {
   padding: 12px;
   border-radius: 8px;
   cursor: pointer;
-  z-index: 1;
   position: relative;
+  z-index: 1;
 }
 
 .historyDetails {
@@ -169,20 +166,19 @@ body {
   color: #ccc;
 }
 
-.historyDetails.hidden {
-  display: none;
-}
-
 .deleteBtn {
   position: absolute;
   right: 0;
-  top: 4px;
-  bottom: 4px;
+  top: 0;
+  bottom: 0;
   width: 80px;
   background: #ff5c5c;
-  color: #fff;
   border: none;
-  border-radius: 6px;
+  color: white;
+  font-weight: bold;
   z-index: 0;
-  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
