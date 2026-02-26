@@ -1,61 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lift Tracker</title>
-  <meta name="theme-color" content="#1e1f22">
-  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#1e1f22" />
+  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-<!-- Drawer -->
-<div id="drawer" class="drawer">
-  <div class="drawer-header">
-    <h3>Menu</h3>
-    <button id="closeDrawer">✕</button>
+  <!-- Drawer -->
+  <div id="drawer" class="drawer">
+    <div class="drawer-header">
+      <h3>Menu</h3>
+      <button id="closeDrawer">✕</button>
+    </div>
+    <button class="navWorkout" data-day="Push A">Push A</button>
+    <button class="navWorkout" data-day="Pull A">Pull A</button>
+    <button class="navWorkout" data-day="Legs">Legs</button>
+    <button class="navWorkout" data-day="Push B">Push B</button>
+    <button class="navWorkout" data-day="Pull B">Pull B</button>
+    <hr />
+    <button id="navProgress">Progress</button>
+    <button id="navHistory">History</button>
   </div>
 
-  <button class="navWorkout" data-day="Push A">Push A</button>
-  <button class="navWorkout" data-day="Pull A">Pull A</button>
-  <button class="navWorkout" data-day="Legs">Legs</button>
-  <button class="navWorkout" data-day="Push B">Push B</button>
-  <button class="navWorkout" data-day="Pull B">Pull B</button>
+  <!-- Topbar -->
+  <div class="topbar">
+    <button id="hamburger">☰</button>
+    <h2 id="pageTitle">Push A</h2>
+  </div>
 
-  <hr>
-  <button id="navProgress">Progress</button>
-  <button id="navHistory">History</button>
-</div>
+  <!-- Workout Page -->
+  <div id="workoutPage" class="page">
+    <div id="exerciseContainer"></div>
+    <button id="saveWorkout" class="primaryBtn">Save Workout</button>
+  </div>
 
-<!-- Topbar -->
-<div class="topbar">
-  <button id="hamburger">☰</button>
-  <h2 id="pageTitle">Push A</h2>
-</div>
+  <!-- Progress Page -->
+  <div id="progressPage" class="page hidden">
+    <h3>Progress</h3>
+    <div id="chartInfo">
+      Chart shows your estimated 1RM for your top set per workout. Calculated as weight × (1 + reps/30).
+    </div>
+    <select id="exerciseSelect"></select>
+    <canvas id="chart"></canvas>
+  </div>
 
-<!-- Workout Page -->
-<div id="workoutPage" class="page">
-  <div id="exerciseContainer"></div>
-  <button id="saveWorkout" class="primaryBtn">Save Workout</button>
-</div>
+  <!-- History Page -->
+  <div id="historyPage" class="page hidden">
+    <h3>Workout History</h3>
+    <div id="historyList"></div>
+  </div>
 
-<!-- Progress Page -->
-<div id="progressPage" class="page hidden">
-  <h3>Progress</h3>
-  <select id="exerciseSelect"></select>
-  <p id="chartInfo" style="color:#ccc; font-size:14px; margin-bottom:8px;">
-    Each point shows the estimated 1RM of your best set per workout, calculated as weight × (1 + reps/30).
-  </p>
-  <canvas id="progressChart"></canvas>
-</div>
-
-<!-- History Page -->
-<div id="historyPage" class="page hidden">
-  <h3>Workout History</h3>
-  <div id="historyList"></div>
-</div>
-
-<script type="module" src="app.js"></script>
+  <!-- Firebase -->
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
