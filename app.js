@@ -49,7 +49,45 @@ async function getLogs() {
 /* =====================================================
    🚀 MAIN APP
 ===================================================== */
-
+window.templates = {
+  "Push A": [
+    "Barbell Bench Press",
+    "Dumbbell Lateral Raise",
+    "Incline Dumbbell Press",
+    "Rope Tricep Pushdowns",
+    "Overhead Dumbbell Tricep Extension",
+    "Face Pulls"
+  ],
+  "Pull A": [
+    "Barbell Bent-Over Row",
+    "Dumbbell Hammer Curl",
+    "Lat Pulldown",
+    "Barbell Curl",
+    "Seated Cable Row",
+    "Cable Curl"
+  ],
+  "Legs": [
+    "Squat",
+    "Leg Curl",
+    "Leg Press",
+    "Leg Extension"
+  ],
+  "Push B": [
+    "Incline DB Press",
+    "Dumbbell Lateral Raise",
+    "Machine Chest Press",
+    "Face Pulls",
+    "Assisted Dips",
+    "Rope Tricep Pushdowns"
+  ],
+  "Pull B": [
+    "Lat Pulldown (diff grip)",
+    "Barbell Curl",
+    "Seated Row",
+    "Dumbbell Hammer Curl",
+    "Rear Delt Fly"
+  ]
+};
 document.addEventListener("DOMContentLoaded", () => {
 
   let currentDay = "Push";
