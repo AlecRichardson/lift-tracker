@@ -1,19 +1,24 @@
+/* ===========================
+   Global
+=========================== */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
   background: #1e1f22;
   color: #ddd;
-  overflow-x: hidden;
+  overflow-x: hidden; /* prevent horizontal scroll */
 }
 
-/* Topbar */
+/* ===========================
+   Topbar
+=========================== */
 .topbar {
+  position: sticky;
+  top: 0;
   background: #2b2d31;
   padding: 14px;
   display: flex;
   align-items: center;
-  position: sticky;
-  top: 0;
   z-index: 1001;
 }
 
@@ -26,11 +31,13 @@ body {
   cursor: pointer;
 }
 
-/* Drawer */
+/* ===========================
+   Drawer
+=========================== */
 .drawer {
   position: fixed;
   top: 0;
-  left: -280px;
+  left: -280px; /* hidden initially */
   width: 260px;
   height: 100%;
   background: #2b2d31;
@@ -38,6 +45,7 @@ body {
   transition: left 0.25s ease;
   z-index: 1000;
   overflow-y: auto;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.5);
 }
 
 .drawer.open {
@@ -60,7 +68,6 @@ body {
   padding: 4px 8px;
   cursor: pointer;
 }
-
 #closeDrawer:hover {
   background: #ff5c5c;
   color: #fff;
@@ -77,7 +84,9 @@ body {
   cursor: pointer;
 }
 
-/* Pages */
+/* ===========================
+   Pages
+=========================== */
 .page {
   padding: 16px;
 }
@@ -86,7 +95,9 @@ body {
   display: none;
 }
 
-/* Exercise Card */
+/* ===========================
+   Exercise Card
+=========================== */
 .exercise {
   background: #2b2d31;
   padding: 12px;
@@ -95,13 +106,24 @@ body {
 }
 
 .exercise h4 {
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   font-size: 16px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
 }
 
-/* Sets inline next to title */
+/* Superset Label */
+.supersetLabel {
+  background: #7289da;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+/* Sets inline */
 .setRow {
   display: flex;
   gap: 10px;
@@ -116,13 +138,7 @@ body {
   border: none;
   background: #3a3c42;
   color: white;
-}
-
-/* Supersets */
-.supersetLabel {
-  font-size: 14px;
-  color: #7289da;
-  margin-bottom: 6px;
+  min-width: 50px;
 }
 
 /* Save Button */
@@ -147,16 +163,17 @@ body {
 /* History Items */
 .historyWrapper {
   position: relative;
-  overflow: hidden;
+  margin-bottom: 10px;
 }
 
 .historyItem {
   background: #2b2d31;
-  padding: 14px;
+  padding: 12px;
   border-radius: 8px;
-  margin-bottom: 8px;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
 }
 
 .historyDetails {
@@ -170,16 +187,25 @@ body {
   display: none;
 }
 
-/* Delete Button inline */
+/* Delete button swipe */
 .deleteBtn {
   position: absolute;
   right: 0;
   top: 0;
-  bottom: 0;
+  bottom: 4px; /* shorter than history item */
   width: 80px;
   background: #ff5c5c;
+  color: #fff;
   border: none;
-  color: white;
   border-radius: 0 8px 8px 0;
+  font-weight: bold;
   cursor: pointer;
+  z-index: 0;
+}
+
+/* Chart Info */
+#chartInfo {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #ccc;
 }
