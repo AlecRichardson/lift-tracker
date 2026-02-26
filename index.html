@@ -38,14 +38,20 @@
 <div id="workoutPage" class="page">
   <div id="exerciseContainer"></div>
   <button id="saveWorkout" class="primaryBtn">Save Workout</button>
-  <div id="saveAnimation" class="hidden">💾 Saved!</div>
 </div>
 
 <!-- Progress Page -->
 <div id="progressPage" class="page hidden">
   <h3>Progress</h3>
-  <p>This chart tracks your estimated progress based on the average weight lifted per exercise. We calculate the average of your recorded sets for each workout.</p>
+  <p id="chartInfo">
+    Chart shows your workout progress. Toggle between total volume, top set, or estimated 1RM.
+  </p>
   <select id="exerciseSelect"></select>
+  <select id="chartMode">
+    <option value="volume">Volume (Weight × Reps)</option>
+    <option value="topSet">Top Set Weight</option>
+    <option value="oneRM">Estimated 1RM</option>
+  </select>
   <canvas id="chart"></canvas>
 </div>
 
