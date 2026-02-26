@@ -12,9 +12,9 @@ body {
   padding: 14px;
   display: flex;
   align-items: center;
+  z-index: 1020;
   position: sticky;
   top: 0;
-  z-index: 1001;
 }
 
 #hamburger {
@@ -48,7 +48,6 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
 }
 
 #closeDrawer {
@@ -60,6 +59,10 @@ body {
   border-radius: 6px;
   padding: 4px 8px;
   cursor: pointer;
+}
+#closeDrawer:hover {
+  background: #ff5c5c;
+  color: #fff;
 }
 
 .drawer button {
@@ -94,18 +97,18 @@ body {
   margin: 0 0 6px 0;
   display: flex;
   justify-content: space-between;
-  font-size: 16px;
 }
 
 /* Sets inline */
 .setRow {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 6px;
 }
 
 .setRow input {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 40px;
   padding: 8px;
   font-size: 16px;
   border-radius: 8px;
@@ -122,13 +125,20 @@ body {
   border: none;
   background: #7289da;
   color: white;
-  margin-top: 10px;
+  margin-top: 20px;
   cursor: pointer;
+}
+
+#saveAnimation {
+  color: #fff;
+  text-align: center;
+  margin-top: 8px;
+  transition: opacity 0.5s;
 }
 
 /* Scrollable workout container */
 #exerciseContainer {
-  max-height: calc(100vh - 250px);
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
   padding-bottom: 20px;
 }
@@ -136,6 +146,7 @@ body {
 /* History Items */
 .historyWrapper {
   position: relative;
+  overflow: hidden;
   margin-bottom: 8px;
 }
 
@@ -144,8 +155,8 @@ body {
   padding: 12px;
   border-radius: 8px;
   cursor: pointer;
-  z-index: 1;
   position: relative;
+  z-index: 1;
 }
 
 .historyDetails {
@@ -153,10 +164,6 @@ body {
   padding-left: 12px;
   font-size: 14px;
   color: #ccc;
-}
-
-.historyDetails.hidden {
-  display: none;
 }
 
 .deleteBtn {
@@ -167,19 +174,11 @@ body {
   width: 80px;
   background: #ff5c5c;
   border: none;
-  border-radius: 8px;
   color: white;
+  font-weight: bold;
   z-index: 0;
-}
-
-/* Progress */
-#progressChart {
-  background: #2b2d31;
-  border-radius: 10px;
-  margin-top: 12px;
-}
-
-/* Template list */
-#templateList {
-  margin-top: 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
