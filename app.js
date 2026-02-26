@@ -124,17 +124,60 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ===============================
      📈 PROGRESS
   =============================== */
-  async function renderChart(){
-    const logs=await getLogs();
-    const exSet=new Set(); logs.forEach(l=>l.e.forEach(e=>exSet.add(e.n)));
-    const select=document.getElementById("exerciseSelect"); select.innerHTML=""; exSet.forEach(name=>{ const opt=document.createElement("option"); opt.value=name; opt.textContent=name; select.appendChild(opt);});
-    if(!select.value&&select.options.length>0) select.value=select.options[0].value;
-    if(!select.value) return;
-    const labels=[],data=[];
-    logs.forEach(l=>{ const ex=l.e.find(e=>e.n===select.value); if(!ex)return; const top=Math.max(...ex.s.map(s=>s.weight)); labels.push(new Date(l.t).toLocaleDateString()); data.push(top); });
-    if(chart) chart.destroy(); const ctx=document.getElementById("progressChart")?.getContext("2d"); if(!ctx)return;
-    chart=new Chart(ctx,{type:"line",data:{labels,datasets:[{label:select.value,data,borderColor:"#7289da",tension:0.3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{color:"#fff"}},x:{ticks:{color:"#fff"}}}});
-  }
+  async function renderChart() {
+  const logs = await getLogs();
+  const exSet = new Set();
+  logs.forEach(l => l.e.forEach(e => exSet.add(e.n)));
+
+  const select = document.getElementById("exerciseSelect");
+  select.innerHTML = "";
+  exSet.forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+
+  if (!select.value && select.options.length > 0) select.value = select.options[0].value;
+  if (!select.value) return;
+
+  const labels = [];
+  const data = [];
+
+  logs.forEach(l => {
+    const ex = l.e.find(e => e.n === select.value);
+    if (!ex) return;
+    const top = Math.max(...ex.s.map(s => s.weight));
+    labels.push(new Date(l.t).toLocaleDateString());
+    data.push(top);
+  });
+
+  if (chart) chart.destroy();
+
+  const ctx = document.getElementById("progressChart")?.getContext("2d");
+  if (!ctx) return;
+
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: select.value,
+        data,
+        borderColor: "#7289da",
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { color: "#fff" } },
+        x: { ticks: { color: "#fff" } }
+      }
+    }
+  });
+}
   document.getElementById("exerciseSelect")?.addEventListener("change",renderChart);
 
   function formatTimestamp(ts){ const date=new Date(ts); return date.toLocaleString("en-US",{month:"long",day:"numeric",weekday:"long",hour:"numeric",minute:"2-digit"}); }
