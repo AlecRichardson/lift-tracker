@@ -1,20 +1,20 @@
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: system-ui, sans-serif;
   background: #1e1f22;
-  color: #ddd;
+  color: white;
   overflow-x: hidden;
 }
 
-/* Topbar */
+/* HEADER */
 .topbar {
-  background: #2b2d31;
-  padding: 14px;
-  display: flex;
-  align-items: center;
-  z-index: 1020;
   position: sticky;
   top: 0;
+  background: #2b2d31;
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  z-index: 1000; /* BELOW drawer */
 }
 
 #hamburger {
@@ -23,10 +23,9 @@ body {
   font-size: 22px;
   color: white;
   margin-right: 14px;
-  cursor: pointer;
 }
 
-/* Drawer */
+/* DRAWER */
 .drawer {
   position: fixed;
   top: 0;
@@ -36,12 +35,21 @@ body {
   background: #2b2d31;
   padding: 20px;
   transition: left 0.25s ease;
-  z-index: 1015;
-  overflow-y: auto;
+  z-index: 2000; /* ABOVE header */
 }
 
 .drawer.open {
   left: 0;
+}
+
+.drawer button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  background: #3a3c42;
+  border: none;
+  color: white;
+  border-radius: 6px;
 }
 
 .drawer-header {
@@ -50,100 +58,56 @@ body {
   align-items: center;
 }
 
-#closeDrawer {
-  background: none;
-  border: 1px solid #ff5c5c;
-  color: #ff5c5c;
-  width: 40px;
-  font-size: 20px;
-  border-radius: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-#closeDrawer:hover {
-  background: #ff5c5c;
-  color: #fff;
-}
-
-.drawer button {
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  background: #3a3c42;
-  color: white;
-  cursor: pointer;
-}
-
-/* Pages */
+/* PAGES */
 .page {
-  padding: 16px;
+  padding: 20px;
 }
 
 .hidden {
   display: none;
 }
 
-/* Exercise Card */
+/* WORKOUT EXERCISE */
 .exercise {
   background: #2b2d31;
   padding: 12px;
+  border-radius: 8px;
   margin-bottom: 12px;
-  border-radius: 10px;
 }
 
 .exercise h4 {
-  margin: 0 0 6px 0;
-  display: flex;
-  justify-content: space-between;
+  margin: 0 0 8px 0;
 }
 
-/* Sets inline */
+/* SET ROW */
 .setRow {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 6px;
 }
 
 .setRow input {
-  flex: 1 1 0;
-  min-width: 40px;
+  flex: 1;
   padding: 8px;
-  font-size: 16px;
-  border-radius: 8px;
+  border-radius: 6px;
   border: none;
   background: #3a3c42;
   color: white;
 }
 
-/* Save Button */
-.primaryBtn {
+/* SAVE BUTTON */
+.saveBtn {
+  position: sticky;
+  bottom: 0;
   width: 100%;
-  padding: 14px;
-  border-radius: 10px;
-  border: none;
+  padding: 16px;
   background: #7289da;
-  color: white;
+  border: none;
+  border-radius: 10px;
   margin-top: 20px;
-  cursor: pointer;
 }
 
-#saveAnimation {
-  color: #fff;
-  text-align: center;
-  margin-top: 8px;
-  transition: opacity 0.5s;
-}
-
-/* Scrollable workout container */
-#exerciseContainer {
-  max-height: calc(100vh - 160px);
-  overflow-y: auto;
-  padding-bottom: 20px;
-}
-
-/* History Items */
+/* HISTORY */
 .historyWrapper {
   position: relative;
   overflow: hidden;
@@ -152,33 +116,20 @@ body {
 
 .historyItem {
   background: #2b2d31;
-  padding: 12px;
+  padding: 14px;
   border-radius: 8px;
-  cursor: pointer;
   position: relative;
-  z-index: 1;
-}
-
-.historyDetails {
-  margin-top: 6px;
-  padding-left: 12px;
-  font-size: 14px;
-  color: #ccc;
+  transition: transform 0.2s ease;
 }
 
 .deleteBtn {
   position: absolute;
   right: 0;
-  top: 0;
-  bottom: 0;
+  top: 10%;
+  height: 80%;
   width: 80px;
   background: #ff5c5c;
   border: none;
   color: white;
-  font-weight: bold;
-  z-index: 0;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 6px;
 }
