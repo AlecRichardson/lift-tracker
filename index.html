@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lift Tracker</title>
-  <meta name="theme-color" content="#1e1f22" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -24,36 +23,45 @@
   <button class="navWorkout" data-day="Pull B">Pull B</button>
 
   <hr />
+
   <button id="navProgress">Progress</button>
   <button id="navHistory">History</button>
 </div>
 
-<!-- Topbar -->
-<div class="topbar">
+<!-- Header -->
+<header class="topbar">
   <button id="hamburger">☰</button>
   <h2 id="pageTitle">Push A</h2>
-</div>
+</header>
 
-<!-- Workout Page -->
-<div id="workoutPage" class="page">
-  <div id="exerciseContainer"></div>
-  <button id="saveWorkout" class="primaryBtn">Save Workout</button>
-  <div id="saveAnimation" class="hidden">💾 Saved!</div>
-</div>
+<!-- Pages -->
+<main>
 
-<!-- Progress Page -->
-<div id="progressPage" class="page hidden">
-  <h3>Progress</h3>
-  <p>This chart tracks your estimated progress based on the average weight lifted per exercise. We calculate the average of your recorded sets for each workout.</p>
-  <select id="exerciseSelect"></select>
-  <canvas id="chart"></canvas>
-</div>
+  <section id="workoutPage" class="page">
+    <div id="exerciseContainer"></div>
+    <button id="saveWorkout" class="saveBtn">Save Workout</button>
+  </section>
 
-<!-- History Page -->
-<div id="historyPage" class="page hidden">
-  <h3>Workout History</h3>
-  <div id="historyList"></div>
-</div>
+  <section id="progressPage" class="page hidden">
+    <h3>Progress</h3>
+
+    <select id="exerciseSelect"></select>
+
+    <select id="chartMode">
+      <option value="volume">Total Volume</option>
+      <option value="top">Top Set</option>
+      <option value="1rm">Estimated 1RM</option>
+    </select>
+
+    <canvas id="chart"></canvas>
+  </section>
+
+  <section id="historyPage" class="page hidden">
+    <h3>Workout History</h3>
+    <div id="historyList"></div>
+  </section>
+
+</main>
 
 <script type="module" src="app.js"></script>
 </body>
