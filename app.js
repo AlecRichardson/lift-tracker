@@ -44,43 +44,90 @@ async function getLogs() {
 /* =====================================================
    🚀 WORKOUT TEMPLATES
 ===================================================== */
+// window.workouts = {
+//   "Push A": [
+//     { name: "Barbell Bench Press", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
+//     { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15", superset: "A1", rest: "60–90 sec" },
+//     { name: "Incline Dumbbell Press", sets: 3, target: "8–10", superset: "B1", rest: "60–90 sec" },
+//     { name: "Rope Tricep Pushdowns", sets: 3, target: "10–12", superset: "B1", rest: "60–90 sec" },
+//     { name: "Overhead Dumbbell Tricep Extension", sets: 3, target: "10", superset: "C1", rest: "60–90 sec" },
+//     { name: "Face Pulls", sets: 3, target: "12–15", superset: "C1", rest: "60–90 sec" }
+//   ],
+//   "Pull A": [
+//     { name: "Barbell Bent-Over Row", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
+//     { name: "Dumbbell Hammer Curl", sets: 4, target: "10", superset: "A1", rest: "60–90 sec" },
+//     { name: "Lat Pulldown", sets: 3, target: "8–10", superset: "B1", rest: "60–90 sec" },
+//     { name: "Barbell Curl", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
+//     { name: "Seated Cable Row", sets: 3, target: "10", superset: "C1", rest: "60–90 sec" },
+//     { name: "Cable Curl", sets: 2, target: "12", superset: "C1", rest: "60–90 sec" }
+//   ],
+//   "Legs": [
+//     { name: "Squat", sets: 4, target: "8–10", superset: "", rest: "90 sec" },
+//     { name: "Leg Curl", sets: 4, target: "8–10", superset: "B1", rest: "60–90 sec" },
+//     { name: "Leg Press", sets: 4, target: "8–12", superset: "B1", rest: "60–90 sec" },
+//     { name: "Leg Extension", sets: 2, target: "12–15", superset: "", rest: "60–90 sec" }
+//   ],
+//   "Push B": [
+//     { name: "Incline DB Press", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
+//     { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15", superset: "A1", rest: "60–90 sec" },
+//     { name: "Machine Chest Press", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
+//     { name: "Face Pulls", sets: 3, target: "12–15", superset: "B1", rest: "60–90 sec" },
+//     { name: "Assisted Dips", sets: 3, target: "8–10", superset: "C1", rest: "60–90 sec" },
+//     { name: "Rope Tricep Pushdowns", sets: 2, target: "12", superset: "C1", rest: "60–90 sec" }
+//   ],
+//   "Pull B": [
+//     { name: "Lat Pulldown (diff grip)", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
+//     { name: "Barbell Curl", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
+//     { name: "Seated Row", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
+//     { name: "Dumbbell Hammer Curl", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
+//     { name: "Rear Delt Fly", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
+//   ]
+// };
+/* =====================================================
+   🚀 WORKOUT TEMPLATES (UPDATED CUT PLAN)
+===================================================== */
 window.workouts = {
-  "Push A": [
-    { name: "Barbell Bench Press", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
-    { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15", superset: "A1", rest: "60–90 sec" },
-    { name: "Incline Dumbbell Press", sets: 3, target: "8–10", superset: "B1", rest: "60–90 sec" },
-    { name: "Rope Tricep Pushdowns", sets: 3, target: "10–12", superset: "B1", rest: "60–90 sec" },
-    { name: "Overhead Dumbbell Tricep Extension", sets: 3, target: "10", superset: "C1", rest: "60–90 sec" },
-    { name: "Face Pulls", sets: 3, target: "12–15", superset: "C1", rest: "60–90 sec" }
+  "Push A v2": [
+    { name: "Barbell Bench Press", sets: 4, target: "6–10", superset: "", rest: "60–90 sec" },
+    { name: "Incline Dumbbell Press", sets: 3, target: "8–10", superset: "", rest: "60–90 sec" },
+    { name: "Machine Chest Press", sets: 2, target: "8–12", superset: "", rest: "60–90 sec" },
+    { name: "Dumbbell Lateral Raise", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" },
+    { name: "Rope Tricep Pushdowns", sets: 2, target: "10–12", superset: "", rest: "60–90 sec" },
+    { name: "Face Pulls", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
   ],
-  "Pull A": [
-    { name: "Barbell Bent-Over Row", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
-    { name: "Dumbbell Hammer Curl", sets: 4, target: "10", superset: "A1", rest: "60–90 sec" },
-    { name: "Lat Pulldown", sets: 3, target: "8–10", superset: "B1", rest: "60–90 sec" },
-    { name: "Barbell Curl", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
-    { name: "Seated Cable Row", sets: 3, target: "10", superset: "C1", rest: "60–90 sec" },
-    { name: "Cable Curl", sets: 2, target: "12", superset: "C1", rest: "60–90 sec" }
-  ],
-  "Legs": [
-    { name: "Squat", sets: 4, target: "8–10", superset: "", rest: "90 sec" },
-    { name: "Leg Curl", sets: 4, target: "8–10", superset: "B1", rest: "60–90 sec" },
-    { name: "Leg Press", sets: 4, target: "8–12", superset: "B1", rest: "60–90 sec" },
-    { name: "Leg Extension", sets: 2, target: "12–15", superset: "", rest: "60–90 sec" }
-  ],
-  "Push B": [
-    { name: "Incline DB Press", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
-    { name: "Dumbbell Lateral Raise", sets: 4, target: "12–15", superset: "A1", rest: "60–90 sec" },
-    { name: "Machine Chest Press", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
-    { name: "Face Pulls", sets: 3, target: "12–15", superset: "B1", rest: "60–90 sec" },
-    { name: "Assisted Dips", sets: 3, target: "8–10", superset: "C1", rest: "60–90 sec" },
-    { name: "Rope Tricep Pushdowns", sets: 2, target: "12", superset: "C1", rest: "60–90 sec" }
-  ],
-  "Pull B": [
-    { name: "Lat Pulldown (diff grip)", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
-    { name: "Barbell Curl", sets: 4, target: "8–10", superset: "A1", rest: "60–90 sec" },
-    { name: "Seated Row", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
-    { name: "Dumbbell Hammer Curl", sets: 3, target: "10", superset: "B1", rest: "60–90 sec" },
+
+  "Pull A v2": [
+    { name: "Barbell Row", sets: 4, target: "6–10", superset: "", rest: "60–90 sec" },
+    { name: "Lat Pulldown", sets: 3, target: "8–10", superset: "", rest: "60–90 sec" },
+    { name: "Seated Cable Row", sets: 3, target: "10", superset: "", rest: "60–90 sec" },
+    { name: "Barbell Curl", sets: 2, target: "8–10", superset: "", rest: "60–90 sec" },
+    { name: "Hammer Curl", sets: 2, target: "10–12", superset: "", rest: "60–90 sec" },
     { name: "Rear Delt Fly", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
+  ],
+
+  "Legs v2": [
+    { name: "Squat OR Leg Press", sets: 4, target: "6–10", superset: "", rest: "90 sec" },
+    { name: "Romanian Deadlift (RDL)", sets: 3, target: "8–10", superset: "", rest: "90 sec" },
+    { name: "Leg Curl", sets: 3, target: "10–12", superset: "", rest: "60–90 sec" },
+    { name: "Leg Extension", sets: 2, target: "12–15", superset: "", rest: "60–90 sec" },
+    { name: "Calf Raises", sets: 3, target: "10–15", superset: "", rest: "60–90 sec" }
+  ],
+
+  "Push B v2": [
+    { name: "Incline Dumbbell Press", sets: 4, target: "8–10", superset: "", rest: "60–90 sec" },
+    { name: "Machine Chest Press", sets: 3, target: "8–12", superset: "", rest: "60–90 sec" },
+    { name: "Dumbbell Lateral Raise", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" },
+    { name: "Assisted Dips", sets: 2, target: "8–10", superset: "", rest: "60–90 sec" },
+    { name: "Rope Tricep Pushdowns", sets: 2, target: "10–12", superset: "", rest: "60–90 sec" },
+    { name: "Face Pulls", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
+  ],
+
+  "Pull B v2": [
+    { name: "Lat Pulldown (alternate grip)", sets: 4, target: "8–10", superset: "", rest: "60–90 sec" },
+    { name: "Seated Row", sets: 3, target: "10", superset: "", rest: "60–90 sec" },
+    { name: "Rear Delt Fly", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" },
+    { name: "Barbell Curl", sets: 2, target: "8–10", superset: "", rest: "60–90 sec" },
+    { name: "Hammer Curl", sets: 2, target: "10–12", superset: "", rest: "60–90 sec" }
   ]
 };
 
