@@ -87,7 +87,7 @@ async function getLogs() {
    🚀 WORKOUT TEMPLATES (UPDATED CUT PLAN)
 ===================================================== */
 window.workouts = {
-  "Push A v2": [
+  "Push A": [
     { name: "Barbell Bench Press", sets: 4, target: "6–10", superset: "", rest: "60–90 sec" },
     { name: "Incline Dumbbell Press", sets: 3, target: "8–10", superset: "", rest: "60–90 sec" },
     { name: "Machine Chest Press", sets: 2, target: "8–12", superset: "", rest: "60–90 sec" },
@@ -96,7 +96,7 @@ window.workouts = {
     { name: "Face Pulls", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
   ],
 
-  "Pull A v2": [
+  "Pull": [
     { name: "Barbell Row", sets: 4, target: "6–10", superset: "", rest: "60–90 sec" },
     { name: "Lat Pulldown", sets: 3, target: "8–10", superset: "", rest: "60–90 sec" },
     { name: "Seated Cable Row", sets: 3, target: "10", superset: "", rest: "60–90 sec" },
@@ -105,7 +105,7 @@ window.workouts = {
     { name: "Rear Delt Fly", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
   ],
 
-  "Legs v2": [
+  "Legs": [
     { name: "Squat OR Leg Press", sets: 4, target: "6–10", superset: "", rest: "90 sec" },
     { name: "Romanian Deadlift (RDL)", sets: 3, target: "8–10", superset: "", rest: "90 sec" },
     { name: "Leg Curl", sets: 3, target: "10–12", superset: "", rest: "60–90 sec" },
@@ -113,7 +113,7 @@ window.workouts = {
     { name: "Calf Raises", sets: 3, target: "10–15", superset: "", rest: "60–90 sec" }
   ],
 
-  "Push B v2": [
+  "Push B": [
     { name: "Incline Dumbbell Press", sets: 4, target: "8–10", superset: "", rest: "60–90 sec" },
     { name: "Machine Chest Press", sets: 3, target: "8–12", superset: "", rest: "60–90 sec" },
     { name: "Dumbbell Lateral Raise", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" },
@@ -122,7 +122,7 @@ window.workouts = {
     { name: "Face Pulls", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
   ],
 
-  "Pull B v2": [
+  "Pull B": [
     { name: "Lat Pulldown (alternate grip)", sets: 4, target: "8–10", superset: "", rest: "60–90 sec" },
     { name: "Seated Row", sets: 3, target: "10", superset: "", rest: "60–90 sec" },
     { name: "Rear Delt Fly", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" },
