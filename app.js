@@ -96,7 +96,7 @@ window.workouts = {
     { name: "Face Pulls", sets: 3, target: "12–15", superset: "", rest: "60–90 sec" }
   ],
 
-  "Pull": [
+  "Pull A": [
     { name: "Barbell Row", sets: 4, target: "6–10", superset: "", rest: "60–90 sec" },
     { name: "Lat Pulldown", sets: 3, target: "8–10", superset: "", rest: "60–90 sec" },
     { name: "Seated Cable Row", sets: 3, target: "10", superset: "", rest: "60–90 sec" },
