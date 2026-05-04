@@ -61,6 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentPage = "homePage";
   let chart = null;
   let historyFilter = "All";
+  let activeRestTimer = null;
 
   let builderPlanName = "";
   let builderWorkouts = null;
@@ -73,7 +74,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (defaultValidation.errors.length) {
     showMessage(
-      `Default workouts.js has issues:\n${defaultValidation.errors.map(e => `• ${e}`).join("\n")}`,
+      `Your starter workout plan has issues:\n${defaultValidation.errors.map(e => `• ${e}`).join("\n")}`,
       "error"
     );
   }
@@ -84,7 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     workoutDays = Object.keys(workouts);
   } catch (error) {
     console.error(error);
-    showMessage("Could not load your active plan from Firebase.", "error");
+    showMessage("Couldn’t load your workout plan.", "error");
     activePlan = {
       id: "local_fallback",
       name: "Local Fallback Plan",
@@ -95,7 +96,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   if (!workoutDays.length) {
-    showMessage("No workouts found. Add workouts to workouts.js.", "error");
+    showMessage("No workouts found. Go to Plan and add a workout day.", "error");
   }
 
   setupBottomNav();
@@ -153,7 +154,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
   }
 
-  async function saveActivePlanToFirebase(nextWorkouts, planName = "Current Plan") {
+  async function saveActivePlanToStorage(nextWorkouts, planName = "Current Plan") {
     const validation = validateWorkoutObject(nextWorkouts);
 
     if (validation.errors.length) {
@@ -294,7 +295,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       logs = await getLogs();
     } catch (error) {
       console.error(error);
-      showMessage("Could not load recent workout data.", "error");
+      showMessage("Couldn’t load recent workout data.", "error");
     }
 
     const latestLog = logs.length ? logs[logs.length - 1] : null;
@@ -542,6 +543,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         ${Number(exercise.sets) || 0} sets • Target ${escapeHtml(exercise.target || "")}
                         ${exercise.rest ? ` • Rest ${escapeHtml(exercise.rest)}` : ""}
                         ${exercise.superset ? ` • Superset ${escapeHtml(exercise.superset)}` : ""}
+                        ${exercise.equipment ? ` • ${escapeHtml(exercise.equipment)}` : ""}
                       </p>
                     </div>
                   </div>
@@ -639,18 +641,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           </section>
         `}
 
-        <section class="dashboardCard">
-          <p class="eyebrow">Save</p>
-          <h3>Save plan to Firebase</h3>
-          <p>This updates the active plan used by Home and Workout. It does not delete workout history.</p>
-
-          <div class="builderSaveDock">
-            <button id="savePlanBtn" type="button" class="primaryBtn">Save Plan</button>
-          </div>
-
-          <div class="homeActions">
-            <button id="discardPlanChangesBtn" type="button" class="secondaryBtn">Discard Unsaved Changes</button>
-          </div>
+        <section class="dashboardCard builderSaveSimple">
+          <button id="savePlanBtn" type="button" class="primaryBtn">Save Plan</button>
         </section>
       </div>
     `;
@@ -745,14 +737,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     document.getElementById("savePlanBtn")?.addEventListener("click", saveBuilderPlan);
-
-    document.getElementById("discardPlanChangesBtn")?.addEventListener("click", () => {
-      const ok = confirm("Discard unsaved plan changes and reload from the active Firebase plan?");
-      if (!ok) return;
-
-      initBuilderFromActivePlan(true);
-      renderPlanPage();
-    });
   }
 
   function handleBuilderExerciseAction(action, index) {
@@ -862,7 +846,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       saveBtn.disabled = true;
       saveBtn.textContent = "Saving...";
 
-      await saveActivePlanToFirebase(validation.workouts, planName);
+      await saveActivePlanToStorage(validation.workouts, planName);
 
       builderPlanName = activePlan.name;
       builderWorkouts = deepClone(activePlan.workouts);
@@ -871,7 +855,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       await renderHome();
       renderPlanPage();
-      showBuilderMessage("Plan saved to Firebase.", "success");
+      showBuilderMessage("Plan saved.", "success");
     } catch (error) {
       console.error(error);
       showBuilderMessage(`Plan did not save:\n${error.message || error}`, "error");
@@ -907,7 +891,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      DRAFT HELPERS
   ===================================================== */
-  const DRAFT_KEY = "draftWorkoutV3";
+  const DRAFT_KEY = "draftWorkoutV4";
 
   function saveDraft(day) {
     const exercises = {};
@@ -930,7 +914,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       });
 
-      exercises[exerciseKey] = sets;
+      exercises[exerciseKey] = {
+        pulley: card.dataset.pulley || "",
+        sets
+      };
     });
 
     localStorage.setItem(
@@ -959,13 +946,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   function draftHasValues(draft) {
     if (!draft?.exercises) return false;
 
-    return Object.values(draft.exercises).some(sets =>
-      sets.some(set =>
+    return Object.values(draft.exercises).some(entry => {
+      const sets = Array.isArray(entry) ? entry : entry?.sets || [];
+      return sets.some(set =>
         String(set.reps || "").trim() ||
         String(set.weight || "").trim() ||
         set.done
-      )
-    );
+      );
+    });
   }
 
   document.addEventListener("input", event => {
@@ -979,6 +967,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function renderWorkout() {
     const container = document.getElementById("exerciseContainer");
     if (!container) return;
+
+    stopActiveRestTimer();
 
     if (!currentDay) {
       container.innerHTML = `
@@ -1011,7 +1001,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       logs = await getLogs();
     } catch (error) {
       container.innerHTML = "";
-      showMessage("Could not load saved workouts from Firestore. Check your connection or Firebase config.", "error");
+      showMessage("Couldn’t load your workout history.", "error");
       console.error(error);
       return;
     }
@@ -1049,12 +1039,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       const exerciseKey = getExerciseKey(exercise);
       const previousExercise = findExerciseInLog(lastLog, exercise);
       const previousSets = previousExercise?.s || [];
-      const draftSets = useDraft ? draft.exercises?.[exerciseKey] : null;
+      const draftEntry = useDraft ? draft.exercises?.[exerciseKey] : null;
+      const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
 
       const nextExercise = template[index + 1];
       const isSupersetEnd =
         exercise.superset &&
         (!nextExercise || nextExercise.superset !== exercise.superset);
+
+      const isCable = isCableExercise(exercise);
+      const previousPulley = previousExercise?.pulley || "";
+      const draftPulley = !Array.isArray(draftEntry) ? draftEntry?.pulley : "";
+      const startingPulley = isCable ? (draftPulley || previousPulley || "single") : "";
 
       const exerciseCard = document.createElement("article");
       exerciseCard.className = [
@@ -1066,6 +1062,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       exerciseCard.dataset.exerciseKey = exerciseKey;
       exerciseCard.dataset.exerciseName = exercise.name;
+      exerciseCard.dataset.pulley = startingPulley;
 
       exerciseCard.innerHTML = `
         <div class="exerciseHeader">
@@ -1079,9 +1076,17 @@ document.addEventListener("DOMContentLoaded", async () => {
               ${exercise.type ? `<span class="pill">${escapeHtml(exercise.type)}</span>` : ""}
             </div>
             ${exercise.note ? `<p class="exerciseNote">${escapeHtml(exercise.note)}</p>` : ""}
-            ${previousSets.length ? `<p class="lastHint">Last: ${escapeHtml(formatSets(previousSets))}</p>` : ""}
+            ${previousSets.length ? `<p class="lastHint">Last: ${escapeHtml(formatSets(previousSets))}${previousExercise?.pulley ? ` • ${escapeHtml(formatPulley(previousExercise.pulley))}` : ""}</p>` : ""}
           </div>
         </div>
+
+        ${isCable ? `
+          <div class="pulleyToggle" data-exercise-key="${escapeAttribute(exerciseKey)}">
+            <div class="pulleyToggleLabel">Cable setup</div>
+            <button type="button" class="pulleyBtn ${startingPulley === "single" ? "active" : ""}" data-pulley="single">Single</button>
+            <button type="button" class="pulleyBtn ${startingPulley === "double" ? "active" : ""}" data-pulley="double">Double</button>
+          </div>
+        ` : ""}
 
         <div class="setGridHeader">
           <div>Set</div>
@@ -1089,6 +1094,18 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div>Weight</div>
         </div>
       `;
+
+      if (isCable) {
+        exerciseCard.querySelectorAll(".pulleyBtn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            exerciseCard.dataset.pulley = btn.dataset.pulley || "single";
+            exerciseCard.querySelectorAll(".pulleyBtn").forEach(b => {
+              b.classList.toggle("active", b === btn);
+            });
+            saveDraft(currentDay);
+          });
+        });
+      }
 
       for (let i = 0; i < exercise.sets; i++) {
         const row = document.createElement("div");
@@ -1102,14 +1119,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         setNumber.dataset.done = "false";
 
         setNumber.addEventListener("click", () => {
-          const row = setNumber.closest(".setRow");
-          const isDone = setNumber.dataset.done === "true";
-
-          setNumber.dataset.done = isDone ? "false" : "true";
-          setNumber.textContent = isDone ? setNumber.dataset.setNumber : "✓";
-          row?.classList.toggle("setDone", !isDone);
-
-          saveDraft(currentDay);
+          toggleSetDone({
+            button: setNumber,
+            day: currentDay,
+            restText: exercise.rest
+          });
         });
 
         const repsInput = document.createElement("input");
@@ -1129,17 +1143,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         weightInput.dataset.field = "weight";
         weightInput.dataset.setIndex = String(i);
 
-        const sourceSet = draftSets?.[i] || previousSets?.[i];
+        const draftSet = draftSets?.[i];
+        const previousSet = previousSets?.[i];
+        const valueSource = draftSet || previousSet;
 
-        if (sourceSet) {
-          repsInput.value = sourceSet.reps || "";
-          weightInput.value = sourceSet.weight || "";
+        if (valueSource) {
+          repsInput.value = valueSource.reps || "";
+          weightInput.value = valueSource.weight || "";
+        }
 
-          if (sourceSet.done) {
-            setNumber.dataset.done = "true";
-            setNumber.textContent = "✓";
-            row.classList.add("setDone");
-          }
+        if (draftSet?.done) {
+          setNumber.dataset.done = "true";
+          setNumber.textContent = "✓";
+          row.classList.add("setDone");
         }
 
         row.appendChild(setNumber);
@@ -1150,6 +1166,88 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       container.appendChild(exerciseCard);
     });
+  }
+
+  function toggleSetDone({ button, day, restText }) {
+    const row = button.closest(".setRow");
+    const isDone = button.dataset.done === "true";
+
+    if (isDone) {
+      if (activeRestTimer?.button === button) {
+        stopActiveRestTimer();
+      }
+
+      button.dataset.done = "false";
+      button.textContent = button.dataset.setNumber;
+      button.classList.remove("timerActive", "timerComplete");
+      row?.classList.remove("setDone");
+      saveDraft(day);
+      return;
+    }
+
+    button.dataset.done = "true";
+    row?.classList.add("setDone");
+
+    const seconds = parseRestSeconds(restText);
+
+    if (seconds > 0) {
+      startRestTimer(button, seconds);
+    } else {
+      button.textContent = "✓";
+    }
+
+    saveDraft(day);
+  }
+
+  function startRestTimer(button, seconds) {
+    stopActiveRestTimer();
+
+    let remaining = seconds;
+
+    button.classList.remove("timerComplete");
+    button.classList.add("timerActive");
+    button.textContent = formatTimer(remaining);
+
+    const intervalId = setInterval(() => {
+      remaining -= 1;
+
+      if (remaining <= 0) {
+        clearInterval(intervalId);
+
+        button.classList.remove("timerActive");
+        button.classList.add("timerComplete");
+        button.textContent = "✓";
+
+        activeRestTimer = null;
+
+        setTimeout(() => {
+          button.classList.remove("timerComplete");
+        }, 700);
+
+        return;
+      }
+
+      button.textContent = formatTimer(remaining);
+    }, 1000);
+
+    activeRestTimer = {
+      button,
+      intervalId
+    };
+  }
+
+  function stopActiveRestTimer() {
+    if (!activeRestTimer) return;
+
+    clearInterval(activeRestTimer.intervalId);
+
+    const button = activeRestTimer.button;
+    if (button?.isConnected && button.dataset.done === "true") {
+      button.classList.remove("timerActive");
+      button.textContent = "✓";
+    }
+
+    activeRestTimer = null;
   }
 
   /* =====================================================
@@ -1170,6 +1268,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll(".exerciseCard").forEach(card => {
       const exerciseKey = card.dataset.exerciseKey;
       const exerciseName = card.dataset.exerciseName;
+      const pulley = card.dataset.pulley || "";
 
       const sets = [];
 
@@ -1188,6 +1287,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       exercises.push({
         id: exerciseKey,
         n: exerciseName,
+        pulley,
         s: sets
       });
     });
@@ -1196,8 +1296,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       saveButton.disabled = true;
       saveButton.textContent = "Saving...";
 
+      stopActiveRestTimer();
+
       await addDoc(userWorkoutsCollection(), {
-        schemaVersion: 3,
+        schemaVersion: 4,
         planId: activePlan?.id || "",
         planName: activePlan?.name || "",
         t: new Date().toISOString(),
@@ -1208,9 +1310,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       clearDraft();
 
       saveAnimation?.classList.remove("hidden");
-      setTimeout(() => saveAnimation?.classList.add("hidden"), 1400);
+      setTimeout(() => saveAnimation?.classList.add("hidden"), 1200);
 
-      await renderWorkout();
+      const savedDay = currentDay;
+      currentDay = "";
+
+      await renderHome();
+      showPage("homePage");
+      pageSubtitle.textContent = `${savedDay} saved.`;
     } catch (error) {
       showMessage("Workout did not save. Check your connection and try again.", "error");
       console.error(error);
@@ -1234,7 +1341,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       logs = (await getLogs()).reverse();
     } catch (error) {
-      container.innerHTML = `<div class="exercise">Could not load history.</div>`;
+      container.innerHTML = `<div class="exercise">Couldn’t load history.</div>`;
       console.error(error);
       return;
     }
@@ -1354,7 +1461,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           exerciseBlock.innerHTML = `
             <div class="historyExerciseHead">
               <div>
-                <strong>${escapeHtml(exercise.n || "Exercise")}</strong>
+                <strong>${escapeHtml(exercise.n || "Exercise")}${exercise.pulley ? ` — ${escapeHtml(formatPulley(exercise.pulley))}` : ""}</strong>
                 <p>Best: ${escapeHtml(bestSetText(sets))}</p>
               </div>
             </div>
@@ -1460,7 +1567,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       logs = await getLogs();
     } catch (error) {
-      showMessage("Could not load progress data.", "error");
+      showMessage("Couldn’t load progress data.", "error");
       console.error(error);
       return;
     }
@@ -1470,10 +1577,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     logs.forEach(log => {
       (log.e || []).forEach(exercise => {
-        const key = exercise.id || slugify(exercise.n || "");
-        const label = exercise.n || key;
-        if (!exerciseMap.has(key)) {
-          exerciseMap.set(key, label);
+        const progressKey = getProgressExerciseKey(exercise);
+        const label = getProgressExerciseLabel(exercise);
+
+        if (!exerciseMap.has(progressKey)) {
+          exerciseMap.set(progressKey, label);
         }
       });
     });
@@ -1502,8 +1610,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     logs.forEach(log => {
       const exercise = (log.e || []).find(ex => {
-        const key = ex.id || slugify(ex.n || "");
-        return key === select.value;
+        return getProgressExerciseKey(ex) === select.value;
       });
 
       if (!exercise) return;
@@ -1609,6 +1716,43 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function getExerciseKey(exercise) {
     return exercise.id || slugify(exercise.name || "");
+  }
+
+  function isCableExercise(exercise) {
+    const equipment = String(exercise?.equipment || "").toLowerCase();
+    const name = String(exercise?.name || "").toLowerCase();
+
+    return equipment.includes("cable") ||
+      name.includes("cable") ||
+      name.includes("pulldown") ||
+      name.includes("pushdown") ||
+      name.includes("rope");
+  }
+
+  function formatPulley(value) {
+    if (value === "single") return "Single pulley";
+    if (value === "double") return "Double pulley";
+    return "";
+  }
+
+  function getProgressExerciseKey(exercise) {
+    const base = exercise.id || slugify(exercise.n || "");
+
+    if (exercise.pulley) {
+      return `${base}::${exercise.pulley}`;
+    }
+
+    return base;
+  }
+
+  function getProgressExerciseLabel(exercise) {
+    const label = exercise.n || exercise.id || "Exercise";
+
+    if (exercise.pulley) {
+      return `${label} — ${formatPulley(exercise.pulley)}`;
+    }
+
+    return label;
   }
 
   function formatSets(sets) {
@@ -1805,10 +1949,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     lines.push("");
 
     (log.e || []).forEach(exercise => {
-      lines.push(`${exercise.n || "Exercise"}: ${formatSets(exercise.s || [])}`);
+      const pulley = exercise.pulley ? ` — ${formatPulley(exercise.pulley)}` : "";
+      lines.push(`${exercise.n || "Exercise"}${pulley}: ${formatSets(exercise.s || [])}`);
     });
 
     return lines.join("\n");
+  }
+
+  function parseRestSeconds(restText) {
+    const text = String(restText || "").toLowerCase();
+
+    if (!text.trim()) return 0;
+
+    const numbers = [...text.matchAll(/(\d+(?:\.\d+)?)/g)]
+      .map(match => Number(match[1]))
+      .filter(number => Number.isFinite(number));
+
+    if (!numbers.length) return 0;
+
+    const maxNumber = Math.max(...numbers);
+
+    if (text.includes("min")) {
+      return Math.round(maxNumber * 60);
+    }
+
+    return Math.round(maxNumber);
+  }
+
+  function formatTimer(seconds) {
+    if (seconds >= 60) {
+      const minutes = Math.floor(seconds / 60);
+      const remainder = seconds % 60;
+      return `${minutes}:${String(remainder).padStart(2, "0")}`;
+    }
+
+    return String(seconds);
   }
 
   function formatLargeNumber(value) {
