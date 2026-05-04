@@ -269,7 +269,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let currentSuperset = "";
 
-    template.forEach(exercise => {
+    template.forEach((exercise, index) => {
       if (exercise.superset && exercise.superset !== currentSuperset) {
         const supersetDiv = document.createElement("div");
         supersetDiv.className = "exercise supersetHeader";
@@ -306,6 +306,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="exerciseMeta">
               <span class="pill target">Target ${escapeHtml(exercise.target)}</span>
               <span class="pill">${exercise.sets} sets</span>
+              ${exercise.superset ? `<span class="pill supersetPill">Superset ${escapeHtml(exercise.superset)}</span>` : ""}
               ${exercise.rest ? `<span class="pill">Rest ${escapeHtml(exercise.rest)}</span>` : ""}
               ${exercise.type ? `<span class="pill">${escapeHtml(exercise.type)}</span>` : ""}
             </div>
