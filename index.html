@@ -23,30 +23,8 @@
 </head>
 
 <body>
-  <div id="drawerOverlay" class="drawerOverlay hidden"></div>
-
-  <!-- Drawer -->
-  <aside id="drawer" class="drawer" aria-label="Main menu">
-    <div class="drawer-header">
-      <div>
-        <h3>Menu</h3>
-        <p id="drawerUser" class="drawerUser"></p>
-      </div>
-      <button id="closeDrawer" type="button" aria-label="Close menu">✕</button>
-    </div>
-
-    <div class="drawerSectionLabel">Workouts</div>
-    <div id="workoutNavList" class="workoutNavList"></div>
-
-    <hr />
-
-    <button id="navProgress" type="button" class="drawerNavBtn">Progress</button>
-    <button id="navHistory" type="button" class="drawerNavBtn">History</button>
-  </aside>
-
   <!-- Topbar -->
   <header class="topbar">
-    <button id="hamburger" type="button" aria-label="Open menu">☰</button>
     <div class="topbarTitleWrap">
       <h2 id="pageTitle">Lift Tracker</h2>
       <p id="pageSubtitle"></p>
@@ -54,9 +32,39 @@
   </header>
 
   <main class="appShell">
-    <!-- Workout Page -->
-    <section id="workoutPage" class="page">
+    <!-- Home Page -->
+    <section id="homePage" class="page">
       <div id="appMessage" class="appMessage hidden"></div>
+
+      <div class="homeHero">
+        <div>
+          <p class="eyebrow">Active Plan</p>
+          <h3 id="activePlanName">Loading...</h3>
+          <p id="activePlanMeta">Checking your workouts...</p>
+        </div>
+      </div>
+
+      <section id="todayWorkoutCard" class="dashboardCard"></section>
+
+      <section class="dashboardCard">
+        <div class="cardHeaderRow">
+          <div>
+            <p class="eyebrow">All Workouts</p>
+            <h3>Choose a workout</h3>
+          </div>
+        </div>
+        <div id="allWorkoutsGrid" class="workoutButtonGrid"></div>
+      </section>
+
+      <section id="recentWorkoutCard" class="dashboardCard"></section>
+
+      <section id="homeProgressCard" class="dashboardCard"></section>
+
+      <section id="homePlanCard" class="dashboardCard"></section>
+    </section>
+
+    <!-- Workout Page -->
+    <section id="workoutPage" class="page hidden">
       <div id="exerciseContainer"></div>
 
       <div class="saveDock">
@@ -69,9 +77,7 @@
     <section id="progressPage" class="page hidden">
       <div class="pageHeader">
         <h3>Progress</h3>
-        <p>
-          Track strength with better metrics than average weight alone.
-        </p>
+        <p>Track strength with better metrics than average weight alone.</p>
       </div>
 
       <label class="fieldLabel" for="exerciseSelect">Exercise</label>
@@ -95,12 +101,45 @@
     <section id="historyPage" class="page hidden">
       <div class="pageHeader">
         <h3>Workout History</h3>
-        <p>Tap a workout to expand. Swipe left to delete.</p>
+        <p>Tap a workout to expand. Delete and copy are inside each workout.</p>
       </div>
 
       <div id="historyList"></div>
     </section>
+
+    <!-- Plan Page -->
+    <section id="planPage" class="page hidden">
+      <div class="pageHeader">
+        <h3>Plan</h3>
+        <p>Your active Firebase workout plan. Full builder comes next.</p>
+      </div>
+
+      <div id="planOverview"></div>
+    </section>
   </main>
+
+  <!-- Bottom Nav -->
+  <nav class="bottomNav" aria-label="Main navigation">
+    <button id="bottomHome" type="button" class="bottomNavBtn active" data-page="homePage">
+      <span>⌂</span>
+      Home
+    </button>
+
+    <button id="bottomWorkout" type="button" class="bottomNavBtn" data-page="workoutPage">
+      <span>▣</span>
+      Workout
+    </button>
+
+    <button id="bottomHistory" type="button" class="bottomNavBtn" data-page="historyPage">
+      <span>◷</span>
+      History
+    </button>
+
+    <button id="bottomPlan" type="button" class="bottomNavBtn" data-page="planPage">
+      <span>⚙</span>
+      Plan
+    </button>
+  </nav>
 
   <script src="workouts.js"></script>
   <script type="module" src="app.js"></script>
