@@ -450,23 +450,6 @@ select:focus {
   gap: 10px;
 }
 
-.historyWrapper {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius);
-}
-
-.historyItem {
-  background: rgba(43, 45, 49, 0.96);
-  border: 1px solid var(--border);
-  padding: 14px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  position: relative;
-  z-index: 1;
-  transition: transform 0.16s ease;
-}
-
 .historyTitle {
   display: flex;
   justify-content: space-between;
@@ -488,27 +471,6 @@ select:focus {
   font-size: 14px;
   color: #d6d8dc;
   line-height: 1.45;
-}
-
-.historyDetails div + div {
-  margin-top: 8px;
-}
-
-.deleteBtn {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 92px;
-  background: var(--danger);
-  border: none;
-  color: white;
-  font-weight: 900;
-  z-index: 0;
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /* Revamped History */
