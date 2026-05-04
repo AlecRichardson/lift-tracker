@@ -55,6 +55,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentDay = workoutDays[0] || "";
   let currentPage = "workoutPage";
   let chart = null;
+  let historyFilter = "All";
 
   const drawer = document.getElementById("drawer");
   const drawerOverlay = document.getElementById("drawerOverlay");
@@ -413,37 +414,196 @@ document.addEventListener("DOMContentLoaded", async () => {
      HISTORY
   ===================================================== */
   async function renderHistory() {
-    const container = document.getElementById("historyList");
-    if (!container) return;
+  const container = document.getElementById("historyList");
+  if (!container) return;
 
-    container.innerHTML = `<div class="exercise">Loading history...</div>`;
+  container.innerHTML = `<div class="exercise">Loading history...</div>`;
 
-    let logs = [];
+  let logs = [];
 
-    try {
-      logs = (await getLogs()).reverse();
-    } catch (error) {
-      container.innerHTML = `<div class="exercise">Could not load history.</div>`;
-      console.error(error);
-      return;
-    }
+  try {
+    logs = (await getLogs()).reverse();
+  } catch (error) {
+    container.innerHTML = `<div class="exercise">Could not load history.</div>`;
+    console.error(error);
+    return;
+  }
 
-    container.innerHTML = "";
+  container.innerHTML = "";
 
-    if (!logs.length) {
-      container.innerHTML = `<div class="exercise">No saved workouts yet.</div>`;
-      return;
-    }
+  if (!logs.length) {
+    container.innerHTML = `
+      <div class="historyEmpty">
+        <h4>No saved workouts yet.</h4>
+        <p>Save a workout and it will show up here.</p>
+      </div>
+    `;
+    return;
+  }
 
-    let openItem = null;
+  const filterWrap = document.createElement("div");
+  filterWrap.className = "historyFilters";
 
-    logs.forEach(log => {
-      const wrapper = document.createElement("div");
-      wrapper.className = "historyWrapper";
+  const filterOptions = ["All", ...Object.keys(workouts)];
+
+  filterOptions.forEach(day => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "historyFilterChip";
+    btn.classList.toggle("active", historyFilter === day);
+    btn.textContent = day;
+
+    btn.addEventListener("click", () => {
+      historyFilter = day;
+      renderHistory();
+    });
+
+    filterWrap.appendChild(btn);
+  });
+
+  container.appendChild(filterWrap);
+
+  const filteredLogs =
+    historyFilter === "All"
+      ? logs
+      : logs.filter(log => log.d === historyFilter);
+
+  if (!filteredLogs.length) {
+    const empty = document.createElement("div");
+    empty.className = "historyEmpty";
+    empty.innerHTML = `
+      <h4>No ${escapeHtml(historyFilter)} workouts found.</h4>
+      <p>Change the filter or save this workout day first.</p>
+    `;
+    container.appendChild(empty);
+    return;
+  }
+
+  const groups = groupLogsByDate(filteredLogs);
+
+  Object.entries(groups).forEach(([dateLabel, groupLogs]) => {
+    const group = document.createElement("section");
+    group.className = "historyDateGroup";
+
+    const heading = document.createElement("h4");
+    heading.className = "historyDateHeading";
+    heading.textContent = dateLabel;
+    group.appendChild(heading);
+
+    groupLogs.forEach(log => {
+      const card = document.createElement("article");
+      card.className = "historyCard";
+
+      const exerciseCount = Array.isArray(log.e) ? log.e.length : 0;
+      const workingSets = countWorkingSets(log);
+      const totalVolume = workoutVolume(log);
+
+      const header = document.createElement("button");
+      header.type = "button";
+      header.className = "historyCardHeader";
+      header.innerHTML = `
+        <div class="historyCardMain">
+          <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
+          <div class="historyCardMeta">
+            ${escapeHtml(formatCompactTime(log.t))} • ${exerciseCount} exercises • ${workingSets} sets
+          </div>
+        </div>
+        <div class="historyCardSide">
+          <div class="historyVolume">${formatLargeNumber(totalVolume)} lb</div>
+          <div class="historyChevron">▾</div>
+        </div>
+      `;
+
+      const details = document.createElement("div");
+      details.className = "historyCardDetails hidden";
+
+      const detailsTop = document.createElement("div");
+      detailsTop.className = "historyDetailsTop";
+      detailsTop.innerHTML = `
+        <div>
+          <strong>Total Volume</strong>
+          <span>${formatLargeNumber(totalVolume)} lb</span>
+        </div>
+        <div>
+          <strong>Working Sets</strong>
+          <span>${workingSets}</span>
+        </div>
+      `;
+      details.appendChild(detailsTop);
+
+      const exerciseList = document.createElement("div");
+      exerciseList.className = "historyExerciseList";
+
+      (log.e || []).forEach(exercise => {
+        const exerciseBlock = document.createElement("div");
+        exerciseBlock.className = "historyExerciseBlock";
+
+        const sets = Array.isArray(exercise.s) ? exercise.s : [];
+
+        exerciseBlock.innerHTML = `
+          <div class="historyExerciseHead">
+            <div>
+              <strong>${escapeHtml(exercise.n || "Exercise")}</strong>
+              <p>Best: ${escapeHtml(bestSetText(sets))}</p>
+            </div>
+          </div>
+        `;
+
+        const setList = document.createElement("div");
+        setList.className = "historySetList";
+
+        sets.forEach((set, index) => {
+          const reps = Number(set.reps) || 0;
+          const weight = Number(set.weight) || 0;
+          const volume = reps * weight;
+
+          const row = document.createElement("div");
+          row.className = "historySetRow";
+          row.innerHTML = `
+            <span>Set ${index + 1}</span>
+            <span>${reps} reps</span>
+            <span>${roundNumber(weight)} lb</span>
+            <span>${formatLargeNumber(volume)} lb</span>
+          `;
+
+          setList.appendChild(row);
+        });
+
+        exerciseBlock.appendChild(setList);
+        exerciseList.appendChild(exerciseBlock);
+      });
+
+      details.appendChild(exerciseList);
+
+      const actions = document.createElement("div");
+      actions.className = "historyActions";
+
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "historyActionBtn";
+      copyBtn.textContent = "Copy Summary";
+
+      copyBtn.addEventListener("click", async event => {
+        event.stopPropagation();
+
+        try {
+          await navigator.clipboard.writeText(buildHistorySummary(log));
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => {
+            copyBtn.textContent = "Copy Summary";
+          }, 1200);
+        } catch (error) {
+          copyBtn.textContent = "Copy Failed";
+          setTimeout(() => {
+            copyBtn.textContent = "Copy Summary";
+          }, 1200);
+          console.error(error);
+        }
+      });
 
       const deleteBtn = document.createElement("button");
-      deleteBtn.className = "deleteBtn";
       deleteBtn.type = "button";
+      deleteBtn.className = "historyActionBtn danger";
       deleteBtn.textContent = "Delete";
 
       deleteBtn.addEventListener("click", async event => {
@@ -456,77 +616,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderHistory();
       });
 
-      const item = document.createElement("div");
-      item.className = "historyItem";
+      actions.appendChild(copyBtn);
+      actions.appendChild(deleteBtn);
+      details.appendChild(actions);
 
-      item.innerHTML = `
-        <div class="historyTitle">
-          <div>
-            <div>${escapeHtml(log.d || "Workout")}</div>
-            <div class="historyDate">${escapeHtml(formatTimestamp(log.t))}</div>
-          </div>
-          <div>▾</div>
-        </div>
-      `;
-
-      const details = document.createElement("div");
-      details.className = "historyDetails hidden";
-
-      (log.e || []).forEach(exercise => {
-        const exDiv = document.createElement("div");
-        exDiv.innerHTML = `<strong>${escapeHtml(exercise.n || "Exercise")}</strong>: ${escapeHtml(formatSets(exercise.s || []))}`;
-        details.appendChild(exDiv);
-      });
-
-      item.appendChild(details);
-      wrapper.appendChild(deleteBtn);
-      wrapper.appendChild(item);
-      container.appendChild(wrapper);
-
-      let startX = 0;
-      let currentX = 0;
-      let isSwiping = false;
-
-      item.addEventListener("touchstart", event => {
-        startX = event.touches[0].clientX;
-        currentX = 0;
-        isSwiping = false;
-      }, { passive: true });
-
-      item.addEventListener("touchmove", event => {
-        const diff = event.touches[0].clientX - startX;
-
-        if (diff < -8) {
-          isSwiping = true;
-
-          if (openItem && openItem !== item) {
-            openItem.style.transform = "translateX(0)";
-          }
-
-          currentX = Math.max(diff, -98);
-          item.style.transform = `translateX(${currentX}px)`;
-          openItem = item;
-        }
-      }, { passive: true });
-
-      item.addEventListener("touchend", () => {
-        if (isSwiping) {
-          if (currentX < -45) {
-            item.style.transform = "translateX(-98px)";
-          } else {
-            item.style.transform = "translateX(0)";
-            openItem = null;
-          }
-        } else {
-          details.classList.toggle("hidden");
-        }
-      });
-
-      item.addEventListener("click", () => {
+      header.addEventListener("click", () => {
         details.classList.toggle("hidden");
+        card.classList.toggle("open");
       });
+
+      card.appendChild(header);
+      card.appendChild(details);
+      group.appendChild(card);
     });
-  }
+
+    container.appendChild(group);
+  });
+}
 
   /* =====================================================
      PROGRESS CHART
@@ -658,6 +764,105 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      HELPERS
   ===================================================== */
+  function groupLogsByDate(logs) {
+  return logs.reduce((groups, log) => {
+    const label = formatDateGroup(log.t);
+
+    if (!groups[label]) {
+      groups[label] = [];
+    }
+
+    groups[label].push(log);
+    return groups;
+  }, {});
+}
+
+function formatDateGroup(ts) {
+  const date = new Date(ts);
+  const today = new Date();
+  const yesterday = new Date();
+
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return "Today";
+  }
+
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric"
+  });
+}
+
+function formatCompactTime(ts) {
+  return new Date(ts).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function countWorkingSets(log) {
+  return (log.e || []).reduce((total, exercise) => {
+    return total + (exercise.s || []).filter(set => {
+      return Number(set.reps) > 0 || Number(set.weight) > 0;
+    }).length;
+  }, 0);
+}
+
+function workoutVolume(log) {
+  return (log.e || []).reduce((total, exercise) => {
+    return total + (exercise.s || []).reduce((exerciseTotal, set) => {
+      const reps = Number(set.reps) || 0;
+      const weight = Number(set.weight) || 0;
+      return exerciseTotal + reps * weight;
+    }, 0);
+  }, 0);
+}
+
+function bestSetText(sets) {
+  const cleanSets = (sets || [])
+    .map(set => ({
+      reps: Number(set.reps) || 0,
+      weight: Number(set.weight) || 0
+    }))
+    .filter(set => set.reps > 0 && set.weight > 0);
+
+  if (!cleanSets.length) return "No completed sets";
+
+  const best = cleanSets.sort((a, b) => {
+    const volumeDiff = b.reps * b.weight - a.reps * a.weight;
+    if (volumeDiff !== 0) return volumeDiff;
+    return b.weight - a.weight;
+  })[0];
+
+  return `${best.reps}×${roundNumber(best.weight)}`;
+}
+
+function buildHistorySummary(log) {
+  const lines = [];
+
+  lines.push(`${log.d || "Workout"} — ${formatTimestamp(log.t)}`);
+  lines.push(`Total volume: ${formatLargeNumber(workoutVolume(log))} lb`);
+  lines.push(`Working sets: ${countWorkingSets(log)}`);
+  lines.push("");
+
+  (log.e || []).forEach(exercise => {
+    lines.push(`${exercise.n || "Exercise"}: ${formatSets(exercise.s || [])}`);
+  });
+
+  return lines.join("\n");
+}
+
+function formatLargeNumber(value) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0
+  }).format(Number(value) || 0);
+}
   function workoutSummaryText(day) {
     const list = workouts[day] || [];
     const setCount = list.reduce((sum, exercise) => sum + Number(exercise.sets || 0), 0);
