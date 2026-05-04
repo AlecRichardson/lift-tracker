@@ -807,6 +807,35 @@ select:focus {
   color: white;
   border: 1px solid rgba(114, 137, 218, 0.55);
 }
+
+.setNumber {
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.08s ease,
+    border-color 0.16s ease;
+}
+
+.setNumber:active {
+  transform: scale(0.96);
+}
+
+.setRow.setDone .setNumber {
+  background: rgba(74, 222, 128, 0.22);
+  border-color: rgba(74, 222, 128, 0.55);
+  color: #bbf7d0;
+}
+
+.setRow.setDone input {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.setRow.setDone input {
+  color: #d9ffe6;
+}
 /* Desktop polish */
 @media (min-width: 760px) {
   .page {
