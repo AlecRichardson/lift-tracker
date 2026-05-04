@@ -6,7 +6,9 @@ import {
   deleteDoc,
   doc,
   query,
-  orderBy
+  orderBy,
+  getDoc,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 /* =====================================================
@@ -32,6 +34,14 @@ function userWorkoutsCollection() {
   return collection(db, "users", userId, "workouts");
 }
 
+function userPlansCollection() {
+  return collection(db, "users", userId, "plans");
+}
+
+function userSettingsDoc() {
+  return doc(db, "users", userId, "settings", "app");
+}
+
 async function getLogs() {
   const q = query(userWorkoutsCollection(), orderBy("t"));
   const snapshot = await getDocs(q);
@@ -46,34 +56,41 @@ async function getLogs() {
    MAIN APP
 ===================================================== */
 document.addEventListener("DOMContentLoaded", async () => {
-  const rawWorkouts = window.workouts || {};
-  const validation = validateWorkoutObject(rawWorkouts);
+  const defaultValidation = validateWorkoutObject(window.workouts || {});
+  let activePlan = null;
+  let workouts = {};
+  let workoutDays = [];
 
-  const workouts = validation.workouts;
-  const workoutDays = Object.keys(workouts);
-
-  let currentDay = workoutDays[0] || "";
-  let currentPage = "workoutPage";
+  let currentDay = "";
+  let currentPage = "homePage";
   let chart = null;
   let historyFilter = "All";
 
-  const drawer = document.getElementById("drawer");
-  const drawerOverlay = document.getElementById("drawerOverlay");
-  const workoutNavList = document.getElementById("workoutNavList");
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
-  const drawerUser = document.getElementById("drawerUser");
   const appMessage = document.getElementById("appMessage");
 
-  if (drawerUser) {
-    drawerUser.textContent = displayName ? `Logged as ${displayName}` : "";
-  }
-
-  if (validation.errors.length) {
+  if (defaultValidation.errors.length) {
     showMessage(
-      `Workout file has issues:\n${validation.errors.map(e => `• ${e}`).join("\n")}`,
+      `Default workouts.js has issues:\n${defaultValidation.errors.map(e => `• ${e}`).join("\n")}`,
       "error"
     );
+  }
+
+  try {
+    activePlan = await loadOrCreateActivePlan(defaultValidation.workouts);
+    workouts = activePlan.workouts;
+    workoutDays = Object.keys(workouts);
+  } catch (error) {
+    console.error(error);
+    showMessage("Could not load your active plan from Firebase.", "error");
+    activePlan = {
+      id: "local_fallback",
+      name: "Local Fallback Plan",
+      workouts: defaultValidation.workouts
+    };
+    workouts = activePlan.workouts;
+    workoutDays = Object.keys(workouts);
   }
 
   if (!workoutDays.length) {
@@ -81,70 +98,100 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  setupDrawer();
-  renderWorkoutNav();
-  await renderWorkout();
+  setupBottomNav();
+  await renderHome();
+  showPage("homePage");
 
   /* =====================================================
-     DRAWER / NAV
+     PLAN LOADING
   ===================================================== */
-  function setupDrawer() {
-    document.getElementById("hamburger")?.addEventListener("click", openDrawer);
-    document.getElementById("closeDrawer")?.addEventListener("click", closeDrawer);
-    drawerOverlay?.addEventListener("click", closeDrawer);
+  async function loadOrCreateActivePlan(defaultWorkouts) {
+    const settingsRef = userSettingsDoc();
+    const settingsSnap = await getDoc(settingsRef);
+    const activePlanId = settingsSnap.exists() ? settingsSnap.data().activePlanId : "";
 
-    document.getElementById("navHistory")?.addEventListener("click", () => {
-      renderHistory();
+    if (activePlanId) {
+      const activePlanRef = doc(db, "users", userId, "plans", activePlanId);
+      const activePlanSnap = await getDoc(activePlanRef);
+
+      if (activePlanSnap.exists()) {
+        const data = activePlanSnap.data();
+        const validation = validateWorkoutObject(data.workouts || {});
+
+        if (!Object.keys(validation.workouts).length) {
+          throw new Error("Active plan exists but has no valid workouts.");
+        }
+
+        return {
+          id: activePlanSnap.id,
+          name: data.name || "Current Plan",
+          workouts: validation.workouts,
+          createdAt: data.createdAt || "",
+          updatedAt: data.updatedAt || ""
+        };
+      }
+    }
+
+    const now = new Date().toISOString();
+    const seedPlanId = "current_plan";
+    const seedPlanRef = doc(db, "users", userId, "plans", seedPlanId);
+
+    await setDoc(seedPlanRef, {
+      name: "Current Plan",
+      workouts: defaultWorkouts,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    await setDoc(settingsRef, {
+      activePlanId: seedPlanId,
+      updatedAt: now
+    }, { merge: true });
+
+    return {
+      id: seedPlanId,
+      name: "Current Plan",
+      workouts: defaultWorkouts,
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  /* =====================================================
+     NAVIGATION
+  ===================================================== */
+  function setupBottomNav() {
+    document.getElementById("bottomHome")?.addEventListener("click", async () => {
+      await renderHome();
+      showPage("homePage");
+    });
+
+    document.getElementById("bottomWorkout")?.addEventListener("click", async () => {
+      if (!currentDay) {
+        await renderHome();
+        showPage("homePage");
+        return;
+      }
+
+      await renderWorkout();
+      showPage("workoutPage");
+    });
+
+    document.getElementById("bottomHistory")?.addEventListener("click", async () => {
+      await renderHistory();
       showPage("historyPage");
     });
 
-    document.getElementById("navProgress")?.addEventListener("click", () => {
-      renderChart();
-      showPage("progressPage");
+    document.getElementById("bottomPlan")?.addEventListener("click", () => {
+      renderPlanPage();
+      showPage("planPage");
     });
   }
 
-  function openDrawer() {
-    drawer?.classList.add("open");
-    drawerOverlay?.classList.remove("hidden");
-  }
-
-  function closeDrawer() {
-    drawer?.classList.remove("open");
-    drawerOverlay?.classList.add("hidden");
-  }
-
-  function renderWorkoutNav() {
-    if (!workoutNavList) return;
-
-    workoutNavList.innerHTML = "";
-
-    workoutDays.forEach(day => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "navWorkout";
-      btn.dataset.day = day;
-      btn.textContent = day;
-
-      btn.addEventListener("click", async () => {
-        currentDay = day;
-        await renderWorkout();
-        showPage("workoutPage");
-      });
-
-      workoutNavList.appendChild(btn);
-    });
-
-    updateActiveNav();
-  }
-
-  function updateActiveNav() {
-    document.querySelectorAll(".navWorkout").forEach(btn => {
-      btn.classList.toggle("active", btn.dataset.day === currentDay && currentPage === "workoutPage");
-    });
-
-    document.getElementById("navProgress")?.classList.toggle("active", currentPage === "progressPage");
-    document.getElementById("navHistory")?.classList.toggle("active", currentPage === "historyPage");
+  async function startWorkout(day) {
+    currentDay = day;
+    await renderWorkout();
+    showPage("workoutPage");
   }
 
   function showPage(pageId) {
@@ -153,9 +200,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll(".page").forEach(page => page.classList.add("hidden"));
     document.getElementById(pageId)?.classList.remove("hidden");
 
+    if (pageId === "homePage") {
+      pageTitle.textContent = "Lift Tracker";
+      pageSubtitle.textContent = activePlan ? `Active plan: ${activePlan.name}` : "Home";
+    }
+
     if (pageId === "workoutPage") {
-      pageTitle.textContent = currentDay;
-      pageSubtitle.textContent = workoutSummaryText(currentDay);
+      pageTitle.textContent = currentDay || "Workout";
+      pageSubtitle.textContent = currentDay ? workoutSummaryText(currentDay) : "No workout selected";
     }
 
     if (pageId === "progressPage") {
@@ -168,14 +220,240 @@ document.addEventListener("DOMContentLoaded", async () => {
       pageSubtitle.textContent = "Saved workouts";
     }
 
-    updateActiveNav();
-    closeDrawer();
+    if (pageId === "planPage") {
+      pageTitle.textContent = "Plan";
+      pageSubtitle.textContent = activePlan ? activePlan.name : "Active plan";
+    }
+
+    updateBottomNav();
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  function updateBottomNav() {
+    document.querySelectorAll(".bottomNavBtn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.page === currentPage);
+    });
+  }
+
+  /* =====================================================
+     HOME
+  ===================================================== */
+  async function renderHome() {
+    const activePlanName = document.getElementById("activePlanName");
+    const activePlanMeta = document.getElementById("activePlanMeta");
+    const todayCard = document.getElementById("todayWorkoutCard");
+    const allWorkoutsGrid = document.getElementById("allWorkoutsGrid");
+    const recentCard = document.getElementById("recentWorkoutCard");
+    const progressCard = document.getElementById("homeProgressCard");
+    const planCard = document.getElementById("homePlanCard");
+
+    if (!todayCard || !allWorkoutsGrid || !recentCard || !progressCard || !planCard) return;
+
+    let logs = [];
+
+    try {
+      logs = await getLogs();
+    } catch (error) {
+      console.error(error);
+      showMessage("Could not load recent workout data.", "error");
+    }
+
+    const latestLog = logs.length ? logs[logs.length - 1] : null;
+    const suggestedDay = getSuggestedNextWorkout(logs);
+
+    if (activePlanName) {
+      activePlanName.textContent = activePlan?.name || "Current Plan";
+    }
+
+    if (activePlanMeta) {
+      const totalExercises = workoutDays.reduce((sum, day) => sum + workouts[day].length, 0);
+      activePlanMeta.textContent = `${workoutDays.length} workout days • ${totalExercises} exercises`;
+    }
+
+    todayCard.innerHTML = `
+      <div class="todayWorkoutTitle">
+        <div>
+          <p class="eyebrow">Today's Workout</p>
+          <div class="todayWorkoutName">${escapeHtml(suggestedDay)}</div>
+          <p>${escapeHtml(getSuggestionReason(latestLog, suggestedDay))}</p>
+        </div>
+        <div class="todayBadge">Next Up</div>
+      </div>
+
+      <div class="homeActions">
+        <button id="startSuggestedWorkout" type="button" class="primaryBtn">Start ${escapeHtml(suggestedDay)}</button>
+      </div>
+    `;
+
+    document.getElementById("startSuggestedWorkout")?.addEventListener("click", () => {
+      startWorkout(suggestedDay);
+    });
+
+    allWorkoutsGrid.innerHTML = "";
+
+    workoutDays.forEach(day => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "workoutPickBtn";
+      btn.classList.toggle("suggested", day === suggestedDay);
+      btn.innerHTML = `
+        <div>${escapeHtml(day)}</div>
+        <small>${escapeHtml(workoutSummaryText(day))}</small>
+      `;
+
+      btn.addEventListener("click", () => {
+        startWorkout(day);
+      });
+
+      allWorkoutsGrid.appendChild(btn);
+    });
+
+    if (latestLog) {
+      recentCard.innerHTML = `
+        <p class="eyebrow">Recent Workout</p>
+        <h3>${escapeHtml(latestLog.d || "Workout")}</h3>
+        <p>${escapeHtml(formatTimestamp(latestLog.t))}</p>
+
+        <div class="statGrid">
+          <div class="statTile">
+            <strong>${countWorkingSets(latestLog)}</strong>
+            <span>Working Sets</span>
+          </div>
+          <div class="statTile">
+            <strong>${formatLargeNumber(workoutVolume(latestLog))}</strong>
+            <span>Volume lb</span>
+          </div>
+        </div>
+      `;
+    } else {
+      recentCard.innerHTML = `
+        <p class="eyebrow">Recent Workout</p>
+        <h3>No workouts yet</h3>
+        <p>Save your first workout and your recent summary will appear here.</p>
+      `;
+    }
+
+    progressCard.innerHTML = `
+      <div class="cardHeaderRow">
+        <div>
+          <p class="eyebrow">Progress</p>
+          <h3>Charts & trends</h3>
+          <p>View estimated 1RM, volume, top weight, and more.</p>
+        </div>
+      </div>
+      <div class="homeActions">
+        <button id="openProgressFromHome" type="button" class="secondaryBtn">View Progress</button>
+      </div>
+    `;
+
+    document.getElementById("openProgressFromHome")?.addEventListener("click", async () => {
+      await renderChart();
+      showPage("progressPage");
+    });
+
+    planCard.innerHTML = `
+      <div class="cardHeaderRow">
+        <div>
+          <p class="eyebrow">Plan</p>
+          <h3>${escapeHtml(activePlan?.name || "Current Plan")}</h3>
+          <p>Manage your active workout plan. Builder is next.</p>
+        </div>
+      </div>
+      <div class="homeActions">
+        <button id="openPlanFromHome" type="button" class="secondaryBtn">Open Plan</button>
+      </div>
+    `;
+
+    document.getElementById("openPlanFromHome")?.addEventListener("click", () => {
+      renderPlanPage();
+      showPage("planPage");
+    });
+  }
+
+  function getSuggestedNextWorkout(logs) {
+    if (!workoutDays.length) return "";
+
+    const latestLog = logs.length ? logs[logs.length - 1] : null;
+
+    if (!latestLog?.d) {
+      return workoutDays[0];
+    }
+
+    const index = workoutDays.indexOf(latestLog.d);
+
+    if (index === -1) {
+      return workoutDays[0];
+    }
+
+    return workoutDays[(index + 1) % workoutDays.length];
+  }
+
+  function getSuggestionReason(latestLog, suggestedDay) {
+    if (!latestLog?.d) {
+      return `${suggestedDay} is first in your active plan.`;
+    }
+
+    if (!workoutDays.includes(latestLog.d)) {
+      return `Your last saved workout is not in this plan, so this starts from the top.`;
+    }
+
+    return `Next in rotation after ${latestLog.d}.`;
+  }
+
+  /* =====================================================
+     PLAN PAGE
+  ===================================================== */
+  function renderPlanPage() {
+    const planOverview = document.getElementById("planOverview");
+    if (!planOverview) return;
+
+    const totalExercises = workoutDays.reduce((sum, day) => sum + workouts[day].length, 0);
+
+    planOverview.innerHTML = `
+      <section class="dashboardCard">
+        <p class="eyebrow">Active Firebase Plan</p>
+        <h3>${escapeHtml(activePlan?.name || "Current Plan")}</h3>
+        <p>${workoutDays.length} workout days • ${totalExercises} exercises</p>
+
+        <div class="statGrid">
+          <div class="statTile">
+            <strong>${workoutDays.length}</strong>
+            <span>Workout Days</span>
+          </div>
+          <div class="statTile">
+            <strong>${totalExercises}</strong>
+            <span>Exercises</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboardCard">
+        <p class="eyebrow">Workout Days</p>
+        <h3>Current plan layout</h3>
+        <div class="planList">
+          ${workoutDays.map(day => `
+            <div class="planDayCard">
+              <strong>${escapeHtml(day)}</strong>
+              <span>${escapeHtml(workoutSummaryText(day))}</span>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="dashboardCard">
+        <p class="eyebrow">Coming Next</p>
+        <h3>Plan Builder</h3>
+        <p>
+          Next step: add, edit, reorder, superset, import, and export workout plans directly in the app.
+        </p>
+      </section>
+    `;
   }
 
   /* =====================================================
      DRAFT HELPERS
   ===================================================== */
-  const DRAFT_KEY = "draftWorkoutV2";
+  const DRAFT_KEY = "draftWorkoutV3";
 
   function saveDraft(day) {
     const exercises = {};
@@ -189,7 +467,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       card.querySelectorAll(".setRow").forEach(row => {
         const repsInput = row.querySelector("input[data-field='reps']");
         const weightInput = row.querySelector("input[data-field='weight']");
-
         const setNumber = row.querySelector(".setNumber");
 
         sets.push({
@@ -205,6 +482,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     localStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
+        planId: activePlan?.id || "",
         day,
         updatedAt: new Date().toISOString(),
         exercises
@@ -228,7 +506,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!draft?.exercises) return false;
 
     return Object.values(draft.exercises).some(sets =>
-      sets.some(set => String(set.reps || "").trim() || String(set.weight || "").trim())
+      sets.some(set =>
+        String(set.reps || "").trim() ||
+        String(set.weight || "").trim() ||
+        set.done
+      )
     );
   }
 
@@ -244,9 +526,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     const container = document.getElementById("exerciseContainer");
     if (!container) return;
 
+    if (!currentDay) {
+      container.innerHTML = `
+        <div class="dashboardCard">
+          <p class="eyebrow">No Workout Selected</p>
+          <h3>Pick a workout from Home</h3>
+          <p>Use Today's Workout or choose from your workout list.</p>
+          <div class="homeActions">
+            <button id="goHomeForWorkout" type="button" class="secondaryBtn">Go Home</button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("goHomeForWorkout")?.addEventListener("click", async () => {
+        await renderHome();
+        showPage("homePage");
+      });
+
+      return;
+    }
+
     pageTitle.textContent = currentDay;
     pageSubtitle.textContent = workoutSummaryText(currentDay);
-    updateActiveNav();
 
     container.innerHTML = `<div class="exercise">Loading ${escapeHtml(currentDay)}...</div>`;
 
@@ -266,17 +567,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     const template = workouts[currentDay] || [];
     const lastLog = findLatestLogForDay(logs, currentDay);
     const draft = getDraft();
-    const useDraft = draft?.day === currentDay && draftHasValues(draft);
+    const useDraft =
+      draft?.day === currentDay &&
+      draft?.planId === activePlan?.id &&
+      draftHasValues(draft);
 
     container.innerHTML = "";
 
     let currentSuperset = "";
 
     template.forEach((exercise, index) => {
+      if (!exercise.superset) {
+        currentSuperset = "";
+      }
+
       if (exercise.superset && exercise.superset !== currentSuperset) {
         const supersetDiv = document.createElement("div");
         supersetDiv.className = "exercise supersetHeader";
-        supersetDiv.textContent = `Superset ${exercise.superset}`;
+        supersetDiv.innerHTML = `
+          <div>SUPERSET ${escapeHtml(exercise.superset)}</div>
+          <small>Do these exercises back-to-back, then rest.</small>
+        `;
         container.appendChild(supersetDiv);
         currentSuperset = exercise.superset;
       }
@@ -290,7 +601,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const isSupersetEnd =
         exercise.superset &&
         (!nextExercise || nextExercise.superset !== exercise.superset);
-      
+
       const exerciseCard = document.createElement("article");
       exerciseCard.className = [
         "exercise",
@@ -298,7 +609,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         exercise.superset ? "inSuperset" : "",
         isSupersetEnd ? "supersetEnd" : ""
       ].filter(Boolean).join(" ");
-      
+
       exerciseCard.dataset.exerciseKey = exerciseKey;
       exerciseCard.dataset.exerciseName = exercise.name;
 
@@ -335,15 +646,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         setNumber.textContent = String(i + 1);
         setNumber.dataset.setNumber = String(i + 1);
         setNumber.dataset.done = "false";
-        
+
         setNumber.addEventListener("click", () => {
           const row = setNumber.closest(".setRow");
           const isDone = setNumber.dataset.done === "true";
-        
+
           setNumber.dataset.done = isDone ? "false" : "true";
           setNumber.textContent = isDone ? setNumber.dataset.setNumber : "✓";
           row?.classList.toggle("setDone", !isDone);
-        
+
           saveDraft(currentDay);
         });
 
@@ -369,7 +680,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (sourceSet) {
           repsInput.value = sourceSet.reps || "";
           weightInput.value = sourceSet.weight || "";
-        
+
           if (sourceSet.done) {
             setNumber.dataset.done = "true";
             setNumber.textContent = "✓";
@@ -391,6 +702,12 @@ document.addEventListener("DOMContentLoaded", async () => {
      SAVE WORKOUT
   ===================================================== */
   document.getElementById("saveWorkout")?.addEventListener("click", async () => {
+    if (!currentDay) {
+      await renderHome();
+      showPage("homePage");
+      return;
+    }
+
     const saveButton = document.getElementById("saveWorkout");
     const saveAnimation = document.getElementById("saveAnimation");
 
@@ -405,7 +722,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       card.querySelectorAll(".setRow").forEach(row => {
         const repsInput = row.querySelector("input[data-field='reps']");
         const weightInput = row.querySelector("input[data-field='weight']");
-
         const setNumber = row.querySelector(".setNumber");
 
         sets.push({
@@ -427,7 +743,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       saveButton.textContent = "Saving...";
 
       await addDoc(userWorkoutsCollection(), {
-        schemaVersion: 2,
+        schemaVersion: 3,
+        planId: activePlan?.id || "",
+        planName: activePlan?.name || "",
         t: new Date().toISOString(),
         d: currentDay,
         e: exercises
@@ -452,225 +770,226 @@ document.addEventListener("DOMContentLoaded", async () => {
      HISTORY
   ===================================================== */
   async function renderHistory() {
-  const container = document.getElementById("historyList");
-  if (!container) return;
+    const container = document.getElementById("historyList");
+    if (!container) return;
 
-  container.innerHTML = `<div class="exercise">Loading history...</div>`;
+    container.innerHTML = `<div class="exercise">Loading history...</div>`;
 
-  let logs = [];
+    let logs = [];
 
-  try {
-    logs = (await getLogs()).reverse();
-  } catch (error) {
-    container.innerHTML = `<div class="exercise">Could not load history.</div>`;
-    console.error(error);
-    return;
-  }
+    try {
+      logs = (await getLogs()).reverse();
+    } catch (error) {
+      container.innerHTML = `<div class="exercise">Could not load history.</div>`;
+      console.error(error);
+      return;
+    }
 
-  container.innerHTML = "";
+    container.innerHTML = "";
 
-  if (!logs.length) {
-    container.innerHTML = `
-      <div class="historyEmpty">
-        <h4>No saved workouts yet.</h4>
-        <p>Save a workout and it will show up here.</p>
-      </div>
-    `;
-    return;
-  }
-
-  const filterWrap = document.createElement("div");
-  filterWrap.className = "historyFilters";
-
-  const filterOptions = ["All", ...Object.keys(workouts)];
-
-  filterOptions.forEach(day => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "historyFilterChip";
-    btn.classList.toggle("active", historyFilter === day);
-    btn.textContent = day;
-
-    btn.addEventListener("click", () => {
-      historyFilter = day;
-      renderHistory();
-    });
-
-    filterWrap.appendChild(btn);
-  });
-
-  container.appendChild(filterWrap);
-
-  const filteredLogs =
-    historyFilter === "All"
-      ? logs
-      : logs.filter(log => log.d === historyFilter);
-
-  if (!filteredLogs.length) {
-    const empty = document.createElement("div");
-    empty.className = "historyEmpty";
-    empty.innerHTML = `
-      <h4>No ${escapeHtml(historyFilter)} workouts found.</h4>
-      <p>Change the filter or save this workout day first.</p>
-    `;
-    container.appendChild(empty);
-    return;
-  }
-
-  const groups = groupLogsByDate(filteredLogs);
-
-  Object.entries(groups).forEach(([dateLabel, groupLogs]) => {
-    const group = document.createElement("section");
-    group.className = "historyDateGroup";
-
-    const heading = document.createElement("h4");
-    heading.className = "historyDateHeading";
-    heading.textContent = dateLabel;
-    group.appendChild(heading);
-
-    groupLogs.forEach(log => {
-      const card = document.createElement("article");
-      card.className = "historyCard";
-
-      const exerciseCount = Array.isArray(log.e) ? log.e.length : 0;
-      const workingSets = countWorkingSets(log);
-      const totalVolume = workoutVolume(log);
-
-      const header = document.createElement("button");
-      header.type = "button";
-      header.className = "historyCardHeader";
-      header.innerHTML = `
-        <div class="historyCardMain">
-          <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
-          <div class="historyCardMeta">
-            ${escapeHtml(formatCompactTime(log.t))} • ${exerciseCount} exercises • ${workingSets} sets
-          </div>
-        </div>
-        <div class="historyCardSide">
-          <div class="historyVolume">${formatLargeNumber(totalVolume)} lb</div>
-          <div class="historyChevron">▾</div>
+    if (!logs.length) {
+      container.innerHTML = `
+        <div class="historyEmpty">
+          <h4>No saved workouts yet.</h4>
+          <p>Save a workout and it will show up here.</p>
         </div>
       `;
+      return;
+    }
 
-      const details = document.createElement("div");
-      details.className = "historyCardDetails hidden";
+    const filterWrap = document.createElement("div");
+    filterWrap.className = "historyFilters";
 
-      const detailsTop = document.createElement("div");
-      detailsTop.className = "historyDetailsTop";
-      detailsTop.innerHTML = `
-        <div>
-          <strong>Total Volume</strong>
-          <span>${formatLargeNumber(totalVolume)} lb</span>
-        </div>
-        <div>
-          <strong>Working Sets</strong>
-          <span>${workingSets}</span>
-        </div>
-      `;
-      details.appendChild(detailsTop);
+    const logDays = logs.map(log => log.d).filter(Boolean);
+    const filterOptions = ["All", ...new Set([...workoutDays, ...logDays])];
 
-      const exerciseList = document.createElement("div");
-      exerciseList.className = "historyExerciseList";
+    filterOptions.forEach(day => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "historyFilterChip";
+      btn.classList.toggle("active", historyFilter === day);
+      btn.textContent = day;
 
-      (log.e || []).forEach(exercise => {
-        const exerciseBlock = document.createElement("div");
-        exerciseBlock.className = "historyExerciseBlock";
-
-        const sets = Array.isArray(exercise.s) ? exercise.s : [];
-
-        exerciseBlock.innerHTML = `
-          <div class="historyExerciseHead">
-            <div>
-              <strong>${escapeHtml(exercise.n || "Exercise")}</strong>
-              <p>Best: ${escapeHtml(bestSetText(sets))}</p>
-            </div>
-          </div>
-        `;
-
-        const setList = document.createElement("div");
-        setList.className = "historySetList";
-
-        sets.forEach((set, index) => {
-          const reps = Number(set.reps) || 0;
-          const weight = Number(set.weight) || 0;
-          const volume = reps * weight;
-
-          const row = document.createElement("div");
-          row.className = "historySetRow";
-          row.innerHTML = `
-            <span>Set ${index + 1}</span>
-            <span>${reps} reps</span>
-            <span>${roundNumber(weight)} lb</span>
-            <span>${formatLargeNumber(volume)} lb</span>
-          `;
-
-          setList.appendChild(row);
-        });
-
-        exerciseBlock.appendChild(setList);
-        exerciseList.appendChild(exerciseBlock);
-      });
-
-      details.appendChild(exerciseList);
-
-      const actions = document.createElement("div");
-      actions.className = "historyActions";
-
-      const copyBtn = document.createElement("button");
-      copyBtn.type = "button";
-      copyBtn.className = "historyActionBtn";
-      copyBtn.textContent = "Copy Summary";
-
-      copyBtn.addEventListener("click", async event => {
-        event.stopPropagation();
-
-        try {
-          await navigator.clipboard.writeText(buildHistorySummary(log));
-          copyBtn.textContent = "Copied!";
-          setTimeout(() => {
-            copyBtn.textContent = "Copy Summary";
-          }, 1200);
-        } catch (error) {
-          copyBtn.textContent = "Copy Failed";
-          setTimeout(() => {
-            copyBtn.textContent = "Copy Summary";
-          }, 1200);
-          console.error(error);
-        }
-      });
-
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "historyActionBtn danger";
-      deleteBtn.textContent = "Delete";
-
-      deleteBtn.addEventListener("click", async event => {
-        event.stopPropagation();
-
-        const ok = confirm(`Delete ${log.d} from ${formatTimestamp(log.t)}?`);
-        if (!ok) return;
-
-        await deleteDoc(doc(db, "users", userId, "workouts", log.id));
+      btn.addEventListener("click", () => {
+        historyFilter = day;
         renderHistory();
       });
 
-      actions.appendChild(copyBtn);
-      actions.appendChild(deleteBtn);
-      details.appendChild(actions);
-
-      header.addEventListener("click", () => {
-        details.classList.toggle("hidden");
-        card.classList.toggle("open");
-      });
-
-      card.appendChild(header);
-      card.appendChild(details);
-      group.appendChild(card);
+      filterWrap.appendChild(btn);
     });
 
-    container.appendChild(group);
-  });
-}
+    container.appendChild(filterWrap);
+
+    const filteredLogs =
+      historyFilter === "All"
+        ? logs
+        : logs.filter(log => log.d === historyFilter);
+
+    if (!filteredLogs.length) {
+      const empty = document.createElement("div");
+      empty.className = "historyEmpty";
+      empty.innerHTML = `
+        <h4>No ${escapeHtml(historyFilter)} workouts found.</h4>
+        <p>Change the filter or save this workout day first.</p>
+      `;
+      container.appendChild(empty);
+      return;
+    }
+
+    const groups = groupLogsByDate(filteredLogs);
+
+    Object.entries(groups).forEach(([dateLabel, groupLogs]) => {
+      const group = document.createElement("section");
+      group.className = "historyDateGroup";
+
+      const heading = document.createElement("h4");
+      heading.className = "historyDateHeading";
+      heading.textContent = dateLabel;
+      group.appendChild(heading);
+
+      groupLogs.forEach(log => {
+        const card = document.createElement("article");
+        card.className = "historyCard";
+
+        const exerciseCount = Array.isArray(log.e) ? log.e.length : 0;
+        const workingSets = countWorkingSets(log);
+        const totalVolume = workoutVolume(log);
+
+        const header = document.createElement("button");
+        header.type = "button";
+        header.className = "historyCardHeader";
+        header.innerHTML = `
+          <div class="historyCardMain">
+            <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
+            <div class="historyCardMeta">
+              ${escapeHtml(formatCompactTime(log.t))} • ${exerciseCount} exercises • ${workingSets} sets
+            </div>
+          </div>
+          <div class="historyCardSide">
+            <div class="historyVolume">${formatLargeNumber(totalVolume)} lb</div>
+            <div class="historyChevron">▾</div>
+          </div>
+        `;
+
+        const details = document.createElement("div");
+        details.className = "historyCardDetails hidden";
+
+        const detailsTop = document.createElement("div");
+        detailsTop.className = "historyDetailsTop";
+        detailsTop.innerHTML = `
+          <div>
+            <strong>Total Volume</strong>
+            <span>${formatLargeNumber(totalVolume)} lb</span>
+          </div>
+          <div>
+            <strong>Working Sets</strong>
+            <span>${workingSets}</span>
+          </div>
+        `;
+        details.appendChild(detailsTop);
+
+        const exerciseList = document.createElement("div");
+        exerciseList.className = "historyExerciseList";
+
+        (log.e || []).forEach(exercise => {
+          const exerciseBlock = document.createElement("div");
+          exerciseBlock.className = "historyExerciseBlock";
+
+          const sets = Array.isArray(exercise.s) ? exercise.s : [];
+
+          exerciseBlock.innerHTML = `
+            <div class="historyExerciseHead">
+              <div>
+                <strong>${escapeHtml(exercise.n || "Exercise")}</strong>
+                <p>Best: ${escapeHtml(bestSetText(sets))}</p>
+              </div>
+            </div>
+          `;
+
+          const setList = document.createElement("div");
+          setList.className = "historySetList";
+
+          sets.forEach((set, index) => {
+            const reps = Number(set.reps) || 0;
+            const weight = Number(set.weight) || 0;
+            const volume = reps * weight;
+
+            const row = document.createElement("div");
+            row.className = "historySetRow";
+            row.innerHTML = `
+              <span>${set.done ? "✓" : ""} Set ${index + 1}</span>
+              <span>${reps} reps</span>
+              <span>${roundNumber(weight)} lb</span>
+              <span>${formatLargeNumber(volume)} lb</span>
+            `;
+
+            setList.appendChild(row);
+          });
+
+          exerciseBlock.appendChild(setList);
+          exerciseList.appendChild(exerciseBlock);
+        });
+
+        details.appendChild(exerciseList);
+
+        const actions = document.createElement("div");
+        actions.className = "historyActions";
+
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "historyActionBtn";
+        copyBtn.textContent = "Copy Summary";
+
+        copyBtn.addEventListener("click", async event => {
+          event.stopPropagation();
+
+          try {
+            await navigator.clipboard.writeText(buildHistorySummary(log));
+            copyBtn.textContent = "Copied!";
+            setTimeout(() => {
+              copyBtn.textContent = "Copy Summary";
+            }, 1200);
+          } catch (error) {
+            copyBtn.textContent = "Copy Failed";
+            setTimeout(() => {
+              copyBtn.textContent = "Copy Summary";
+            }, 1200);
+            console.error(error);
+          }
+        });
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "historyActionBtn danger";
+        deleteBtn.textContent = "Delete";
+
+        deleteBtn.addEventListener("click", async event => {
+          event.stopPropagation();
+
+          const ok = confirm(`Delete ${log.d} from ${formatTimestamp(log.t)}?`);
+          if (!ok) return;
+
+          await deleteDoc(doc(db, "users", userId, "workouts", log.id));
+          renderHistory();
+        });
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(deleteBtn);
+        details.appendChild(actions);
+
+        header.addEventListener("click", () => {
+          details.classList.toggle("hidden");
+          card.classList.toggle("open");
+        });
+
+        card.appendChild(header);
+        card.appendChild(details);
+        group.appendChild(card);
+      });
+
+      container.appendChild(group);
+    });
+  }
 
   /* =====================================================
      PROGRESS CHART
@@ -802,105 +1121,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      HELPERS
   ===================================================== */
-  function groupLogsByDate(logs) {
-  return logs.reduce((groups, log) => {
-    const label = formatDateGroup(log.t);
-
-    if (!groups[label]) {
-      groups[label] = [];
-    }
-
-    groups[label].push(log);
-    return groups;
-  }, {});
-}
-
-function formatDateGroup(ts) {
-  const date = new Date(ts);
-  const today = new Date();
-  const yesterday = new Date();
-
-  yesterday.setDate(today.getDate() - 1);
-
-  if (date.toDateString() === today.toDateString()) {
-    return "Today";
-  }
-
-  if (date.toDateString() === yesterday.toDateString()) {
-    return "Yesterday";
-  }
-
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric"
-  });
-}
-
-function formatCompactTime(ts) {
-  return new Date(ts).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
-
-function countWorkingSets(log) {
-  return (log.e || []).reduce((total, exercise) => {
-    return total + (exercise.s || []).filter(set => {
-      return Number(set.reps) > 0 || Number(set.weight) > 0;
-    }).length;
-  }, 0);
-}
-
-function workoutVolume(log) {
-  return (log.e || []).reduce((total, exercise) => {
-    return total + (exercise.s || []).reduce((exerciseTotal, set) => {
-      const reps = Number(set.reps) || 0;
-      const weight = Number(set.weight) || 0;
-      return exerciseTotal + reps * weight;
-    }, 0);
-  }, 0);
-}
-
-function bestSetText(sets) {
-  const cleanSets = (sets || [])
-    .map(set => ({
-      reps: Number(set.reps) || 0,
-      weight: Number(set.weight) || 0
-    }))
-    .filter(set => set.reps > 0 && set.weight > 0);
-
-  if (!cleanSets.length) return "No completed sets";
-
-  const best = cleanSets.sort((a, b) => {
-    const volumeDiff = b.reps * b.weight - a.reps * a.weight;
-    if (volumeDiff !== 0) return volumeDiff;
-    return b.weight - a.weight;
-  })[0];
-
-  return `${best.reps}×${roundNumber(best.weight)}`;
-}
-
-function buildHistorySummary(log) {
-  const lines = [];
-
-  lines.push(`${log.d || "Workout"} — ${formatTimestamp(log.t)}`);
-  lines.push(`Total volume: ${formatLargeNumber(workoutVolume(log))} lb`);
-  lines.push(`Working sets: ${countWorkingSets(log)}`);
-  lines.push("");
-
-  (log.e || []).forEach(exercise => {
-    lines.push(`${exercise.n || "Exercise"}: ${formatSets(exercise.s || [])}`);
-  });
-
-  return lines.join("\n");
-}
-
-function formatLargeNumber(value) {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0
-  }).format(Number(value) || 0);
-}
   function workoutSummaryText(day) {
     const list = workouts[day] || [];
     const setCount = list.reduce((sum, exercise) => sum + Number(exercise.sets || 0), 0);
@@ -944,7 +1164,8 @@ function formatLargeNumber(value) {
       .map(set => {
         const reps = Number(set.reps) || 0;
         const weight = Number(set.weight) || 0;
-        return `${reps}×${roundNumber(weight)}`;
+        const done = set.done ? "✓" : "";
+        return `${done}${reps}×${roundNumber(weight)}`;
       })
       .join(", ");
   }
@@ -1035,6 +1256,106 @@ function formatLargeNumber(value) {
     });
 
     return { workouts, errors };
+  }
+
+  function groupLogsByDate(logs) {
+    return logs.reduce((groups, log) => {
+      const label = formatDateGroup(log.t);
+
+      if (!groups[label]) {
+        groups[label] = [];
+      }
+
+      groups[label].push(log);
+      return groups;
+    }, {});
+  }
+
+  function formatDateGroup(ts) {
+    const date = new Date(ts);
+    const today = new Date();
+    const yesterday = new Date();
+
+    yesterday.setDate(today.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return "Today";
+    }
+
+    if (date.toDateString() === yesterday.toDateString()) {
+      return "Yesterday";
+    }
+
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric"
+    });
+  }
+
+  function formatCompactTime(ts) {
+    return new Date(ts).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit"
+    });
+  }
+
+  function countWorkingSets(log) {
+    return (log.e || []).reduce((total, exercise) => {
+      return total + (exercise.s || []).filter(set => {
+        return Number(set.reps) > 0 || Number(set.weight) > 0;
+      }).length;
+    }, 0);
+  }
+
+  function workoutVolume(log) {
+    return (log.e || []).reduce((total, exercise) => {
+      return total + (exercise.s || []).reduce((exerciseTotal, set) => {
+        const reps = Number(set.reps) || 0;
+        const weight = Number(set.weight) || 0;
+        return exerciseTotal + reps * weight;
+      }, 0);
+    }, 0);
+  }
+
+  function bestSetText(sets) {
+    const cleanSets = (sets || [])
+      .map(set => ({
+        reps: Number(set.reps) || 0,
+        weight: Number(set.weight) || 0
+      }))
+      .filter(set => set.reps > 0 && set.weight > 0);
+
+    if (!cleanSets.length) return "No completed sets";
+
+    const best = cleanSets.sort((a, b) => {
+      const volumeDiff = b.reps * b.weight - a.reps * a.weight;
+      if (volumeDiff !== 0) return volumeDiff;
+      return b.weight - a.weight;
+    })[0];
+
+    return `${best.reps}×${roundNumber(best.weight)}`;
+  }
+
+  function buildHistorySummary(log) {
+    const lines = [];
+
+    lines.push(`${log.d || "Workout"} — ${formatTimestamp(log.t)}`);
+    lines.push(`Total volume: ${formatLargeNumber(workoutVolume(log))} lb`);
+    lines.push(`Working sets: ${countWorkingSets(log)}`);
+    lines.push("");
+
+    (log.e || []).forEach(exercise => {
+      lines.push(`${exercise.n || "Exercise"}: ${formatSets(exercise.s || [])}`);
+    });
+
+    return lines.join("\n");
+  }
+
+  function formatLargeNumber(value) {
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 0
+    }).format(Number(value) || 0);
   }
 
   function showMessage(message, type = "error") {
