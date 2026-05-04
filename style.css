@@ -338,6 +338,44 @@ body {
   color: #d7dcff;
 }
 
+/* Cable Pulley */
+.pulleyToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(58, 60, 66, 0.42);
+}
+
+.pulleyToggleLabel {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pulleyBtn {
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pulleyBtn.active {
+  background: rgba(114, 137, 218, 0.24);
+  border-color: rgba(114, 137, 218, 0.55);
+  color: white;
+}
+
 /* Supersets */
 .supersetHeader {
   background: linear-gradient(135deg, rgba(114, 137, 218, 0.4), rgba(114, 137, 218, 0.16));
@@ -442,6 +480,23 @@ body {
   transform: scale(0.96);
 }
 
+.setNumber.timerActive {
+  background: rgba(114, 137, 218, 0.22);
+  border-color: rgba(114, 137, 218, 0.55);
+  color: #d7dcff;
+  font-variant-numeric: tabular-nums;
+}
+
+.setNumber.timerComplete {
+  animation: pulseDone 0.5s ease;
+}
+
+@keyframes pulseDone {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
 .setRow input,
 select {
   width: 100%;
@@ -472,22 +527,27 @@ select:focus {
   color: #bbf7d0;
 }
 
+.setRow.setDone .setNumber.timerActive {
+  background: rgba(114, 137, 218, 0.22);
+  border-color: rgba(114, 137, 218, 0.55);
+  color: #d7dcff;
+}
+
 .setRow.setDone input {
   border-color: rgba(74, 222, 128, 0.35);
   background: rgba(74, 222, 128, 0.08);
   color: #d9ffe6;
 }
 
-/* Save Button */
+/* Save Button - normal page section, not floating */
 .saveDock {
-  position: fixed;
-  left: 50%;
-  bottom: var(--bottom-nav-height);
-  transform: translateX(-50%);
-  width: min(100%, 720px);
-  padding: 10px 14px 10px;
-  background: linear-gradient(to top, rgba(30, 31, 34, 0.98), rgba(30, 31, 34, 0.76), transparent);
-  z-index: 1000;
+  background: rgba(43, 45, 49, 0.82);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-top: 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
 }
 
 .primaryBtn {
@@ -951,12 +1011,9 @@ select:focus {
   background: rgba(255, 92, 92, 0.14);
 }
 
-.builderSaveDock {
-  position: sticky;
-  bottom: calc(var(--bottom-nav-height) + 10px);
-  z-index: 900;
-  padding-top: 8px;
-  background: linear-gradient(to top, rgba(30, 31, 34, 0.98), rgba(30, 31, 34, 0.74), transparent);
+.builderSaveSimple {
+  display: grid;
+  gap: 8px;
 }
 
 /* Bottom Nav */
