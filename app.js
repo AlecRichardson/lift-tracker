@@ -8,8 +8,7 @@ import {
   query,
   orderBy,
   getDoc,
-  setDoc,
-  updateDoc
+  setDoc
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 /* =====================================================
@@ -33,10 +32,6 @@ if (!displayName) {
 ===================================================== */
 function userWorkoutsCollection() {
   return collection(db, "users", userId, "workouts");
-}
-
-function userPlansCollection() {
-  return collection(db, "users", userId, "plans");
 }
 
 function userSettingsDoc() {
@@ -67,6 +62,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   let chart = null;
   let historyFilter = "All";
 
+  let builderPlanName = "";
+  let builderWorkouts = null;
+  let selectedBuilderDay = "";
+  let editingExerciseIndex = null;
+
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
   const appMessage = document.getElementById("appMessage");
@@ -96,7 +96,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (!workoutDays.length) {
     showMessage("No workouts found. Add workouts to workouts.js.", "error");
-    return;
   }
 
   setupBottomNav();
@@ -118,10 +117,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (activePlanSnap.exists()) {
         const data = activePlanSnap.data();
         const validation = validateWorkoutObject(data.workouts || {});
-
-        if (!Object.keys(validation.workouts).length) {
-          throw new Error("Active plan exists but has no valid workouts.");
-        }
 
         return {
           id: activePlanSnap.id,
@@ -158,6 +153,48 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
   }
 
+  async function saveActivePlanToFirebase(nextWorkouts, planName = "Current Plan") {
+    const validation = validateWorkoutObject(nextWorkouts);
+
+    if (validation.errors.length) {
+      throw new Error(validation.errors.join("\n"));
+    }
+
+    const now = new Date().toISOString();
+    const planId = activePlan?.id || "current_plan";
+    const planRef = doc(db, "users", userId, "plans", planId);
+
+    await setDoc(planRef, {
+      name: planName,
+      workouts: validation.workouts,
+      updatedAt: now,
+      createdAt: activePlan?.createdAt || now
+    }, { merge: true });
+
+    await setDoc(userSettingsDoc(), {
+      activePlanId: planId,
+      updatedAt: now
+    }, { merge: true });
+
+    activePlan = {
+      ...(activePlan || {}),
+      id: planId,
+      name: planName,
+      workouts: validation.workouts,
+      updatedAt: now,
+      createdAt: activePlan?.createdAt || now
+    };
+
+    workouts = validation.workouts;
+    workoutDays = Object.keys(workouts);
+
+    if (!workoutDays.includes(currentDay)) {
+      currentDay = "";
+    }
+
+    historyFilter = "All";
+  }
+
   /* =====================================================
      NAVIGATION
   ===================================================== */
@@ -184,6 +221,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     document.getElementById("bottomPlan")?.addEventListener("click", () => {
+      initBuilderFromActivePlan();
       renderPlanPage();
       showPage("planPage");
     });
@@ -222,8 +260,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (pageId === "planPage") {
-      pageTitle.textContent = "Plan";
-      pageSubtitle.textContent = activePlan ? activePlan.name : "Active plan";
+      pageTitle.textContent = "Plan Builder";
+      pageSubtitle.textContent = activePlan ? activePlan.name : "Create your plan";
     }
 
     updateBottomNav();
@@ -271,43 +309,55 @@ document.addEventListener("DOMContentLoaded", async () => {
       activePlanMeta.textContent = `${workoutDays.length} workout days • ${totalExercises} exercises`;
     }
 
-    todayCard.innerHTML = `
-      <div class="todayWorkoutTitle">
-        <div>
-          <p class="eyebrow">Today's Workout</p>
-          <div class="todayWorkoutName">${escapeHtml(suggestedDay)}</div>
-          <p>${escapeHtml(getSuggestionReason(latestLog, suggestedDay))}</p>
+    if (suggestedDay) {
+      todayCard.innerHTML = `
+        <div class="todayWorkoutTitle">
+          <div>
+            <p class="eyebrow">Today's Workout</p>
+            <div class="todayWorkoutName">${escapeHtml(suggestedDay)}</div>
+            <p>${escapeHtml(getSuggestionReason(latestLog, suggestedDay))}</p>
+          </div>
+          <div class="todayBadge">Next Up</div>
         </div>
-        <div class="todayBadge">Next Up</div>
-      </div>
 
-      <div class="homeActions">
-        <button id="startSuggestedWorkout" type="button" class="primaryBtn">Start ${escapeHtml(suggestedDay)}</button>
-      </div>
-    `;
+        <div class="homeActions">
+          <button id="startSuggestedWorkout" type="button" class="primaryBtn">Start ${escapeHtml(suggestedDay)}</button>
+        </div>
+      `;
 
-    document.getElementById("startSuggestedWorkout")?.addEventListener("click", () => {
-      startWorkout(suggestedDay);
-    });
+      document.getElementById("startSuggestedWorkout")?.addEventListener("click", () => {
+        startWorkout(suggestedDay);
+      });
+    } else {
+      todayCard.innerHTML = `
+        <p class="eyebrow">Today's Workout</p>
+        <h3>No workouts yet</h3>
+        <p>Go to Plan and add your first workout day.</p>
+      `;
+    }
 
     allWorkoutsGrid.innerHTML = "";
 
-    workoutDays.forEach(day => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "workoutPickBtn";
-      btn.classList.toggle("suggested", day === suggestedDay);
-      btn.innerHTML = `
-        <div>${escapeHtml(day)}</div>
-        <small>${escapeHtml(workoutSummaryText(day))}</small>
-      `;
+    if (workoutDays.length) {
+      workoutDays.forEach(day => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "workoutPickBtn";
+        btn.classList.toggle("suggested", day === suggestedDay);
+        btn.innerHTML = `
+          <div>${escapeHtml(day)}</div>
+          <small>${escapeHtml(workoutSummaryText(day))}</small>
+        `;
 
-      btn.addEventListener("click", () => {
-        startWorkout(day);
+        btn.addEventListener("click", () => {
+          startWorkout(day);
+        });
+
+        allWorkoutsGrid.appendChild(btn);
       });
-
-      allWorkoutsGrid.appendChild(btn);
-    });
+    } else {
+      allWorkoutsGrid.innerHTML = `<div class="historyEmpty">No workout days in this plan yet.</div>`;
+    }
 
     if (latestLog) {
       recentCard.innerHTML = `
@@ -357,15 +407,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div>
           <p class="eyebrow">Plan</p>
           <h3>${escapeHtml(activePlan?.name || "Current Plan")}</h3>
-          <p>Manage your active workout plan. Builder is next.</p>
+          <p>Create workout days and add exercises.</p>
         </div>
       </div>
       <div class="homeActions">
-        <button id="openPlanFromHome" type="button" class="secondaryBtn">Open Plan</button>
+        <button id="openPlanFromHome" type="button" class="secondaryBtn">Open Plan Builder</button>
       </div>
     `;
 
     document.getElementById("openPlanFromHome")?.addEventListener("click", () => {
+      initBuilderFromActivePlan();
       renderPlanPage();
       showPage("planPage");
     });
@@ -402,100 +453,456 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   /* =====================================================
-     PLAN PAGE
+     PLAN BUILDER
   ===================================================== */
+  function initBuilderFromActivePlan(force = false) {
+    if (builderWorkouts && !force) return;
+
+    builderPlanName = activePlan?.name || "Current Plan";
+    builderWorkouts = deepClone(activePlan?.workouts || workouts || {});
+    selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
+    editingExerciseIndex = null;
+  }
+
   function renderPlanPage() {
-  const planOverview = document.getElementById("planOverview");
-  if (!planOverview) return;
+    initBuilderFromActivePlan();
 
-  const totalExercises = workoutDays.reduce((sum, day) => sum + workouts[day].length, 0);
+    const planOverview = document.getElementById("planOverview");
+    if (!planOverview) return;
 
-  planOverview.innerHTML = `
-    <section class="dashboardCard">
-      <p class="eyebrow">Active Firebase Plan</p>
-      <h3>${escapeHtml(activePlan?.name || "Current Plan")}</h3>
-      <p>${workoutDays.length} workout days • ${totalExercises} exercises</p>
+    const builderDays = Object.keys(builderWorkouts || {});
+    const selectedExercises = selectedBuilderDay ? (builderWorkouts[selectedBuilderDay] || []) : [];
+    const editingExercise =
+      editingExerciseIndex !== null && selectedExercises[editingExerciseIndex]
+        ? selectedExercises[editingExerciseIndex]
+        : null;
 
-      <div class="statGrid">
-        <div class="statTile">
-          <strong>${workoutDays.length}</strong>
-          <span>Workout Days</span>
-        </div>
-        <div class="statTile">
-          <strong>${totalExercises}</strong>
-          <span>Exercises</span>
-        </div>
-      </div>
-    </section>
+    planOverview.innerHTML = `
+      <div class="builderGrid">
+        <section class="dashboardCard">
+          <p class="eyebrow">Plan Name</p>
+          <h3>Active workout plan</h3>
 
-    <section class="dashboardCard">
-      <p class="eyebrow">Plan Actions</p>
-      <h3>Manage plan data</h3>
-      <p>
-        Use this to paste a new plan from your other chat, export your active plan,
-        or overwrite Firebase with the current workouts.js file.
-      </p>
-
-      <div class="planActionGrid">
-        <button id="exportPlanBtn" type="button" class="secondaryBtn">Export Active Plan</button>
-        <button id="loadDefaultPlanBtn" type="button" class="secondaryBtn">Use workouts.js</button>
-      </div>
-    </section>
-
-    <section class="dashboardCard">
-      <p class="eyebrow">Import Plan</p>
-      <h3>Paste workout object</h3>
-      <p>
-        Paste either <code>window.workouts = { ... };</code> or just the object <code>{ ... }</code>.
-      </p>
-
-      <textarea
-        id="planImportText"
-        class="planTextarea"
-        placeholder="Paste your workout object here..."
-      ></textarea>
-
-      <div class="planActionGrid">
-        <button id="importPlanBtn" type="button" class="primaryBtn">Import to Firebase</button>
-        <button id="clearImportBtn" type="button" class="secondaryBtn">Clear</button>
-      </div>
-
-      <div id="planImportMessage" class="planImportMessage hidden"></div>
-    </section>
-
-    <section class="dashboardCard">
-      <p class="eyebrow">Workout Days</p>
-      <h3>Current plan layout</h3>
-      <div class="planList">
-        ${workoutDays.map(day => `
-          <div class="planDayCard">
-            <strong>${escapeHtml(day)}</strong>
-            <span>${escapeHtml(workoutSummaryText(day))}</span>
+          <div class="builderField">
+            <label for="builderPlanName">Plan name</label>
+            <input id="builderPlanName" class="builderInput" value="${escapeAttribute(builderPlanName)}" placeholder="Current Plan" />
           </div>
-        `).join("")}
+
+          <div id="builderMessage" class="builderMessage hidden"></div>
+        </section>
+
+        <section class="dashboardCard">
+          <p class="eyebrow">Workout Days</p>
+          <h3>Create days like Push A, Pull A, Legs</h3>
+
+          <div id="builderDayChips" class="builderDayChips">
+            ${builderDays.map(day => `
+              <button
+                type="button"
+                class="builderDayChip ${day === selectedBuilderDay ? "active" : ""}"
+                data-day="${escapeAttribute(day)}"
+              >
+                ${escapeHtml(day)}
+              </button>
+            `).join("")}
+          </div>
+
+          <div class="builderRow">
+            <input id="newDayName" class="builderInput" placeholder="New day name, e.g. Pull A" />
+            <button id="addDayBtn" type="button" class="secondaryBtn">Add Day</button>
+          </div>
+        </section>
+
+        ${selectedBuilderDay ? `
+          <section class="dashboardCard">
+            <p class="eyebrow">Selected Day</p>
+            <h3>${escapeHtml(selectedBuilderDay)}</h3>
+
+            <div class="builderRow">
+              <input id="renameDayInput" class="builderInput" value="${escapeAttribute(selectedBuilderDay)}" />
+              <button id="renameDayBtn" type="button" class="secondaryBtn">Rename Day</button>
+            </div>
+
+            <div class="homeActions">
+              <button id="deleteDayBtn" type="button" class="dangerBtn">Delete ${escapeHtml(selectedBuilderDay)}</button>
+            </div>
+          </section>
+
+          <section class="dashboardCard">
+            <p class="eyebrow">Exercises</p>
+            <h3>${selectedExercises.length} exercises</h3>
+
+            <div id="exerciseBuilderList" class="exerciseBuilderList">
+              ${selectedExercises.length ? selectedExercises.map((exercise, index) => `
+                <article class="builderExerciseCard">
+                  <div class="builderExerciseHeader">
+                    <div>
+                      <strong>${escapeHtml(exercise.name)}</strong>
+                      <p>
+                        ${Number(exercise.sets) || 0} sets • Target ${escapeHtml(exercise.target || "")}
+                        ${exercise.rest ? ` • Rest ${escapeHtml(exercise.rest)}` : ""}
+                        ${exercise.superset ? ` • Superset ${escapeHtml(exercise.superset)}` : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="builderExerciseActions">
+                    <button type="button" class="builderMiniBtn" data-action="edit" data-index="${index}">Edit</button>
+                    <button type="button" class="builderMiniBtn" data-action="up" data-index="${index}">↑</button>
+                    <button type="button" class="builderMiniBtn" data-action="down" data-index="${index}">↓</button>
+                    <button type="button" class="builderMiniBtn danger" data-action="delete" data-index="${index}">Delete</button>
+                  </div>
+                </article>
+              `).join("") : `
+                <div class="historyEmpty">
+                  <h4>No exercises yet.</h4>
+                  <p>Add your first exercise below.</p>
+                </div>
+              `}
+            </div>
+          </section>
+
+          <section class="dashboardCard">
+            <p class="eyebrow">${editingExercise ? "Edit Exercise" : "Add Exercise"}</p>
+            <h3>${editingExercise ? escapeHtml(editingExercise.name) : `New exercise for ${escapeHtml(selectedBuilderDay)}`}</h3>
+
+            <div class="builderField">
+              <label for="exerciseNameInput">Exercise name</label>
+              <input id="exerciseNameInput" class="builderInput" value="${escapeAttribute(editingExercise?.name || "")}" placeholder="Lat Pulldown" />
+            </div>
+
+            <div class="builderTwoCol">
+              <div class="builderField">
+                <label for="exerciseSetsInput">Sets</label>
+                <input id="exerciseSetsInput" class="builderInput" type="number" min="1" value="${escapeAttribute(editingExercise?.sets || 3)}" />
+              </div>
+
+              <div class="builderField">
+                <label for="exerciseTargetInput">Target reps</label>
+                <input id="exerciseTargetInput" class="builderInput" value="${escapeAttribute(editingExercise?.target || "")}" placeholder="8–10" />
+              </div>
+            </div>
+
+            <div class="builderTwoCol">
+              <div class="builderField">
+                <label for="exerciseRestInput">Rest</label>
+                <input id="exerciseRestInput" class="builderInput" value="${escapeAttribute(editingExercise?.rest || "")}" placeholder="60–90 sec" />
+              </div>
+
+              <div class="builderField">
+                <label for="exerciseSupersetInput">Superset</label>
+                <select id="exerciseSupersetInput" class="builderSelect">
+                  ${["", "A", "B", "C", "D", "E", "F"].map(value => `
+                    <option value="${value}" ${String(editingExercise?.superset || "") === value ? "selected" : ""}>
+                      ${value ? `Superset ${value}` : "None"}
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
+            </div>
+
+            <div class="builderTwoCol">
+              <div class="builderField">
+                <label for="exerciseTypeInput">Type</label>
+                <select id="exerciseTypeInput" class="builderSelect">
+                  ${["", "compound", "accessory"].map(value => `
+                    <option value="${value}" ${String(editingExercise?.type || "") === value ? "selected" : ""}>
+                      ${value || "None"}
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
+
+              <div class="builderField">
+                <label for="exerciseEquipmentInput">Equipment</label>
+                <input id="exerciseEquipmentInput" class="builderInput" value="${escapeAttribute(editingExercise?.equipment || "")}" placeholder="barbell, cable, machine..." />
+              </div>
+            </div>
+
+            <div class="builderField">
+              <label for="exerciseNoteInput">Note</label>
+              <textarea id="exerciseNoteInput" class="builderTextarea" placeholder="Optional note">${escapeHtml(editingExercise?.note || "")}</textarea>
+            </div>
+
+            <div class="builderRow">
+              <button id="saveExerciseBtn" type="button" class="primaryBtn">
+                ${editingExercise ? "Save Exercise" : "Add Exercise"}
+              </button>
+              <button id="cancelExerciseBtn" type="button" class="secondaryBtn">Cancel</button>
+            </div>
+          </section>
+        ` : `
+          <section class="dashboardCard">
+            <p class="eyebrow">No Day Selected</p>
+            <h3>Add a workout day</h3>
+            <p>Create a day like Push A, Pull A, Legs, Upper, or Lower.</p>
+          </section>
+        `}
+
+        <section class="dashboardCard">
+          <p class="eyebrow">Save</p>
+          <h3>Save plan to Firebase</h3>
+          <p>This updates the active plan used by Home and Workout. It does not delete workout history.</p>
+
+          <div class="builderSaveDock">
+            <button id="savePlanBtn" type="button" class="primaryBtn">Save Plan</button>
+          </div>
+
+          <div class="homeActions">
+            <button id="discardPlanChangesBtn" type="button" class="secondaryBtn">Discard Unsaved Changes</button>
+          </div>
+        </section>
       </div>
-    </section>
+    `;
 
-    <section class="dashboardCard">
-      <p class="eyebrow">Coming Next</p>
-      <h3>Visual Plan Builder</h3>
-      <p>
-        Next step after this: add, edit, reorder, superset, and delete exercises directly in the app.
-      </p>
-    </section>
-  `;
+    attachPlanBuilderEvents();
+  }
 
-  document.getElementById("exportPlanBtn")?.addEventListener("click", exportActivePlan);
-  document.getElementById("loadDefaultPlanBtn")?.addEventListener("click", replaceActivePlanFromWorkoutsJs);
-  document.getElementById("importPlanBtn")?.addEventListener("click", importPlanFromText);
-  document.getElementById("clearImportBtn")?.addEventListener("click", () => {
-    const textarea = document.getElementById("planImportText");
-    const message = document.getElementById("planImportMessage");
+  function attachPlanBuilderEvents() {
+    const planNameInput = document.getElementById("builderPlanName");
+    planNameInput?.addEventListener("input", () => {
+      builderPlanName = planNameInput.value;
+    });
 
-    if (textarea) textarea.value = "";
-    message?.classList.add("hidden");
-  });
-}
+    document.querySelectorAll(".builderDayChip").forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedBuilderDay = btn.dataset.day || "";
+        editingExerciseIndex = null;
+        renderPlanPage();
+      });
+    });
+
+    document.getElementById("addDayBtn")?.addEventListener("click", () => {
+      const input = document.getElementById("newDayName");
+      const name = input?.value.trim();
+
+      if (!name) {
+        showBuilderMessage("Enter a workout day name first.", "error");
+        return;
+      }
+
+      if (builderWorkouts[name]) {
+        showBuilderMessage("That workout day already exists.", "error");
+        return;
+      }
+
+      builderWorkouts[name] = [];
+      selectedBuilderDay = name;
+      editingExerciseIndex = null;
+      renderPlanPage();
+    });
+
+    document.getElementById("renameDayBtn")?.addEventListener("click", () => {
+      const input = document.getElementById("renameDayInput");
+      const nextName = input?.value.trim();
+
+      if (!selectedBuilderDay || !nextName) {
+        showBuilderMessage("Enter a valid day name.", "error");
+        return;
+      }
+
+      if (nextName !== selectedBuilderDay && builderWorkouts[nextName]) {
+        showBuilderMessage("That workout day already exists.", "error");
+        return;
+      }
+
+      const renamed = {};
+      Object.entries(builderWorkouts).forEach(([day, exercises]) => {
+        renamed[day === selectedBuilderDay ? nextName : day] = exercises;
+      });
+
+      builderWorkouts = renamed;
+      selectedBuilderDay = nextName;
+      editingExerciseIndex = null;
+      renderPlanPage();
+    });
+
+    document.getElementById("deleteDayBtn")?.addEventListener("click", () => {
+      if (!selectedBuilderDay) return;
+
+      const ok = confirm(`Delete ${selectedBuilderDay} and all exercises in it?`);
+      if (!ok) return;
+
+      delete builderWorkouts[selectedBuilderDay];
+      selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
+      editingExerciseIndex = null;
+      renderPlanPage();
+    });
+
+    document.querySelectorAll(".builderMiniBtn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.action;
+        const index = Number(btn.dataset.index);
+        handleBuilderExerciseAction(action, index);
+      });
+    });
+
+    document.getElementById("saveExerciseBtn")?.addEventListener("click", saveBuilderExercise);
+
+    document.getElementById("cancelExerciseBtn")?.addEventListener("click", () => {
+      editingExerciseIndex = null;
+      renderPlanPage();
+    });
+
+    document.getElementById("savePlanBtn")?.addEventListener("click", saveBuilderPlan);
+
+    document.getElementById("discardPlanChangesBtn")?.addEventListener("click", () => {
+      const ok = confirm("Discard unsaved plan changes and reload from the active Firebase plan?");
+      if (!ok) return;
+
+      initBuilderFromActivePlan(true);
+      renderPlanPage();
+    });
+  }
+
+  function handleBuilderExerciseAction(action, index) {
+    const list = builderWorkouts[selectedBuilderDay] || [];
+
+    if (!Number.isInteger(index) || !list[index]) return;
+
+    if (action === "edit") {
+      editingExerciseIndex = index;
+      renderPlanPage();
+      return;
+    }
+
+    if (action === "up" && index > 0) {
+      [list[index - 1], list[index]] = [list[index], list[index - 1]];
+      editingExerciseIndex = null;
+      renderPlanPage();
+      return;
+    }
+
+    if (action === "down" && index < list.length - 1) {
+      [list[index + 1], list[index]] = [list[index], list[index + 1]];
+      editingExerciseIndex = null;
+      renderPlanPage();
+      return;
+    }
+
+    if (action === "delete") {
+      const ok = confirm(`Delete ${list[index].name}?`);
+      if (!ok) return;
+
+      list.splice(index, 1);
+      editingExerciseIndex = null;
+      renderPlanPage();
+    }
+  }
+
+  function saveBuilderExercise() {
+    if (!selectedBuilderDay) return;
+
+    const name = document.getElementById("exerciseNameInput")?.value.trim() || "";
+    const sets = Number(document.getElementById("exerciseSetsInput")?.value) || 0;
+    const target = document.getElementById("exerciseTargetInput")?.value.trim() || "";
+    const rest = document.getElementById("exerciseRestInput")?.value.trim() || "";
+    const superset = document.getElementById("exerciseSupersetInput")?.value || "";
+    const type = document.getElementById("exerciseTypeInput")?.value || "";
+    const equipment = document.getElementById("exerciseEquipmentInput")?.value.trim() || "";
+    const note = document.getElementById("exerciseNoteInput")?.value.trim() || "";
+
+    if (!name) {
+      showBuilderMessage("Exercise name is required.", "error");
+      return;
+    }
+
+    if (!sets || sets < 1) {
+      showBuilderMessage("Sets must be at least 1.", "error");
+      return;
+    }
+
+    if (!target) {
+      showBuilderMessage("Target reps are required.", "error");
+      return;
+    }
+
+    const list = builderWorkouts[selectedBuilderDay] || [];
+    const existing = editingExerciseIndex !== null ? list[editingExerciseIndex] : null;
+
+    const exercise = {
+      id: existing?.id || createUniqueExerciseId(name, list),
+      name,
+      sets,
+      target,
+      rest,
+      type,
+      equipment,
+      note,
+      superset,
+      lastAlias: Array.isArray(existing?.lastAlias) ? existing.lastAlias : []
+    };
+
+    if (editingExerciseIndex !== null && list[editingExerciseIndex]) {
+      list[editingExerciseIndex] = exercise;
+    } else {
+      list.push(exercise);
+    }
+
+    builderWorkouts[selectedBuilderDay] = list;
+    editingExerciseIndex = null;
+    renderPlanPage();
+  }
+
+  async function saveBuilderPlan() {
+    const saveBtn = document.getElementById("savePlanBtn");
+    const planName = (document.getElementById("builderPlanName")?.value || builderPlanName || "Current Plan").trim();
+
+    const validation = validateWorkoutObject(builderWorkouts || {});
+
+    if (validation.errors.length) {
+      showBuilderMessage(
+        `Fix these issues first:\n${validation.errors.map(error => `• ${error}`).join("\n")}`,
+        "error"
+      );
+      return;
+    }
+
+    try {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
+
+      await saveActivePlanToFirebase(validation.workouts, planName);
+
+      builderPlanName = activePlan.name;
+      builderWorkouts = deepClone(activePlan.workouts);
+      selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
+      editingExerciseIndex = null;
+
+      await renderHome();
+      renderPlanPage();
+      showBuilderMessage("Plan saved to Firebase.", "success");
+    } catch (error) {
+      console.error(error);
+      showBuilderMessage(`Plan did not save:\n${error.message || error}`, "error");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Plan";
+    }
+  }
+
+  function showBuilderMessage(messageText, type = "error") {
+    const message = document.getElementById("builderMessage");
+    if (!message) return;
+
+    message.textContent = messageText;
+    message.dataset.type = type;
+    message.classList.remove("hidden");
+  }
+
+  function createUniqueExerciseId(name, list) {
+    const base = slugify(name) || "exercise";
+    const existingIds = new Set((list || []).map(exercise => exercise.id));
+    let id = base;
+    let counter = 2;
+
+    while (existingIds.has(id)) {
+      id = `${base}_${counter}`;
+      counter++;
+    }
+
+    return id;
+  }
 
   /* =====================================================
      DRAFT HELPERS
@@ -1257,11 +1664,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       return {
         workouts,
-        errors: ["window.workouts must be an object."]
+        errors: ["Workout plan must be an object."]
       };
     }
 
     Object.entries(input).forEach(([day, exercises]) => {
+      if (!day.trim()) {
+        errors.push("A workout day has an empty name.");
+        return;
+      }
+
       if (!Array.isArray(exercises)) {
         errors.push(`${day} must be an array.`);
         return;
@@ -1450,157 +1862,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     return Number.isInteger(number) ? number : Number(number.toFixed(1));
   }
 
-  async function exportActivePlan() {
-  const exportText = `window.workouts = ${JSON.stringify(workouts, null, 2)};`;
-
-  try {
-    await navigator.clipboard.writeText(exportText);
-    alert("Active plan copied to clipboard.");
-  } catch (error) {
-    console.error(error);
-
-    const textarea = document.getElementById("planImportText");
-    if (textarea) {
-      textarea.value = exportText;
-      textarea.focus();
-      textarea.select();
-    }
-
-    alert("Could not copy automatically. I placed the plan in the text box instead.");
-  }
-}
-
-async function replaceActivePlanFromWorkoutsJs() {
-  const ok = confirm(
-    "Replace your active Firebase plan with the current workouts.js file? This will not delete workout history."
-  );
-
-  if (!ok) return;
-
-  const validation = validateWorkoutObject(window.workouts || {});
-
-  if (validation.errors.length || !Object.keys(validation.workouts).length) {
-    alert(`workouts.js has issues:\n${validation.errors.join("\n")}`);
-    return;
+  function deepClone(value) {
+    return JSON.parse(JSON.stringify(value || {}));
   }
 
-  await saveActivePlanToFirebase(validation.workouts, activePlan?.name || "Current Plan");
-  alert("Firebase active plan updated from workouts.js.");
-}
-
-async function importPlanFromText() {
-  const textarea = document.getElementById("planImportText");
-  const message = document.getElementById("planImportMessage");
-
-  if (!textarea) return;
-
-  const rawText = textarea.value.trim();
-
-  if (!rawText) {
-    showPlanImportMessage("Paste a workout object first.", "error");
-    return;
+  function escapeAttribute(value) {
+    return escapeHtml(value).replaceAll("`", "&#096;");
   }
-
-  let importedWorkouts = null;
-
-  try {
-    importedWorkouts = parseWorkoutImport(rawText);
-  } catch (error) {
-    console.error(error);
-    showPlanImportMessage("Could not parse that plan. Make sure it is valid JavaScript object format.", "error");
-    return;
-  }
-
-  const validation = validateWorkoutObject(importedWorkouts);
-
-  if (validation.errors.length || !Object.keys(validation.workouts).length) {
-    showPlanImportMessage(
-      `Plan has issues:\n${validation.errors.map(error => `• ${error}`).join("\n")}`,
-      "error"
-    );
-    return;
-  }
-
-  const ok = confirm(
-    "Import this as your active Firebase plan? This will replace the current plan but will not delete workout history."
-  );
-
-  if (!ok) return;
-
-  try {
-    await saveActivePlanToFirebase(validation.workouts, activePlan?.name || "Current Plan");
-    textarea.value = "";
-    showPlanImportMessage("Plan imported and saved to Firebase.", "success");
-  } catch (error) {
-    console.error(error);
-    showPlanImportMessage("Import failed while saving to Firebase.", "error");
-  }
-}
-
-async function saveActivePlanToFirebase(nextWorkouts, planName = "Current Plan") {
-  const now = new Date().toISOString();
-  const planId = activePlan?.id || "current_plan";
-  const planRef = doc(db, "users", userId, "plans", planId);
-
-  await setDoc(planRef, {
-    name: planName,
-    workouts: nextWorkouts,
-    updatedAt: now,
-    createdAt: activePlan?.createdAt || now
-  }, { merge: true });
-
-  await setDoc(userSettingsDoc(), {
-    activePlanId: planId,
-    updatedAt: now
-  }, { merge: true });
-
-  activePlan = {
-    ...(activePlan || {}),
-    id: planId,
-    name: planName,
-    workouts: nextWorkouts,
-    updatedAt: now,
-    createdAt: activePlan?.createdAt || now
-  };
-
-  workouts = nextWorkouts;
-  workoutDays = Object.keys(workouts);
-
-  if (!workoutDays.includes(currentDay)) {
-    currentDay = "";
-  }
-
-  historyFilter = "All";
-
-  await renderHome();
-  renderPlanPage();
-}
-
-function parseWorkoutImport(rawText) {
-  let text = rawText.trim();
-
-  text = text
-    .replace(/^window\.workouts\s*=\s*/, "")
-    .replace(/;\s*$/, "")
-    .trim();
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Fall through to Function parser so normal JS object syntax can work.
-  }
-
-  return Function(`"use strict"; return (${text});`)();
-}
-
-function showPlanImportMessage(messageText, type = "error") {
-  const message = document.getElementById("planImportMessage");
-  if (!message) return;
-
-  message.textContent = messageText;
-  message.dataset.type = type;
-  message.classList.remove("hidden");
-}
 
   function escapeHtml(value) {
     return String(value ?? "")
