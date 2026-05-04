@@ -196,6 +196,19 @@ body {
   font-size: 14px;
 }
 
+.dangerBtn {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 92, 92, 0.45);
+  background: rgba(255, 92, 92, 0.14);
+  color: #ffb1b1;
+  font-weight: 900;
+  font-size: 15px;
+  cursor: pointer;
+}
+
 .workoutButtonGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -214,6 +227,13 @@ body {
   text-align: left;
   padding: 12px;
   cursor: pointer;
+}
+
+.workoutPickBtn small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+  font-size: 12px;
 }
 
 .workoutPickBtn.suggested {
@@ -764,29 +784,179 @@ select:focus {
   color: #ffb1b1;
 }
 
-/* Plan Page */
-.planList {
+/* Plan Builder */
+.builderGrid {
   display: grid;
+  gap: 14px;
+}
+
+.builderField {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.builderField label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.builderInput,
+.builderSelect,
+.builderTextarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+}
+
+.builderTextarea {
+  min-height: 84px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.35;
+}
+
+.builderInput:focus,
+.builderSelect:focus,
+.builderTextarea:focus {
+  border-color: rgba(114, 137, 218, 0.9);
+  box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.22);
+}
+
+.builderRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.builderTwoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.builderDayChips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  scrollbar-width: none;
+}
+
+.builderDayChips::-webkit-scrollbar {
+  display: none;
+}
+
+.builderDayChip {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.builderDayChip.active {
+  background: linear-gradient(135deg, var(--accent), #5865c8);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.builderMessage {
+  white-space: pre-wrap;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  line-height: 1.35;
+  font-size: 14px;
+}
+
+.builderMessage[data-type="success"] {
+  background: rgba(74, 222, 128, 0.12);
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.builderMessage[data-type="error"] {
+  background: rgba(255, 92, 92, 0.12);
+  color: #ffd1d1;
+  border-color: rgba(255, 92, 92, 0.35);
+}
+
+.exerciseBuilderList {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.builderExerciseCard {
+  background: rgba(58, 60, 66, 0.58);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.builderExerciseHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 10px;
 }
 
-.planDayCard {
-  background: rgba(43, 45, 49, 0.96);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
+.builderExerciseHeader strong {
+  display: block;
+  font-size: 16px;
 }
 
-.planDayCard strong {
-  display: block;
-  font-size: 17px;
-}
-
-.planDayCard span {
-  display: block;
-  margin-top: 4px;
+.builderExerciseHeader p {
+  margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.35;
+}
+
+.builderExerciseActions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.builderMiniBtn {
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  color: var(--text);
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.builderMiniBtn.danger {
+  color: #ffb1b1;
+  border-color: rgba(255, 92, 92, 0.45);
+  background: rgba(255, 92, 92, 0.14);
+}
+
+.builderSaveDock {
+  position: sticky;
+  bottom: calc(var(--bottom-nav-height) + 10px);
+  z-index: 900;
+  padding-top: 8px;
+  background: linear-gradient(to top, rgba(30, 31, 34, 0.98), rgba(30, 31, 34, 0.74), transparent);
 }
 
 /* Bottom Nav */
@@ -833,68 +1003,12 @@ select:focus {
   border-color: rgba(114, 137, 218, 0.32);
   color: white;
 }
-/* Plan Manager */
-.planActionGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.planTextarea {
-  width: 100%;
-  min-height: 220px;
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--panel-3);
-  color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.35;
-  resize: vertical;
-  outline: none;
-}
-
-.planTextarea:focus {
-  border-color: rgba(114, 137, 218, 0.9);
-  box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.22);
-}
-
-.planImportMessage {
-  white-space: pre-wrap;
-  margin-top: 10px;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  line-height: 1.35;
-  font-size: 14px;
-}
-
-.planImportMessage[data-type="success"] {
-  background: rgba(74, 222, 128, 0.12);
-  color: #bbf7d0;
-  border-color: rgba(74, 222, 128, 0.35);
-}
-
-.planImportMessage[data-type="error"] {
-  background: rgba(255, 92, 92, 0.12);
-  color: #ffd1d1;
-  border-color: rgba(255, 92, 92, 0.35);
-}
 
 code {
   background: rgba(255, 255, 255, 0.07);
   padding: 2px 5px;
   border-radius: 6px;
   color: #d7dcff;
-}
-
-@media (min-width: 760px) {
-  .planActionGrid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 /* Desktop polish */
@@ -910,5 +1024,9 @@ code {
 
   .workoutButtonGrid {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .builderRow {
+    grid-template-columns: 1fr 1fr;
   }
 }
