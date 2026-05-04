@@ -833,6 +833,69 @@ select:focus {
   border-color: rgba(114, 137, 218, 0.32);
   color: white;
 }
+/* Plan Manager */
+.planActionGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.planTextarea {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.35;
+  resize: vertical;
+  outline: none;
+}
+
+.planTextarea:focus {
+  border-color: rgba(114, 137, 218, 0.9);
+  box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.22);
+}
+
+.planImportMessage {
+  white-space: pre-wrap;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  line-height: 1.35;
+  font-size: 14px;
+}
+
+.planImportMessage[data-type="success"] {
+  background: rgba(74, 222, 128, 0.12);
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.planImportMessage[data-type="error"] {
+  background: rgba(255, 92, 92, 0.12);
+  color: #ffd1d1;
+  border-color: rgba(255, 92, 92, 0.35);
+}
+
+code {
+  background: rgba(255, 255, 255, 0.07);
+  padding: 2px 5px;
+  border-radius: 6px;
+  color: #d7dcff;
+}
+
+@media (min-width: 760px) {
+  .planActionGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 
 /* Desktop polish */
 @media (min-width: 760px) {
