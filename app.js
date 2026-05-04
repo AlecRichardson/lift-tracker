@@ -190,9 +190,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const repsInput = row.querySelector("input[data-field='reps']");
         const weightInput = row.querySelector("input[data-field='weight']");
 
+        const setNumber = row.querySelector(".setNumber");
+
         sets.push({
           reps: repsInput?.value || "",
-          weight: weightInput?.value || ""
+          weight: weightInput?.value || "",
+          done: setNumber?.dataset.done === "true"
         });
       });
 
@@ -406,8 +409,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const setNumber = row.querySelector(".setNumber");
 
         sets.push({
-          reps: repsInput?.value || "",
-          weight: weightInput?.value || "",
+          reps: Number(repsInput?.value) || 0,
+          weight: Number(weightInput?.value) || 0,
           done: setNumber?.dataset.done === "true"
         });
       });
