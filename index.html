@@ -1,60 +1,108 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+
   <title>Lift Tracker</title>
+
   <meta name="theme-color" content="#1e1f22" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Lift Tracker" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="stylesheet" href="style.css" />
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
+  <div id="drawerOverlay" class="drawerOverlay hidden"></div>
 
-<!-- Drawer -->
-<div id="drawer" class="drawer">
-  <div class="drawer-header">
-    <h3>Menu</h3>
-    <button id="closeDrawer">✕</button>
-  </div>
+  <!-- Drawer -->
+  <aside id="drawer" class="drawer" aria-label="Main menu">
+    <div class="drawer-header">
+      <div>
+        <h3>Menu</h3>
+        <p id="drawerUser" class="drawerUser"></p>
+      </div>
+      <button id="closeDrawer" type="button" aria-label="Close menu">✕</button>
+    </div>
 
-  <button class="navWorkout" data-day="Push A">Push A</button>
-  <button class="navWorkout" data-day="Pull A">Pull A</button>
-  <button class="navWorkout" data-day="Legs">Legs</button>
-  <button class="navWorkout" data-day="Push B">Push B</button>
-  <button class="navWorkout" data-day="Pull B">Pull B</button>
+    <div class="drawerSectionLabel">Workouts</div>
+    <div id="workoutNavList" class="workoutNavList"></div>
 
-  <hr />
-  <button id="navProgress">Progress</button>
-  <button id="navHistory">History</button>
-</div>
+    <hr />
 
-<!-- Topbar -->
-<div class="topbar">
-  <button id="hamburger">☰</button>
-  <h2 id="pageTitle">Push A</h2>
-</div>
+    <button id="navProgress" type="button" class="drawerNavBtn">Progress</button>
+    <button id="navHistory" type="button" class="drawerNavBtn">History</button>
+  </aside>
 
-<!-- Workout Page -->
-<div id="workoutPage" class="page">
-  <div id="exerciseContainer"></div>
-  <button id="saveWorkout" class="primaryBtn">Save Workout</button>
-  <div id="saveAnimation" class="hidden">💾 Saved!</div>
-</div>
+  <!-- Topbar -->
+  <header class="topbar">
+    <button id="hamburger" type="button" aria-label="Open menu">☰</button>
+    <div class="topbarTitleWrap">
+      <h2 id="pageTitle">Lift Tracker</h2>
+      <p id="pageSubtitle"></p>
+    </div>
+  </header>
 
-<!-- Progress Page -->
-<div id="progressPage" class="page hidden">
-  <h3>Progress</h3>
-  <p>This chart tracks your estimated progress based on the average weight lifted per exercise. We calculate the average of your recorded sets for each workout.</p>
-  <select id="exerciseSelect"></select>
-  <canvas id="chart"></canvas>
-</div>
+  <main class="appShell">
+    <!-- Workout Page -->
+    <section id="workoutPage" class="page">
+      <div id="appMessage" class="appMessage hidden"></div>
+      <div id="exerciseContainer"></div>
 
-<!-- History Page -->
-<div id="historyPage" class="page hidden">
-  <h3>Workout History</h3>
-  <div id="historyList"></div>
-</div>
+      <div class="saveDock">
+        <button id="saveWorkout" type="button" class="primaryBtn">Save Workout</button>
+        <div id="saveAnimation" class="saveAnimation hidden">💾 Saved!</div>
+      </div>
+    </section>
 
-<script type="module" src="app.js"></script>
+    <!-- Progress Page -->
+    <section id="progressPage" class="page hidden">
+      <div class="pageHeader">
+        <h3>Progress</h3>
+        <p>
+          Track strength with better metrics than average weight alone.
+        </p>
+      </div>
+
+      <label class="fieldLabel" for="exerciseSelect">Exercise</label>
+      <select id="exerciseSelect"></select>
+
+      <label class="fieldLabel" for="metricSelect">Metric</label>
+      <select id="metricSelect">
+        <option value="est1rm">Estimated 1RM</option>
+        <option value="volume">Total Volume</option>
+        <option value="topWeight">Top Working Weight</option>
+        <option value="bestSetVolume">Best Set Volume</option>
+        <option value="avgWeight">Average Weight</option>
+      </select>
+
+      <div class="chartCard">
+        <canvas id="chart"></canvas>
+      </div>
+    </section>
+
+    <!-- History Page -->
+    <section id="historyPage" class="page hidden">
+      <div class="pageHeader">
+        <h3>Workout History</h3>
+        <p>Tap a workout to expand. Swipe left to delete.</p>
+      </div>
+
+      <div id="historyList"></div>
+    </section>
+  </main>
+
+  <script src="workouts.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
