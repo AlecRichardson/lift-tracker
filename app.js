@@ -8,7 +8,8 @@ import {
   query,
   orderBy,
   getDoc,
-  setDoc
+  setDoc,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 /* =====================================================
@@ -404,51 +405,97 @@ document.addEventListener("DOMContentLoaded", async () => {
      PLAN PAGE
   ===================================================== */
   function renderPlanPage() {
-    const planOverview = document.getElementById("planOverview");
-    if (!planOverview) return;
+  const planOverview = document.getElementById("planOverview");
+  if (!planOverview) return;
 
-    const totalExercises = workoutDays.reduce((sum, day) => sum + workouts[day].length, 0);
+  const totalExercises = workoutDays.reduce((sum, day) => sum + workouts[day].length, 0);
 
-    planOverview.innerHTML = `
-      <section class="dashboardCard">
-        <p class="eyebrow">Active Firebase Plan</p>
-        <h3>${escapeHtml(activePlan?.name || "Current Plan")}</h3>
-        <p>${workoutDays.length} workout days • ${totalExercises} exercises</p>
+  planOverview.innerHTML = `
+    <section class="dashboardCard">
+      <p class="eyebrow">Active Firebase Plan</p>
+      <h3>${escapeHtml(activePlan?.name || "Current Plan")}</h3>
+      <p>${workoutDays.length} workout days • ${totalExercises} exercises</p>
 
-        <div class="statGrid">
-          <div class="statTile">
-            <strong>${workoutDays.length}</strong>
-            <span>Workout Days</span>
-          </div>
-          <div class="statTile">
-            <strong>${totalExercises}</strong>
-            <span>Exercises</span>
-          </div>
+      <div class="statGrid">
+        <div class="statTile">
+          <strong>${workoutDays.length}</strong>
+          <span>Workout Days</span>
         </div>
-      </section>
-
-      <section class="dashboardCard">
-        <p class="eyebrow">Workout Days</p>
-        <h3>Current plan layout</h3>
-        <div class="planList">
-          ${workoutDays.map(day => `
-            <div class="planDayCard">
-              <strong>${escapeHtml(day)}</strong>
-              <span>${escapeHtml(workoutSummaryText(day))}</span>
-            </div>
-          `).join("")}
+        <div class="statTile">
+          <strong>${totalExercises}</strong>
+          <span>Exercises</span>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="dashboardCard">
-        <p class="eyebrow">Coming Next</p>
-        <h3>Plan Builder</h3>
-        <p>
-          Next step: add, edit, reorder, superset, import, and export workout plans directly in the app.
-        </p>
-      </section>
-    `;
-  }
+    <section class="dashboardCard">
+      <p class="eyebrow">Plan Actions</p>
+      <h3>Manage plan data</h3>
+      <p>
+        Use this to paste a new plan from your other chat, export your active plan,
+        or overwrite Firebase with the current workouts.js file.
+      </p>
+
+      <div class="planActionGrid">
+        <button id="exportPlanBtn" type="button" class="secondaryBtn">Export Active Plan</button>
+        <button id="loadDefaultPlanBtn" type="button" class="secondaryBtn">Use workouts.js</button>
+      </div>
+    </section>
+
+    <section class="dashboardCard">
+      <p class="eyebrow">Import Plan</p>
+      <h3>Paste workout object</h3>
+      <p>
+        Paste either <code>window.workouts = { ... };</code> or just the object <code>{ ... }</code>.
+      </p>
+
+      <textarea
+        id="planImportText"
+        class="planTextarea"
+        placeholder="Paste your workout object here..."
+      ></textarea>
+
+      <div class="planActionGrid">
+        <button id="importPlanBtn" type="button" class="primaryBtn">Import to Firebase</button>
+        <button id="clearImportBtn" type="button" class="secondaryBtn">Clear</button>
+      </div>
+
+      <div id="planImportMessage" class="planImportMessage hidden"></div>
+    </section>
+
+    <section class="dashboardCard">
+      <p class="eyebrow">Workout Days</p>
+      <h3>Current plan layout</h3>
+      <div class="planList">
+        ${workoutDays.map(day => `
+          <div class="planDayCard">
+            <strong>${escapeHtml(day)}</strong>
+            <span>${escapeHtml(workoutSummaryText(day))}</span>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+
+    <section class="dashboardCard">
+      <p class="eyebrow">Coming Next</p>
+      <h3>Visual Plan Builder</h3>
+      <p>
+        Next step after this: add, edit, reorder, superset, and delete exercises directly in the app.
+      </p>
+    </section>
+  `;
+
+  document.getElementById("exportPlanBtn")?.addEventListener("click", exportActivePlan);
+  document.getElementById("loadDefaultPlanBtn")?.addEventListener("click", replaceActivePlanFromWorkoutsJs);
+  document.getElementById("importPlanBtn")?.addEventListener("click", importPlanFromText);
+  document.getElementById("clearImportBtn")?.addEventListener("click", () => {
+    const textarea = document.getElementById("planImportText");
+    const message = document.getElementById("planImportMessage");
+
+    if (textarea) textarea.value = "";
+    message?.classList.add("hidden");
+  });
+}
 
   /* =====================================================
      DRAFT HELPERS
@@ -1402,6 +1449,158 @@ document.addEventListener("DOMContentLoaded", async () => {
     const number = Number(value) || 0;
     return Number.isInteger(number) ? number : Number(number.toFixed(1));
   }
+
+  async function exportActivePlan() {
+  const exportText = `window.workouts = ${JSON.stringify(workouts, null, 2)};`;
+
+  try {
+    await navigator.clipboard.writeText(exportText);
+    alert("Active plan copied to clipboard.");
+  } catch (error) {
+    console.error(error);
+
+    const textarea = document.getElementById("planImportText");
+    if (textarea) {
+      textarea.value = exportText;
+      textarea.focus();
+      textarea.select();
+    }
+
+    alert("Could not copy automatically. I placed the plan in the text box instead.");
+  }
+}
+
+async function replaceActivePlanFromWorkoutsJs() {
+  const ok = confirm(
+    "Replace your active Firebase plan with the current workouts.js file? This will not delete workout history."
+  );
+
+  if (!ok) return;
+
+  const validation = validateWorkoutObject(window.workouts || {});
+
+  if (validation.errors.length || !Object.keys(validation.workouts).length) {
+    alert(`workouts.js has issues:\n${validation.errors.join("\n")}`);
+    return;
+  }
+
+  await saveActivePlanToFirebase(validation.workouts, activePlan?.name || "Current Plan");
+  alert("Firebase active plan updated from workouts.js.");
+}
+
+async function importPlanFromText() {
+  const textarea = document.getElementById("planImportText");
+  const message = document.getElementById("planImportMessage");
+
+  if (!textarea) return;
+
+  const rawText = textarea.value.trim();
+
+  if (!rawText) {
+    showPlanImportMessage("Paste a workout object first.", "error");
+    return;
+  }
+
+  let importedWorkouts = null;
+
+  try {
+    importedWorkouts = parseWorkoutImport(rawText);
+  } catch (error) {
+    console.error(error);
+    showPlanImportMessage("Could not parse that plan. Make sure it is valid JavaScript object format.", "error");
+    return;
+  }
+
+  const validation = validateWorkoutObject(importedWorkouts);
+
+  if (validation.errors.length || !Object.keys(validation.workouts).length) {
+    showPlanImportMessage(
+      `Plan has issues:\n${validation.errors.map(error => `• ${error}`).join("\n")}`,
+      "error"
+    );
+    return;
+  }
+
+  const ok = confirm(
+    "Import this as your active Firebase plan? This will replace the current plan but will not delete workout history."
+  );
+
+  if (!ok) return;
+
+  try {
+    await saveActivePlanToFirebase(validation.workouts, activePlan?.name || "Current Plan");
+    textarea.value = "";
+    showPlanImportMessage("Plan imported and saved to Firebase.", "success");
+  } catch (error) {
+    console.error(error);
+    showPlanImportMessage("Import failed while saving to Firebase.", "error");
+  }
+}
+
+async function saveActivePlanToFirebase(nextWorkouts, planName = "Current Plan") {
+  const now = new Date().toISOString();
+  const planId = activePlan?.id || "current_plan";
+  const planRef = doc(db, "users", userId, "plans", planId);
+
+  await setDoc(planRef, {
+    name: planName,
+    workouts: nextWorkouts,
+    updatedAt: now,
+    createdAt: activePlan?.createdAt || now
+  }, { merge: true });
+
+  await setDoc(userSettingsDoc(), {
+    activePlanId: planId,
+    updatedAt: now
+  }, { merge: true });
+
+  activePlan = {
+    ...(activePlan || {}),
+    id: planId,
+    name: planName,
+    workouts: nextWorkouts,
+    updatedAt: now,
+    createdAt: activePlan?.createdAt || now
+  };
+
+  workouts = nextWorkouts;
+  workoutDays = Object.keys(workouts);
+
+  if (!workoutDays.includes(currentDay)) {
+    currentDay = "";
+  }
+
+  historyFilter = "All";
+
+  await renderHome();
+  renderPlanPage();
+}
+
+function parseWorkoutImport(rawText) {
+  let text = rawText.trim();
+
+  text = text
+    .replace(/^window\.workouts\s*=\s*/, "")
+    .replace(/;\s*$/, "")
+    .trim();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Fall through to Function parser so normal JS object syntax can work.
+  }
+
+  return Function(`"use strict"; return (${text});`)();
+}
+
+function showPlanImportMessage(messageText, type = "error") {
+  const message = document.getElementById("planImportMessage");
+  if (!message) return;
+
+  message.textContent = messageText;
+  message.dataset.type = type;
+  message.classList.remove("hidden");
+}
 
   function escapeHtml(value) {
     return String(value ?? "")
