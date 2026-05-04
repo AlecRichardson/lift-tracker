@@ -283,8 +283,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       const previousSets = previousExercise?.s || [];
       const draftSets = useDraft ? draft.exercises?.[exerciseKey] : null;
 
+      const nextExercise = template[index + 1];
+      const isSupersetEnd =
+        exercise.superset &&
+        (!nextExercise || nextExercise.superset !== exercise.superset);
+      
       const exerciseCard = document.createElement("article");
-      exerciseCard.className = "exercise exerciseCard";
+      exerciseCard.className = [
+        "exercise",
+        "exerciseCard",
+        exercise.superset ? "inSuperset" : "",
+        isSupersetEnd ? "supersetEnd" : ""
+      ].filter(Boolean).join(" ");
+      
       exerciseCard.dataset.exerciseKey = exerciseKey;
       exerciseCard.dataset.exerciseName = exercise.name;
 
