@@ -326,9 +326,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         const row = document.createElement("div");
         row.className = "setRow";
 
-        const setNumber = document.createElement("div");
+        const setNumber = document.createElement("button");
+        setNumber.type = "button";
         setNumber.className = "setNumber";
         setNumber.textContent = String(i + 1);
+        setNumber.dataset.setNumber = String(i + 1);
+        setNumber.dataset.done = "false";
+        
+        setNumber.addEventListener("click", () => {
+          const row = setNumber.closest(".setRow");
+          const isDone = setNumber.dataset.done === "true";
+        
+          setNumber.dataset.done = isDone ? "false" : "true";
+          setNumber.textContent = isDone ? setNumber.dataset.setNumber : "✓";
+          row?.classList.toggle("setDone", !isDone);
+        
+          saveDraft(currentDay);
+        });
 
         const repsInput = document.createElement("input");
         repsInput.type = "number";
@@ -352,6 +366,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (sourceSet) {
           repsInput.value = sourceSet.reps || "";
           weightInput.value = sourceSet.weight || "";
+        
+          if (sourceSet.done) {
+            setNumber.dataset.done = "true";
+            setNumber.textContent = "✓";
+            row.classList.add("setDone");
+          }
         }
 
         row.appendChild(setNumber);
@@ -383,9 +403,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const repsInput = row.querySelector("input[data-field='reps']");
         const weightInput = row.querySelector("input[data-field='weight']");
 
+        const setNumber = row.querySelector(".setNumber");
+
         sets.push({
-          reps: Number(repsInput?.value) || 0,
-          weight: Number(weightInput?.value) || 0
+          reps: repsInput?.value || "",
+          weight: weightInput?.value || "",
+          done: setNumber?.dataset.done === "true"
         });
       });
 
