@@ -37,10 +37,16 @@ async function initializeUser() {
   const existingDisplayName = localStorage.getItem("displayName");
 
   if (existingUserId && existingDisplayName) {
-    userId = existingUserId;
     displayName = existingDisplayName;
-    usernameKey = localStorage.getItem("usernameKey") || normalizeUsername(displayName);
+    usernameKey = normalizeUsername(displayName);
 
+    if (existingUserId !== usernameKey) {
+      await migrateUserData(existingUserId, usernameKey);
+      localStorage.setItem("profileMigratedFrom", existingUserId);
+    }
+
+    userId = usernameKey;
+    localStorage.setItem("userId", userId);
     localStorage.setItem("usernameKey", usernameKey);
     return;
   }
@@ -59,6 +65,67 @@ async function initializeUser() {
   localStorage.setItem("userId", userId);
   localStorage.setItem("displayName", displayName);
   localStorage.setItem("usernameKey", usernameKey);
+}
+
+async function migrateUserData(sourceUserId, targetUserId) {
+  if (!sourceUserId || !targetUserId || sourceUserId === targetUserId) return;
+
+  const now = new Date().toISOString();
+  const sourceSettingsRef = doc(db, "users", sourceUserId, "settings", "app");
+  const targetSettingsRef = doc(db, "users", targetUserId, "settings", "app");
+  const sourceSettingsSnap = await getDoc(sourceSettingsRef);
+  const sourceActivePlanId = sourceSettingsSnap.exists() ? sourceSettingsSnap.data().activePlanId : "";
+  let migratedActivePlanId = "";
+
+  const sourcePlansSnap = await getDocs(collection(db, "users", sourceUserId, "plans"));
+
+  await Promise.all(sourcePlansSnap.docs.map(async planSnap => {
+    let targetPlanId = planSnap.id;
+    let targetPlanRef = doc(db, "users", targetUserId, "plans", targetPlanId);
+    const targetPlanSnap = await getDoc(targetPlanRef);
+
+    if (targetPlanSnap.exists() && planSnap.id === sourceActivePlanId) {
+      targetPlanId = `migrated_${slugifyUser(sourceUserId)}_${planSnap.id}`;
+      targetPlanRef = doc(db, "users", targetUserId, "plans", targetPlanId);
+    }
+
+    await setDoc(targetPlanRef, {
+      ...planSnap.data(),
+      migratedAt: now
+    }, { merge: true });
+
+    if (planSnap.id === sourceActivePlanId) {
+      migratedActivePlanId = targetPlanId;
+    }
+  }));
+
+  if (sourceSettingsSnap.exists()) {
+    await setDoc(targetSettingsRef, {
+      ...sourceSettingsSnap.data(),
+      activePlanId: migratedActivePlanId || sourceActivePlanId,
+      migratedAt: now,
+      updatedAt: now
+    }, { merge: true });
+  }
+
+  const sourceWorkoutsSnap = await getDocs(collection(db, "users", sourceUserId, "workouts"));
+
+  await Promise.all(sourceWorkoutsSnap.docs.map(workoutSnap =>
+    setDoc(
+      doc(db, "users", targetUserId, "workouts", workoutSnap.id),
+      {
+        ...workoutSnap.data(),
+        migratedAt: now
+      },
+      { merge: true }
+    )
+  ));
+
+  await setDoc(doc(db, "users", targetUserId), {
+    displayName,
+    usernameKey: targetUserId,
+    updatedAt: now
+  }, { merge: true });
 }
 /* =====================================================
    FIRESTORE HELPERS
@@ -93,7 +160,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentPage = "homePage";
   let chart = null;
   let historyFilter = "All";
-  let activeRestTimer = null;
+  const activeRestTimers = new Map();
 
   let builderPlanName = "";
   let builderWorkouts = null;
@@ -118,6 +185,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   try {
     await initializeUser();
+    const migratedFrom = localStorage.getItem("profileMigratedFrom");
+    if (migratedFrom) {
+      localStorage.removeItem("profileMigratedFrom");
+      showMessage("Your workouts are now tied to this name on this device.", "success");
+    }
   } catch (error) {
     console.error(error);
     showMessage("Couldn’t load your profile. The app will try to continue.", "error");
@@ -227,7 +299,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       workouts: validation.workouts,
       updatedAt: now,
       createdAt: activePlan?.createdAt || now
-    }, { merge: true });
+    });
 
     await setDoc(userSettingsDoc(), {
       activePlanId: planId,
@@ -264,13 +336,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("bottomWorkout")?.addEventListener("click", async () => {
       if (!currentDay) {
-        await renderHome();
-        showPage("homePage");
-        return;
+        await openSuggestedWorkoutFromNav();
+      } else {
+        await renderWorkout();
+        showPage("workoutPage");
       }
-
-      await renderWorkout();
-      showPage("workoutPage");
     });
 
     document.getElementById("bottomHistory")?.addEventListener("click", async () => {
@@ -289,6 +359,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     currentDay = day;
     await renderWorkout();
     showPage("workoutPage");
+  }
+
+  async function openSuggestedWorkoutFromNav() {
+    if (!workoutDays.length) {
+      await renderWorkout();
+      showPage("workoutPage");
+      showMessage("No workouts found. Go to Plan and add a workout day.", "error");
+      return;
+    }
+
+    let logs = [];
+
+    try {
+      logs = await getLogs();
+    } catch (error) {
+      console.error(error);
+      showMessage("Couldn’t load your workout history, so we opened the first workout in your plan.", "error");
+    }
+
+    const suggestedDay = getSuggestedNextWorkout(logs) || workoutDays[0];
+    await startWorkout(suggestedDay);
   }
 
   function showPage(pageId) {
@@ -1088,7 +1179,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const container = document.getElementById("exerciseContainer");
     if (!container) return;
 
-    stopActiveRestTimer();
+    stopAllRestTimers();
 
     if (!currentDay) {
       container.innerHTML = `
@@ -1293,9 +1384,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const isDone = button.dataset.done === "true";
 
     if (isDone) {
-      if (activeRestTimer?.button === button) {
-        stopActiveRestTimer();
-      }
+      stopRestTimer(button);
 
       button.dataset.done = "false";
       button.textContent = button.dataset.setNumber;
@@ -1320,92 +1409,101 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function startRestTimer(button, seconds) {
-    stopActiveRestTimer();
+    stopRestTimer(button);
 
     const endsAt = Date.now() + seconds * 1000;
 
     button.classList.remove("timerComplete");
     button.classList.add("timerActive");
 
-    activeRestTimer = {
+    const timer = {
       button,
       endsAt,
       intervalId: null
     };
 
-    updateActiveRestTimer();
+    activeRestTimers.set(button, timer);
+    updateRestTimer(button);
 
-    const intervalId = setInterval(updateActiveRestTimer, 1000);
-    activeRestTimer.intervalId = intervalId;
+    timer.intervalId = setInterval(() => updateRestTimer(button), 1000);
   }
 
-  function updateActiveRestTimer() {
-    if (!activeRestTimer?.button) return;
+  function updateRestTimer(button) {
+    const timer = activeRestTimers.get(button);
+    if (!timer?.button) return;
 
-    const button = activeRestTimer.button;
-
-    if (!button.isConnected) {
-      stopActiveRestTimer();
+    if (!timer.button.isConnected) {
+      stopRestTimer(timer.button, { resetText: false });
       return;
     }
 
-    const remainingMs = activeRestTimer.endsAt - Date.now();
+    const remainingMs = timer.endsAt - Date.now();
     const remainingSeconds = Math.ceil(remainingMs / 1000);
 
     if (remainingSeconds <= 0) {
-      completeActiveRestTimer();
+      completeRestTimer(timer.button);
       return;
     }
 
-    button.classList.add("timerActive");
-    button.textContent = formatTimer(remainingSeconds);
+    timer.button.classList.add("timerActive");
+    timer.button.textContent = formatTimer(remainingSeconds);
   }
 
-  function completeActiveRestTimer() {
-    if (!activeRestTimer?.button) return;
+  function updateAllRestTimers() {
+    [...activeRestTimers.keys()].forEach(updateRestTimer);
+  }
 
-    const button = activeRestTimer.button;
+  function completeRestTimer(button) {
+    const timer = activeRestTimers.get(button);
+    if (!timer?.button) return;
 
-    if (activeRestTimer.intervalId) {
-      clearInterval(activeRestTimer.intervalId);
+    if (timer.intervalId) {
+      clearInterval(timer.intervalId);
     }
 
-    button.classList.remove("timerActive");
-    button.classList.add("timerComplete");
-    button.textContent = "✓";
+    timer.button.classList.remove("timerActive");
+    timer.button.classList.add("timerComplete");
+    timer.button.textContent = "✓";
 
-    activeRestTimer = null;
+    activeRestTimers.delete(button);
 
     setTimeout(() => {
-      button.classList.remove("timerComplete");
+      timer.button.classList.remove("timerComplete");
     }, 700);
   }
 
-  function stopActiveRestTimer() {
-    if (!activeRestTimer) return;
+  function stopRestTimer(button, options = {}) {
+    const { resetText = true } = options;
+    const timer = activeRestTimers.get(button);
+    if (!timer) return;
 
-    if (activeRestTimer.intervalId) {
-      clearInterval(activeRestTimer.intervalId);
+    if (timer.intervalId) {
+      clearInterval(timer.intervalId);
     }
 
-    const button = activeRestTimer.button;
-    if (button?.isConnected && button.dataset.done === "true") {
-      button.classList.remove("timerActive");
-      button.textContent = "✓";
+    if (timer.button?.isConnected && timer.button.dataset.done === "true") {
+      timer.button.classList.remove("timerActive");
+      if (resetText) {
+        timer.button.textContent = "✓";
+      }
     }
 
-    activeRestTimer = null;
+    activeRestTimers.delete(button);
+  }
+
+  function stopAllRestTimers() {
+    [...activeRestTimers.keys()].forEach(button => stopRestTimer(button));
   }
 
   function setupTimerResumeHandlers() {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
-        updateActiveRestTimer();
+        updateAllRestTimers();
       }
     });
 
-    window.addEventListener("focus", updateActiveRestTimer);
-    window.addEventListener("pageshow", updateActiveRestTimer);
+    window.addEventListener("focus", updateAllRestTimers);
+    window.addEventListener("pageshow", updateAllRestTimers);
   }
 
   /* =====================================================
@@ -1454,7 +1552,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       saveButton.disabled = true;
       saveButton.textContent = "Saving...";
 
-      stopActiveRestTimer();
+      stopAllRestTimers();
 
       await addDoc(userWorkoutsCollection(), {
         schemaVersion: 4,
