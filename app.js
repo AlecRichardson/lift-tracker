@@ -11,6 +11,7 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
+
 /* =====================================================
    USER SYSTEM
 ===================================================== */
@@ -18,82 +19,33 @@ let userId = localStorage.getItem("userId");
 let displayName = localStorage.getItem("displayName");
 let usernameKey = localStorage.getItem("usernameKey");
 
-/* =====================================================
-   FIRESTORE HELPERS
-===================================================== */
-function userWorkoutsCollection() {
-  return collection(db, "users", userId, "workouts");
-}
-
-function userSettingsDoc() {
-  return doc(db, "users", userId, "settings", "app");
-}
-
-function usernameDoc(nameKey) {
-  return doc(db, "usernames", nameKey);
-}
-
-async function getLogs() {
-  const q = query(userWorkoutsCollection(), orderBy("t"));
-  const snapshot = await getDocs(q);
-
-  return snapshot.docs.map(d => ({
-    id: d.id,
-    ...d.data()
-  }));
-}
-
 async function initializeUser() {
   const existingUserId = localStorage.getItem("userId");
   const existingDisplayName = localStorage.getItem("displayName");
-  const existingUsernameKey = localStorage.getItem("usernameKey");
 
   if (existingUserId && existingDisplayName) {
     userId = existingUserId;
     displayName = existingDisplayName;
-    usernameKey = existingUsernameKey || normalizeUsername(existingDisplayName);
+    usernameKey = localStorage.getItem("usernameKey") || normalizeUsername(displayName);
 
     localStorage.setItem("usernameKey", usernameKey);
-    await ensureUsernameMapping(usernameKey, userId, displayName);
-
     return;
   }
 
   const enteredName = prompt("Enter your name:") || "Lifter";
-  const normalized = normalizeUsername(enteredName);
 
   displayName = enteredName.trim() || "Lifter";
-  usernameKey = normalized || "lifter";
+  usernameKey = normalizeUsername(displayName);
 
-  try {
-    const snap = await getDoc(usernameDoc(usernameKey));
-
-    if (snap.exists() && snap.data()?.userId) {
-      userId = snap.data().userId;
-    } else {
-      userId = usernameKey;
-      await ensureUsernameMapping(usernameKey, userId, displayName);
-    }
-  } catch (error) {
-    console.error(error);
-    userId = usernameKey;
-  }
+  /*
+    Use a stable name-based user ID so Safari and Home Screen app
+    can load the same data when the same name is entered.
+  */
+  userId = usernameKey;
 
   localStorage.setItem("userId", userId);
   localStorage.setItem("displayName", displayName);
   localStorage.setItem("usernameKey", usernameKey);
-}
-
-async function ensureUsernameMapping(nameKey, mappedUserId, name) {
-  if (!nameKey || !mappedUserId) return;
-
-  const now = new Date().toISOString();
-
-  await setDoc(usernameDoc(nameKey), {
-    userId: mappedUserId,
-    displayName: name || nameKey,
-    updatedAt: now
-  }, { merge: true });
 }
 
 /* =====================================================
