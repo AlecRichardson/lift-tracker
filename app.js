@@ -16,16 +16,7 @@ import {
 ===================================================== */
 let userId = localStorage.getItem("userId");
 let displayName = localStorage.getItem("displayName");
-
-if (!userId) {
-  userId = crypto.randomUUID();
-  localStorage.setItem("userId", userId);
-}
-
-if (!displayName) {
-  displayName = prompt("Enter your name:") || "Lifter";
-  localStorage.setItem("displayName", displayName);
-}
+let usernameKey = localStorage.getItem("usernameKey");
 
 /* =====================================================
    FIRESTORE HELPERS
@@ -38,6 +29,10 @@ function userSettingsDoc() {
   return doc(db, "users", userId, "settings", "app");
 }
 
+function usernameDoc(nameKey) {
+  return doc(db, "usernames", nameKey);
+}
+
 async function getLogs() {
   const q = query(userWorkoutsCollection(), orderBy("t"));
   const snapshot = await getDocs(q);
@@ -46,6 +41,59 @@ async function getLogs() {
     id: d.id,
     ...d.data()
   }));
+}
+
+async function initializeUser() {
+  const existingUserId = localStorage.getItem("userId");
+  const existingDisplayName = localStorage.getItem("displayName");
+  const existingUsernameKey = localStorage.getItem("usernameKey");
+
+  if (existingUserId && existingDisplayName) {
+    userId = existingUserId;
+    displayName = existingDisplayName;
+    usernameKey = existingUsernameKey || normalizeUsername(existingDisplayName);
+
+    localStorage.setItem("usernameKey", usernameKey);
+    await ensureUsernameMapping(usernameKey, userId, displayName);
+
+    return;
+  }
+
+  const enteredName = prompt("Enter your name:") || "Lifter";
+  const normalized = normalizeUsername(enteredName);
+
+  displayName = enteredName.trim() || "Lifter";
+  usernameKey = normalized || "lifter";
+
+  try {
+    const snap = await getDoc(usernameDoc(usernameKey));
+
+    if (snap.exists() && snap.data()?.userId) {
+      userId = snap.data().userId;
+    } else {
+      userId = usernameKey;
+      await ensureUsernameMapping(usernameKey, userId, displayName);
+    }
+  } catch (error) {
+    console.error(error);
+    userId = usernameKey;
+  }
+
+  localStorage.setItem("userId", userId);
+  localStorage.setItem("displayName", displayName);
+  localStorage.setItem("usernameKey", usernameKey);
+}
+
+async function ensureUsernameMapping(nameKey, mappedUserId, name) {
+  if (!nameKey || !mappedUserId) return;
+
+  const now = new Date().toISOString();
+
+  await setDoc(usernameDoc(nameKey), {
+    userId: mappedUserId,
+    displayName: name || nameKey,
+    updatedAt: now
+  }, { merge: true });
 }
 
 /* =====================================================
@@ -67,10 +115,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   let builderWorkouts = null;
   let selectedBuilderDay = "";
   let editingExerciseIndex = null;
+  let builderDirty = false;
+  let builderSavedNotice = false;
 
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
   const appMessage = document.getElementById("appMessage");
+
+  window.addEventListener("error", event => {
+    console.error(event.error || event.message);
+    showMessage("Something went wrong while loading the app. Try closing and reopening it.", "error");
+  });
+
+  window.addEventListener("unhandledrejection", event => {
+    console.error(event.reason);
+    showMessage("Something went wrong while loading data. Check your connection and try again.", "error");
+  });
+
+  try {
+    await initializeUser();
+  } catch (error) {
+    console.error(error);
+    showMessage("Couldn’t load your profile. The app will try to continue.", "error");
+
+    if (!userId) {
+      userId = normalizeUsername(displayName || "lifter") || "lifter";
+      localStorage.setItem("userId", userId);
+    }
+  }
 
   if (defaultValidation.errors.length) {
     showMessage(
@@ -100,6 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   setupBottomNav();
+  setupTimerResumeHandlers();
   await renderHome();
   showPage("homePage");
 
@@ -463,6 +536,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     builderWorkouts = deepClone(activePlan?.workouts || workouts || {});
     selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
     editingExerciseIndex = null;
+    builderDirty = false;
+    builderSavedNotice = false;
+  }
+
+  function markBuilderDirty() {
+    builderDirty = true;
+    builderSavedNotice = false;
   }
 
   function renderPlanPage() {
@@ -478,6 +558,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? selectedExercises[editingExerciseIndex]
         : null;
 
+    const statusHtml = builderDirty
+      ? `<div class="builderStatus">Unsaved changes</div>`
+      : builderSavedNotice
+        ? `<div class="builderStatus saved">Plan saved</div>`
+        : "";
+
     planOverview.innerHTML = `
       <div class="builderGrid">
         <section class="dashboardCard">
@@ -489,7 +575,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             <input id="builderPlanName" class="builderInput" value="${escapeAttribute(builderPlanName)}" placeholder="Current Plan" />
           </div>
 
+          ${statusHtml}
           <div id="builderMessage" class="builderMessage hidden"></div>
+        </section>
+
+        <section class="dashboardCard">
+          <button id="savePlanTopBtn" type="button" class="primaryBtn">Save Changes</button>
         </section>
 
         <section class="dashboardCard">
@@ -642,7 +733,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         `}
 
         <section class="dashboardCard builderSaveSimple">
-          <button id="savePlanBtn" type="button" class="primaryBtn">Save Plan</button>
+          <button id="savePlanBottomBtn" type="button" class="primaryBtn">Save Changes</button>
         </section>
       </div>
     `;
@@ -654,6 +745,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const planNameInput = document.getElementById("builderPlanName");
     planNameInput?.addEventListener("input", () => {
       builderPlanName = planNameInput.value;
+      markBuilderDirty();
+      updateBuilderSaveButtons();
     });
 
     document.querySelectorAll(".builderDayChip").forEach(btn => {
@@ -681,6 +774,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       builderWorkouts[name] = [];
       selectedBuilderDay = name;
       editingExerciseIndex = null;
+      markBuilderDirty();
       renderPlanPage();
     });
 
@@ -706,19 +800,34 @@ document.addEventListener("DOMContentLoaded", async () => {
       builderWorkouts = renamed;
       selectedBuilderDay = nextName;
       editingExerciseIndex = null;
+      markBuilderDirty();
       renderPlanPage();
     });
 
     document.getElementById("deleteDayBtn")?.addEventListener("click", () => {
       if (!selectedBuilderDay) return;
 
-      const ok = confirm(`Delete ${selectedBuilderDay} and all exercises in it?`);
+      const dayToDelete = selectedBuilderDay;
+      const ok = confirm(`Delete ${dayToDelete} and all exercises in it?`);
       if (!ok) return;
 
-      delete builderWorkouts[selectedBuilderDay];
+      const nextWorkouts = {};
+
+      Object.entries(builderWorkouts || {}).forEach(([day, exercises]) => {
+        if (day !== dayToDelete) {
+          nextWorkouts[day] = exercises;
+        }
+      });
+
+      builderWorkouts = nextWorkouts;
       selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
       editingExerciseIndex = null;
+      markBuilderDirty();
       renderPlanPage();
+
+      setTimeout(() => {
+        showBuilderMessage(`${dayToDelete} removed. Tap Save Changes to keep this change.`, "success");
+      }, 0);
     });
 
     document.querySelectorAll(".builderMiniBtn").forEach(btn => {
@@ -736,7 +845,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderPlanPage();
     });
 
-    document.getElementById("savePlanBtn")?.addEventListener("click", saveBuilderPlan);
+    document.getElementById("savePlanTopBtn")?.addEventListener("click", saveBuilderPlan);
+    document.getElementById("savePlanBottomBtn")?.addEventListener("click", saveBuilderPlan);
+
+    updateBuilderSaveButtons();
+  }
+
+  function updateBuilderSaveButtons() {
+    const text = builderDirty ? "Save Changes" : "Saved";
+    const disabled = !builderDirty;
+
+    ["savePlanTopBtn", "savePlanBottomBtn"].forEach(id => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.textContent = text;
+      btn.disabled = disabled;
+    });
   }
 
   function handleBuilderExerciseAction(action, index) {
@@ -753,6 +877,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (action === "up" && index > 0) {
       [list[index - 1], list[index]] = [list[index], list[index - 1]];
       editingExerciseIndex = null;
+      markBuilderDirty();
       renderPlanPage();
       return;
     }
@@ -760,6 +885,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (action === "down" && index < list.length - 1) {
       [list[index + 1], list[index]] = [list[index], list[index + 1]];
       editingExerciseIndex = null;
+      markBuilderDirty();
       renderPlanPage();
       return;
     }
@@ -770,6 +896,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       list.splice(index, 1);
       editingExerciseIndex = null;
+      markBuilderDirty();
       renderPlanPage();
     }
   }
@@ -825,11 +952,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     builderWorkouts[selectedBuilderDay] = list;
     editingExerciseIndex = null;
+    markBuilderDirty();
     renderPlanPage();
   }
 
   async function saveBuilderPlan() {
-    const saveBtn = document.getElementById("savePlanBtn");
+    const topBtn = document.getElementById("savePlanTopBtn");
+    const bottomBtn = document.getElementById("savePlanBottomBtn");
     const planName = (document.getElementById("builderPlanName")?.value || builderPlanName || "Current Plan").trim();
 
     const validation = validateWorkoutObject(builderWorkouts || {});
@@ -843,8 +972,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      saveBtn.disabled = true;
-      saveBtn.textContent = "Saving...";
+      [topBtn, bottomBtn].forEach(btn => {
+        if (!btn) return;
+        btn.disabled = true;
+        btn.textContent = "Saving...";
+      });
 
       await saveActivePlanToStorage(validation.workouts, planName);
 
@@ -852,16 +984,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       builderWorkouts = deepClone(activePlan.workouts);
       selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
       editingExerciseIndex = null;
+      builderDirty = false;
+      builderSavedNotice = true;
 
       await renderHome();
       renderPlanPage();
-      showBuilderMessage("Plan saved.", "success");
+
+      setTimeout(() => {
+        showBuilderMessage("Plan saved.", "success");
+      }, 0);
     } catch (error) {
       console.error(error);
       showBuilderMessage(`Plan did not save:\n${error.message || error}`, "error");
     } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = "Save Plan";
+      updateBuilderSaveButtons();
     }
   }
 
@@ -1202,44 +1338,71 @@ document.addEventListener("DOMContentLoaded", async () => {
   function startRestTimer(button, seconds) {
     stopActiveRestTimer();
 
-    let remaining = seconds;
+    const endsAt = Date.now() + seconds * 1000;
 
     button.classList.remove("timerComplete");
     button.classList.add("timerActive");
-    button.textContent = formatTimer(remaining);
-
-    const intervalId = setInterval(() => {
-      remaining -= 1;
-
-      if (remaining <= 0) {
-        clearInterval(intervalId);
-
-        button.classList.remove("timerActive");
-        button.classList.add("timerComplete");
-        button.textContent = "✓";
-
-        activeRestTimer = null;
-
-        setTimeout(() => {
-          button.classList.remove("timerComplete");
-        }, 700);
-
-        return;
-      }
-
-      button.textContent = formatTimer(remaining);
-    }, 1000);
 
     activeRestTimer = {
       button,
-      intervalId
+      endsAt,
+      intervalId: null
     };
+
+    updateActiveRestTimer();
+
+    const intervalId = setInterval(updateActiveRestTimer, 1000);
+    activeRestTimer.intervalId = intervalId;
+  }
+
+  function updateActiveRestTimer() {
+    if (!activeRestTimer?.button) return;
+
+    const button = activeRestTimer.button;
+
+    if (!button.isConnected) {
+      stopActiveRestTimer();
+      return;
+    }
+
+    const remainingMs = activeRestTimer.endsAt - Date.now();
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+    if (remainingSeconds <= 0) {
+      completeActiveRestTimer();
+      return;
+    }
+
+    button.classList.add("timerActive");
+    button.textContent = formatTimer(remainingSeconds);
+  }
+
+  function completeActiveRestTimer() {
+    if (!activeRestTimer?.button) return;
+
+    const button = activeRestTimer.button;
+
+    if (activeRestTimer.intervalId) {
+      clearInterval(activeRestTimer.intervalId);
+    }
+
+    button.classList.remove("timerActive");
+    button.classList.add("timerComplete");
+    button.textContent = "✓";
+
+    activeRestTimer = null;
+
+    setTimeout(() => {
+      button.classList.remove("timerComplete");
+    }, 700);
   }
 
   function stopActiveRestTimer() {
     if (!activeRestTimer) return;
 
-    clearInterval(activeRestTimer.intervalId);
+    if (activeRestTimer.intervalId) {
+      clearInterval(activeRestTimer.intervalId);
+    }
 
     const button = activeRestTimer.button;
     if (button?.isConnected && button.dataset.done === "true") {
@@ -1248,6 +1411,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     activeRestTimer = null;
+  }
+
+  function setupTimerResumeHandlers() {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        updateActiveRestTimer();
+      }
+    });
+
+    window.addEventListener("focus", updateActiveRestTimer);
+    window.addEventListener("pageshow", updateActiveRestTimer);
   }
 
   /* =====================================================
@@ -2023,6 +2197,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       .replace(/['’]/g, "")
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "");
+  }
+
+  function normalizeUsername(value) {
+    return slugify(value || "lifter") || "lifter";
   }
 
   function normalizeName(value) {
