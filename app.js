@@ -19,6 +19,19 @@ let userId = localStorage.getItem("userId");
 let displayName = localStorage.getItem("displayName");
 let usernameKey = localStorage.getItem("usernameKey");
 
+function slugifyUser(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeUsername(value) {
+  return slugifyUser(value || "lifter") || "lifter";
+}
+
 async function initializeUser() {
   const existingUserId = localStorage.getItem("userId");
   const existingDisplayName = localStorage.getItem("displayName");
@@ -2149,10 +2162,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       .replace(/['’]/g, "")
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "");
-  }
-
-  function normalizeUsername(value) {
-    return slugify(value || "lifter") || "lifter";
   }
 
   function normalizeName(value) {
