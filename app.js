@@ -60,7 +60,26 @@ async function initializeUser() {
   localStorage.setItem("displayName", displayName);
   localStorage.setItem("usernameKey", usernameKey);
 }
+/* =====================================================
+   FIRESTORE HELPERS
+===================================================== */
+function userWorkoutsCollection() {
+  return collection(db, "users", userId, "workouts");
+}
 
+function userSettingsDoc() {
+  return doc(db, "users", userId, "settings", "app");
+}
+
+async function getLogs() {
+  const q = query(userWorkoutsCollection(), orderBy("t"));
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map(d => ({
+    id: d.id,
+    ...d.data()
+  }));
+}
 /* =====================================================
    MAIN APP
 ===================================================== */
