@@ -172,6 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
   const appMessage = document.getElementById("appMessage");
+  const INSTALL_PROMPT_DISMISSED_KEY = "installPromptDismissed";
 
   window.addEventListener("error", event => {
     console.error(event.error || event.message);
@@ -448,6 +449,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const latestLog = logs.length ? logs[logs.length - 1] : null;
     const suggestedDay = getSuggestedNextWorkout(logs);
+    renderInstallPrompt();
 
     if (activePlanName) {
       activePlanName.textContent = activePlan?.name || "Current Plan";
@@ -569,6 +571,40 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderPlanPage();
       showPage("planPage");
     });
+  }
+
+  function renderInstallPrompt() {
+    const existingPrompt = document.getElementById("installPrompt");
+    existingPrompt?.remove();
+
+    if (isRunningInstalled() || localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "true") {
+      return;
+    }
+
+    const homeHero = document.querySelector(".homeHero");
+    if (!homeHero) return;
+
+    const prompt = document.createElement("section");
+    prompt.id = "installPrompt";
+    prompt.className = "installPrompt";
+    prompt.innerHTML = `
+      <div>
+        <strong>Add to Home Screen</strong>
+        <p>For the best workout experience, open Lift Tracker from your iPhone Home Screen. In Safari, tap Share, then Add to Home Screen.</p>
+      </div>
+      <button id="dismissInstallPrompt" type="button" aria-label="Dismiss Home Screen reminder">x</button>
+    `;
+
+    homeHero.insertAdjacentElement("afterend", prompt);
+    document.getElementById("dismissInstallPrompt")?.addEventListener("click", () => {
+      localStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, "true");
+      prompt.remove();
+    });
+  }
+
+  function isRunningInstalled() {
+    return window.navigator.standalone === true ||
+      window.matchMedia?.("(display-mode: standalone)")?.matches === true;
   }
 
   function getSuggestedNextWorkout(logs) {
@@ -730,7 +766,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
           </section>
 
-          <section class="dashboardCard">
+          <section id="exerciseEditorCard" class="dashboardCard">
             <p class="eyebrow">${editingExercise ? "Edit Exercise" : "Add Exercise"}</p>
             <h3>${editingExercise ? escapeHtml(editingExercise.name) : `New exercise for ${escapeHtml(selectedBuilderDay)}`}</h3>
 
@@ -946,6 +982,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (action === "edit") {
       editingExerciseIndex = index;
       renderPlanPage();
+      requestAnimationFrame(() => {
+        document.getElementById("exerciseEditorCard")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+        document.getElementById("exerciseNameInput")?.focus({ preventScroll: true });
+      });
       return;
     }
 
@@ -1112,6 +1155,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!exerciseKey) return;
 
       const sets = [];
+      const note = card.querySelector(".sessionNoteInput")?.value.trim() || "";
 
       card.querySelectorAll(".setRow").forEach(row => {
         const repsInput = row.querySelector("input[data-field='reps']");
@@ -1127,6 +1171,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       exercises[exerciseKey] = {
         pulley: card.dataset.pulley || "",
+        note,
+        actualName: card.dataset.exerciseName || "",
+        plannedName: card.dataset.plannedExerciseName || "",
         sets
       };
     });
@@ -1159,7 +1206,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     return Object.values(draft.exercises).some(entry => {
       const sets = Array.isArray(entry) ? entry : entry?.sets || [];
-      return sets.some(set =>
+      return String(entry?.note || "").trim() ||
+        Boolean(entry?.actualName && entry.actualName !== entry?.plannedName) ||
+        sets.some(set =>
         String(set.reps || "").trim() ||
         String(set.weight || "").trim() ||
         set.done
@@ -1252,6 +1301,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       const previousSets = previousExercise?.s || [];
       const draftEntry = useDraft ? draft.exercises?.[exerciseKey] : null;
       const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
+      const draftNote = !Array.isArray(draftEntry) ? draftEntry?.note || "" : "";
+      const draftActualName = !Array.isArray(draftEntry) ? draftEntry?.actualName || "" : "";
+      const previousNote = previousExercise?.note || "";
+      const sessionExerciseName = draftActualName || exercise.name;
+      const isSwapped = sessionExerciseName !== exercise.name;
 
       const nextExercise = template[index + 1];
       const isSupersetEnd =
@@ -1272,22 +1326,40 @@ document.addEventListener("DOMContentLoaded", async () => {
       ].filter(Boolean).join(" ");
 
       exerciseCard.dataset.exerciseKey = exerciseKey;
-      exerciseCard.dataset.exerciseName = exercise.name;
+      exerciseCard.dataset.exerciseName = sessionExerciseName;
+      exerciseCard.dataset.plannedExerciseId = exerciseKey;
+      exerciseCard.dataset.plannedExerciseName = exercise.name;
       exerciseCard.dataset.pulley = startingPulley;
 
       exerciseCard.innerHTML = `
         <div class="exerciseHeader">
           <div class="exerciseTitle">
-            <h4>${escapeHtml(exercise.name)}</h4>
+            <h4 class="exerciseNameText">${escapeHtml(sessionExerciseName)}</h4>
             <div class="exerciseMeta">
               <span class="pill target">Target ${escapeHtml(exercise.target)}</span>
               <span class="pill">${exercise.sets} sets</span>
+              ${isSwapped ? `<span class="pill">Planned ${escapeHtml(exercise.name)}</span>` : ""}
               ${exercise.superset ? `<span class="pill supersetPill">Superset ${escapeHtml(exercise.superset)}</span>` : ""}
               ${exercise.rest ? `<span class="pill">Rest ${escapeHtml(exercise.rest)}</span>` : ""}
               ${exercise.type ? `<span class="pill">${escapeHtml(exercise.type)}</span>` : ""}
             </div>
             ${exercise.note ? `<p class="exerciseNote">${escapeHtml(exercise.note)}</p>` : ""}
+            ${previousNote ? `<p class="lastHint">Previous note: ${escapeHtml(previousNote)}</p>` : ""}
             ${previousSets.length ? `<p class="lastHint">Last: ${escapeHtml(formatSets(previousSets))}${previousExercise?.pulley ? ` • ${escapeHtml(formatPulley(previousExercise.pulley))}` : ""}</p>` : ""}
+          </div>
+        </div>
+        <div class="sessionNote">
+          <button type="button" class="noteToggleBtn">${draftNote ? "Edit Note" : "+ Note"}</button>
+          <div class="noteEditor ${draftNote ? "" : "hidden"}">
+            <textarea class="sessionNoteInput" rows="2" placeholder="Session note">${escapeHtml(draftNote)}</textarea>
+          </div>
+        </div>
+
+        <div class="sessionSwap">
+          <button type="button" class="swapToggleBtn">${isSwapped ? "Edit Swap" : "Swap"}</button>
+          <div class="swapEditor ${isSwapped ? "" : "hidden"}">
+            <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" />
+            <button type="button" class="swapResetBtn">Use planned</button>
           </div>
         </div>
 
@@ -1317,6 +1389,42 @@ document.addEventListener("DOMContentLoaded", async () => {
           });
         });
       }
+
+      exerciseCard.querySelector(".noteToggleBtn")?.addEventListener("click", () => {
+        const noteEditor = exerciseCard.querySelector(".noteEditor");
+        const noteInput = exerciseCard.querySelector(".sessionNoteInput");
+        const isHidden = noteEditor?.classList.toggle("hidden");
+        if (!isHidden) {
+          noteInput?.focus();
+        }
+      });
+
+      exerciseCard.querySelector(".swapToggleBtn")?.addEventListener("click", () => {
+        const swapEditor = exerciseCard.querySelector(".swapEditor");
+        const swapInput = exerciseCard.querySelector(".swapInput");
+        const isHidden = swapEditor?.classList.toggle("hidden");
+        if (!isHidden) {
+          swapInput?.focus();
+          swapInput?.select();
+        }
+      });
+
+      exerciseCard.querySelector(".swapInput")?.addEventListener("input", event => {
+        const nextName = event.target.value.trim() || exercise.name;
+        exerciseCard.dataset.exerciseName = nextName;
+        exerciseCard.querySelector(".exerciseNameText").textContent = nextName;
+        saveDraft(currentDay);
+      });
+
+      exerciseCard.querySelector(".swapResetBtn")?.addEventListener("click", () => {
+        const swapInput = exerciseCard.querySelector(".swapInput");
+        exerciseCard.dataset.exerciseName = exercise.name;
+        exerciseCard.querySelector(".exerciseNameText").textContent = exercise.name;
+        if (swapInput) {
+          swapInput.value = exercise.name;
+        }
+        saveDraft(currentDay);
+      });
 
       for (let i = 0; i < exercise.sets; i++) {
         const row = document.createElement("div");
@@ -1524,7 +1632,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll(".exerciseCard").forEach(card => {
       const exerciseKey = card.dataset.exerciseKey;
       const exerciseName = card.dataset.exerciseName;
+      const plannedExerciseId = card.dataset.plannedExerciseId || exerciseKey;
+      const plannedExerciseName = card.dataset.plannedExerciseName || exerciseName;
       const pulley = card.dataset.pulley || "";
+      const note = card.querySelector(".sessionNoteInput")?.value.trim() || "";
+      const isSwapped = exerciseName && plannedExerciseName && exerciseName !== plannedExerciseName;
 
       const sets = [];
 
@@ -1541,9 +1653,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
       exercises.push({
-        id: exerciseKey,
+        id: isSwapped ? slugify(exerciseName) : exerciseKey,
         n: exerciseName,
+        plannedId: isSwapped ? plannedExerciseId : "",
+        plannedName: isSwapped ? plannedExerciseName : "",
         pulley,
+        note,
         s: sets
       });
     });
@@ -1718,7 +1833,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="historyExerciseHead">
               <div>
                 <strong>${escapeHtml(exercise.n || "Exercise")}${exercise.pulley ? ` — ${escapeHtml(formatPulley(exercise.pulley))}` : ""}</strong>
+                ${exercise.plannedName ? `<p>Planned: ${escapeHtml(exercise.plannedName)}</p>` : ""}
                 <p>Best: ${escapeHtml(bestSetText(sets))}</p>
+                ${exercise.note ? `<p class="historyExerciseNote">${escapeHtml(exercise.note)}</p>` : ""}
               </div>
             </div>
           `;
@@ -2207,6 +2324,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     (log.e || []).forEach(exercise => {
       const pulley = exercise.pulley ? ` — ${formatPulley(exercise.pulley)}` : "";
       lines.push(`${exercise.n || "Exercise"}${pulley}: ${formatSets(exercise.s || [])}`);
+      if (exercise.plannedName) {
+        lines.push(`Planned: ${exercise.plannedName}`);
+      }
+      if (exercise.note) {
+        lines.push(`Note: ${exercise.note}`);
+      }
     });
 
     return lines.join("\n");

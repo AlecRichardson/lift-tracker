@@ -184,6 +184,43 @@ body {
   margin-top: 12px;
 }
 
+.installPrompt {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: flex-start;
+  margin: -6px 0 12px;
+  padding: 12px;
+  border: 1px solid rgba(114, 137, 218, 0.35);
+  border-radius: 14px;
+  background: rgba(114, 137, 218, 0.12);
+}
+
+.installPrompt strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.installPrompt p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.installPrompt button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-3);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .secondaryBtn,
 .homeSmallBtn {
   width: 100%;
@@ -343,6 +380,86 @@ body {
 
 .lastHint {
   color: #d7dcff;
+}
+
+.sessionNote {
+  margin-top: 10px;
+}
+
+.noteToggleBtn {
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(58, 60, 66, 0.52);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.noteEditor {
+  margin-top: 8px;
+}
+
+.sessionNoteInput {
+  width: 100%;
+  min-height: 54px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  color: var(--text);
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.sessionNoteInput:focus {
+  outline: 2px solid rgba(114, 137, 218, 0.45);
+  border-color: rgba(114, 137, 218, 0.65);
+}
+
+.sessionSwap {
+  margin-top: 8px;
+}
+
+.swapToggleBtn,
+.swapResetBtn {
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(58, 60, 66, 0.52);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.swapEditor:not(.hidden) {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.swapInput {
+  min-width: 0;
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.swapInput:focus {
+  outline: 2px solid rgba(114, 137, 218, 0.45);
+  border-color: rgba(114, 137, 218, 0.65);
 }
 
 /* Cable Pulley */
@@ -1010,6 +1127,11 @@ select:focus {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.35;
+}
+
+.historyExerciseNote {
+  color: #d7dcff !important;
+  font-size: 12px !important;
 }
 
 .builderExerciseActions {

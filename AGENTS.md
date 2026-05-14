@@ -20,9 +20,20 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
 
 ## Current Focus
 
-1. Fix Home Screen/PWA identity and button behavior.
-2. Fix Plan Builder persistence.
-3. Fix rest timer reliability and allow multiple active timers.
+1. Add Plan Builder edit auto-scroll.
+2. Add a compact Home Screen install prompt.
+3. Add compact exercise notes during workouts.
+4. Add session-only exercise swaps.
+
+## Todo Later
+
+- Prompt users to save the app to their Home Screen if they are not already running it as an installed app.
+  - On iOS, detect the current launch mode with `window.navigator.standalone === true`.
+  - In supporting browsers, also check `window.matchMedia("(display-mode: standalone)").matches`.
+  - If neither signal is true, show a simple iPhone-friendly Home Screen install hint.
+- Exercise notes during workout should stay compact because this is a niche feature.
+- Exercise swaps during workout are for the current session only and should not permanently change the workout plan.
+- Injury/reset-aware progression is on the back burner.
 
 ## UX Rules
 
