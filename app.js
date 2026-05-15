@@ -59,10 +59,6 @@ function normalizeUsername(value) {
 }
 
 async function initializeUser() {
-  const existingUserId = localStorage.getItem("userId");
-  const existingDisplayName = localStorage.getItem("displayName");
-  const existingUsernameKey = localStorage.getItem("usernameKey");
-  const existingAuthUid = localStorage.getItem("authUid");
   const authUser = await getInitialAuthUser();
 
   if (!authUser) {
@@ -73,30 +69,6 @@ async function initializeUser() {
   displayName = authUser.displayName || authUser.email || "Lifter";
   usernameKey = normalizeUsername(displayName);
   userId = authUser.uid;
-
-  const migrationKey = `authMigrationDone:${authUser.uid}`;
-  const canMigrateLocalProfile = !existingAuthUid || existingAuthUid === authUser.uid;
-  const migrationSources = canMigrateLocalProfile
-    ? [
-      existingUserId,
-      existingUsernameKey,
-      existingDisplayName ? normalizeUsername(existingDisplayName) : ""
-    ].filter((value, index, list) =>
-      value &&
-      value !== authUser.uid &&
-      list.indexOf(value) === index
-    )
-    : [];
-
-  if (!localStorage.getItem(migrationKey)) {
-    for (const sourceUserId of migrationSources) {
-      await migrateUserData(sourceUserId, authUser.uid);
-    }
-    localStorage.setItem(migrationKey, "true");
-    if (migrationSources.length) {
-      localStorage.setItem("profileMigratedFrom", migrationSources[0]);
-    }
-  }
 
   localStorage.setItem("userId", userId);
   localStorage.setItem("displayName", displayName);
@@ -254,62 +226,73 @@ function showAppUpdatePrompt(registration) {
 async function migrateUserData(sourceUserId, targetUserId) {
   if (!sourceUserId || !targetUserId || sourceUserId === targetUserId) return;
 
-  const now = new Date().toISOString();
-  const sourceSettingsRef = doc(db, "users", sourceUserId, "settings", "app");
-  const targetSettingsRef = doc(db, "users", targetUserId, "settings", "app");
-  const sourceSettingsSnap = await getDoc(sourceSettingsRef);
-  const sourceActivePlanId = sourceSettingsSnap.exists() ? sourceSettingsSnap.data().activePlanId : "";
-  let migratedActivePlanId = "";
+  try {
+    const now = new Date().toISOString();
+    const sourceSettingsRef = doc(db, "users", sourceUserId, "settings", "app");
+    const targetSettingsRef = doc(db, "users", targetUserId, "settings", "app");
+    const sourceSettingsSnap = await getDoc(sourceSettingsRef);
+    const sourceActivePlanId = sourceSettingsSnap.exists() ? sourceSettingsSnap.data().activePlanId : "";
+    let migratedActivePlanId = "";
 
-  const sourcePlansSnap = await getDocs(collection(db, "users", sourceUserId, "plans"));
+    const sourcePlansSnap = await getDocs(collection(db, "users", sourceUserId, "plans"));
 
-  await Promise.all(sourcePlansSnap.docs.map(async planSnap => {
-    let targetPlanId = planSnap.id;
-    let targetPlanRef = doc(db, "users", targetUserId, "plans", targetPlanId);
-    const targetPlanSnap = await getDoc(targetPlanRef);
+    await Promise.all(sourcePlansSnap.docs.map(async planSnap => {
+      let targetPlanId = planSnap.id;
+      let targetPlanRef = doc(db, "users", targetUserId, "plans", targetPlanId);
+      const targetPlanSnap = await getDoc(targetPlanRef);
 
-    if (targetPlanSnap.exists() && planSnap.id === sourceActivePlanId) {
-      targetPlanId = `migrated_${slugifyUser(sourceUserId)}_${planSnap.id}`;
-      targetPlanRef = doc(db, "users", targetUserId, "plans", targetPlanId);
+      if (targetPlanSnap.exists() && planSnap.id === sourceActivePlanId) {
+        targetPlanId = `migrated_${slugifyUser(sourceUserId)}_${planSnap.id}`;
+        targetPlanRef = doc(db, "users", targetUserId, "plans", targetPlanId);
+      }
+
+      await setDoc(targetPlanRef, {
+        ...planSnap.data(),
+        migratedAt: now
+      }, { merge: true });
+
+      if (planSnap.id === sourceActivePlanId) {
+        migratedActivePlanId = targetPlanId;
+      }
+    }));
+
+    if (sourceSettingsSnap.exists()) {
+      await setDoc(targetSettingsRef, {
+        ...sourceSettingsSnap.data(),
+        activePlanId: migratedActivePlanId || sourceActivePlanId,
+        migratedAt: now,
+        updatedAt: now
+      }, { merge: true });
     }
 
-    await setDoc(targetPlanRef, {
-      ...planSnap.data(),
-      migratedAt: now
-    }, { merge: true });
+    const sourceWorkoutsSnap = await getDocs(collection(db, "users", sourceUserId, "workouts"));
 
-    if (planSnap.id === sourceActivePlanId) {
-      migratedActivePlanId = targetPlanId;
-    }
-  }));
+    await Promise.all(sourceWorkoutsSnap.docs.map(workoutSnap =>
+      setDoc(
+        doc(db, "users", targetUserId, "workouts", workoutSnap.id),
+        {
+          ...workoutSnap.data(),
+          migratedAt: now
+        },
+        { merge: true }
+      )
+    ));
 
-  if (sourceSettingsSnap.exists()) {
-    await setDoc(targetSettingsRef, {
-      ...sourceSettingsSnap.data(),
-      activePlanId: migratedActivePlanId || sourceActivePlanId,
-      migratedAt: now,
+    await setDoc(doc(db, "users", targetUserId), {
+      displayName,
+      usernameKey: targetUserId,
       updatedAt: now
     }, { merge: true });
+
+    return true;
+  } catch (error) {
+    if (error?.code === "permission-denied") {
+      console.warn("Skipped legacy profile migration because the old profile is no longer readable.", error);
+      return false;
+    }
+
+    throw error;
   }
-
-  const sourceWorkoutsSnap = await getDocs(collection(db, "users", sourceUserId, "workouts"));
-
-  await Promise.all(sourceWorkoutsSnap.docs.map(workoutSnap =>
-    setDoc(
-      doc(db, "users", targetUserId, "workouts", workoutSnap.id),
-      {
-        ...workoutSnap.data(),
-        migratedAt: now
-      },
-      { merge: true }
-    )
-  ));
-
-  await setDoc(doc(db, "users", targetUserId), {
-    displayName,
-    usernameKey: targetUserId,
-    updatedAt: now
-  }, { merge: true });
 }
 /* =====================================================
    FIRESTORE HELPERS
