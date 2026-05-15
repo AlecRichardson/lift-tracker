@@ -27,6 +27,11 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
 
 ## Todo Later
 
+- Mobile PWA UI polish pass:
+  - Tighten Workout and Plan Builder spacing from mobile screenshots.
+  - Keep desktop preview internally mobile-sized.
+  - Keep Save Workout dock near the bottom nav without hiding workout rows.
+  - Preserve existing features; this is a layout-density pass, not a behavior change.
 - Prompt users to save the app to their Home Screen if they are not already running it as an installed app.
   - On iOS, detect the current launch mode with `window.navigator.standalone === true`.
   - In supporting browsers, also check `window.matchMedia("(display-mode: standalone)").matches`.

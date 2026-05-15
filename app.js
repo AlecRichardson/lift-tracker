@@ -6,7 +6,6 @@ import {
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
-  signInWithRedirect,
   signOut
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import {
@@ -30,6 +29,21 @@ let displayName = localStorage.getItem("displayName");
 let usernameKey = localStorage.getItem("usernameKey");
 const googleProvider = new GoogleAuthProvider();
 let authPersistenceReady = null;
+
+function isGithubPagesHost() {
+  return window.location.hostname.endsWith("github.io");
+}
+
+function withTimeout(promise, timeoutMs, errorCode) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject({ code: errorCode });
+      }, timeoutMs);
+    })
+  ]);
+}
 
 function slugifyUser(value) {
   return String(value || "")
@@ -139,18 +153,19 @@ async function signInWithGoogle() {
   await ensureAuthPersistence();
 
   try {
-    await signInWithPopup(auth, googleProvider);
+    await withTimeout(
+      signInWithPopup(auth, googleProvider),
+      30000,
+      "auth/popup-timeout"
+    );
     window.location.reload();
   } catch (error) {
     console.error(error);
-    if (
-      error?.code === "auth/popup-closed-by-user" ||
-      error?.code === "auth/configuration-not-found" ||
-      error?.code === "auth/operation-not-allowed"
-    ) {
+    if (isGithubPagesHost()) {
       throw error;
     }
-    await signInWithRedirect(auth, googleProvider);
+
+    throw error;
   }
 }
 
@@ -161,6 +176,26 @@ function authErrorMessage(error) {
 
   if (error?.code === "auth/popup-closed-by-user") {
     return "Sign-in was closed before it finished.";
+  }
+
+  if (error?.code === "auth/popup-blocked" || error?.code === "auth/cancelled-popup-request") {
+    return "Google could not open. Allow pop-ups for this site, then try again.";
+  }
+
+  if (error?.code === "auth/popup-timeout") {
+    return "Google sign-in did not finish. Close the blank sign-in page, return here, and try again.";
+  }
+
+  if (error?.code === "auth/unauthorized-domain") {
+    return "This web address is not allowed for sign-in yet. Add alecrichardson.github.io to the app sign-in settings.";
+  }
+
+  if (error?.code === "auth/operation-not-supported-in-this-environment") {
+    return "Google sign-in is not supported from this Home Screen install yet. Open the app in Safari and sign in there.";
+  }
+
+  if (isGithubPagesHost()) {
+    return "Google sign-in could not open from this app. Try opening the site in Safari, allow pop-ups, and sign in again.";
   }
 
   return "Sign-in did not finish. Try again.";
