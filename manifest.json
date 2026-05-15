@@ -2,10 +2,14 @@
   "name": "Lift Tracker",
   "short_name": "Lift Tracker",
   "description": "Simple workout logging and progress tracking.",
-  "start_url": "./index.html",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#1e1f22",
   "theme_color": "#1e1f22",
+  "categories": ["health", "fitness", "productivity"],
   "orientation": "portrait",
   "icons": [
     {

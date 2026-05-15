@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+
+set -eu
+
+HOST="${HOST:-127.0.0.1}"
+PORT="${PORT:-8000}"
+
+if command -v python >/dev/null 2>&1; then
+  PYTHON_CMD="python"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_CMD="python3"
+elif command -v py >/dev/null 2>&1; then
+  PYTHON_CMD="py -3"
+else
+  echo "Python was not found. Install Python, then run ./start again."
+  exit 1
+fi
+
+echo "Serving Lift Tracker at http://${HOST}:${PORT}"
+echo "Press Ctrl+C to stop."
+
+exec $PYTHON_CMD -m http.server "$PORT" --bind "$HOST"

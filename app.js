@@ -1,4 +1,14 @@
-import { db } from "./firebase.js";
+import { auth, db } from "./firebase.js";
+import {
+  GoogleAuthProvider,
+  browserLocalPersistence,
+  getRedirectResult,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import {
   collection,
   addDoc,
@@ -18,6 +28,8 @@ import {
 let userId = localStorage.getItem("userId");
 let displayName = localStorage.getItem("displayName");
 let usernameKey = localStorage.getItem("usernameKey");
+const googleProvider = new GoogleAuthProvider();
+let authPersistenceReady = null;
 
 function slugifyUser(value) {
   return String(value || "")
@@ -35,36 +47,173 @@ function normalizeUsername(value) {
 async function initializeUser() {
   const existingUserId = localStorage.getItem("userId");
   const existingDisplayName = localStorage.getItem("displayName");
+  const existingUsernameKey = localStorage.getItem("usernameKey");
+  const existingAuthUid = localStorage.getItem("authUid");
+  const authUser = await getInitialAuthUser();
 
-  if (existingUserId && existingDisplayName) {
-    displayName = existingDisplayName;
-    usernameKey = normalizeUsername(displayName);
-
-    if (existingUserId !== usernameKey) {
-      await migrateUserData(existingUserId, usernameKey);
-      localStorage.setItem("profileMigratedFrom", existingUserId);
-    }
-
-    userId = usernameKey;
-    localStorage.setItem("userId", userId);
-    localStorage.setItem("usernameKey", usernameKey);
-    return;
+  if (!authUser) {
+    userId = "";
+    return null;
   }
 
-  const enteredName = prompt("Enter your name:") || "Lifter";
-
-  displayName = enteredName.trim() || "Lifter";
+  displayName = authUser.displayName || authUser.email || "Lifter";
   usernameKey = normalizeUsername(displayName);
+  userId = authUser.uid;
 
-  /*
-    Use a stable name-based user ID so Safari and Home Screen app
-    can load the same data when the same name is entered.
-  */
-  userId = usernameKey;
+  const migrationKey = `authMigrationDone:${authUser.uid}`;
+  const canMigrateLocalProfile = !existingAuthUid || existingAuthUid === authUser.uid;
+  const migrationSources = canMigrateLocalProfile
+    ? [
+      existingUserId,
+      existingUsernameKey,
+      existingDisplayName ? normalizeUsername(existingDisplayName) : ""
+    ].filter((value, index, list) =>
+      value &&
+      value !== authUser.uid &&
+      list.indexOf(value) === index
+    )
+    : [];
+
+  if (!localStorage.getItem(migrationKey)) {
+    for (const sourceUserId of migrationSources) {
+      await migrateUserData(sourceUserId, authUser.uid);
+    }
+    localStorage.setItem(migrationKey, "true");
+    if (migrationSources.length) {
+      localStorage.setItem("profileMigratedFrom", migrationSources[0]);
+    }
+  }
 
   localStorage.setItem("userId", userId);
   localStorage.setItem("displayName", displayName);
   localStorage.setItem("usernameKey", usernameKey);
+  localStorage.setItem("authUid", authUser.uid);
+
+  return authUser;
+}
+
+async function getInitialAuthUser() {
+  let redirectFailed = false;
+
+  await ensureAuthPersistence();
+
+  try {
+    await getRedirectResult(auth);
+  } catch (error) {
+    console.error(error);
+    redirectFailed = true;
+  }
+
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+
+  return new Promise(resolve => {
+    let settled = false;
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      settled = true;
+      unsubscribe();
+      resolve(user);
+    });
+
+    setTimeout(() => {
+      if (settled) return;
+      unsubscribe();
+      resolve(null);
+    }, redirectFailed ? 500 : 2500);
+  });
+}
+
+function ensureAuthPersistence() {
+  if (!authPersistenceReady) {
+    authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(error => {
+      authPersistenceReady = null;
+      throw error;
+    });
+  }
+
+  return authPersistenceReady;
+}
+
+async function signInWithGoogle() {
+  await ensureAuthPersistence();
+
+  try {
+    await signInWithPopup(auth, googleProvider);
+    window.location.reload();
+  } catch (error) {
+    console.error(error);
+    if (
+      error?.code === "auth/popup-closed-by-user" ||
+      error?.code === "auth/configuration-not-found" ||
+      error?.code === "auth/operation-not-allowed"
+    ) {
+      throw error;
+    }
+    await signInWithRedirect(auth, googleProvider);
+  }
+}
+
+function authErrorMessage(error) {
+  if (error?.code === "auth/configuration-not-found" || error?.code === "auth/operation-not-allowed") {
+    return "Google sign-in is not enabled for this app yet.";
+  }
+
+  if (error?.code === "auth/popup-closed-by-user") {
+    return "Sign-in was closed before it finished.";
+  }
+
+  return "Sign-in did not finish. Try again.";
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js")
+      .then(registration => {
+        registration.addEventListener("updatefound", () => {
+          const nextWorker = registration.installing;
+          if (!nextWorker) return;
+
+          nextWorker.addEventListener("statechange", () => {
+            if (nextWorker.state === "installed" && navigator.serviceWorker.controller) {
+              showAppUpdatePrompt(registration);
+            }
+          });
+        });
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  });
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (window.__liftTrackerRefreshing) return;
+    window.__liftTrackerRefreshing = true;
+    window.location.reload();
+  });
+}
+
+function showAppUpdatePrompt(registration) {
+  const existingPrompt = document.getElementById("appUpdatePrompt");
+  existingPrompt?.remove();
+
+  const prompt = document.createElement("div");
+  prompt.id = "appUpdatePrompt";
+  prompt.className = "appUpdatePrompt";
+  prompt.innerHTML = `
+    <div>
+      <strong>Update ready</strong>
+      <span>Refresh to use the latest version.</span>
+    </div>
+    <button id="applyAppUpdate" type="button">Refresh</button>
+  `;
+
+  document.body.appendChild(prompt);
+  document.getElementById("applyAppUpdate")?.addEventListener("click", () => {
+    registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+  });
 }
 
 async function migrateUserData(sourceUserId, targetUserId) {
@@ -151,6 +300,8 @@ async function getLogs() {
    MAIN APP
 ===================================================== */
 document.addEventListener("DOMContentLoaded", async () => {
+  registerServiceWorker();
+
   const defaultValidation = validateWorkoutObject(window.workouts || {});
   let activePlan = null;
   let workouts = {};
@@ -172,6 +323,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
   const appMessage = document.getElementById("appMessage");
+  const accountBtn = document.getElementById("accountBtn");
   const INSTALL_PROMPT_DISMISSED_KEY = "installPromptDismissed";
 
   window.addEventListener("error", event => {
@@ -185,15 +337,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   try {
-    await initializeUser();
+    const authUser = await initializeUser();
+    if (!authUser) {
+      renderSignInPage();
+      return;
+    }
     const migratedFrom = localStorage.getItem("profileMigratedFrom");
     if (migratedFrom) {
       localStorage.removeItem("profileMigratedFrom");
-      showMessage("Your workouts are now tied to this name on this device.", "success");
+      showMessage("Your workouts are now tied to your sign-in.", "success");
     }
   } catch (error) {
     console.error(error);
-    showMessage("Couldn’t load your profile. The app will try to continue.", "error");
+    showMessage("Couldn’t load your account. Please sign in again.", "error");
+    renderSignInPage();
+    return;
 
     if (!userId) {
       userId = normalizeUsername(displayName || "lifter") || "lifter";
@@ -203,7 +361,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (defaultValidation.errors.length) {
     showMessage(
-      `Your starter workout plan has issues:\n${defaultValidation.errors.map(e => `• ${e}`).join("\n")}`,
+      `Your starter workout plan has issues:\n${defaultValidation.errors.map(e => `- ${e}`).join("\n")}`,
       "error"
     );
   }
@@ -229,6 +387,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   setupBottomNav();
+  setupAccountButton();
   setupTimerResumeHandlers();
   await renderHome();
   showPage("homePage");
@@ -424,6 +583,78 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  function renderSignInPage() {
+    currentPage = "homePage";
+    document.querySelectorAll(".page").forEach(page => page.classList.add("hidden"));
+    document.getElementById("homePage")?.classList.remove("hidden");
+    document.querySelector(".bottomNav")?.classList.add("hidden");
+
+    pageTitle.textContent = "Lift Tracker";
+    pageSubtitle.textContent = "Sign in to continue";
+
+    const activePlanName = document.getElementById("activePlanName");
+    const activePlanMeta = document.getElementById("activePlanMeta");
+    const todayCard = document.getElementById("todayWorkoutCard");
+    const allWorkoutsGrid = document.getElementById("allWorkoutsGrid");
+    const recentCard = document.getElementById("recentWorkoutCard");
+    const progressCard = document.getElementById("homeProgressCard");
+    const planCard = document.getElementById("homePlanCard");
+
+    if (activePlanName) activePlanName.textContent = "Welcome back";
+    if (activePlanMeta) activePlanMeta.textContent = "Sign in to load your workouts.";
+
+    if (todayCard) {
+      todayCard.innerHTML = `
+        <p class="eyebrow">Account</p>
+        <h3>Sign in with Google</h3>
+        <p>Your workouts and plan will follow this account across Safari and the Home Screen app.</p>
+        <div class="homeActions">
+          <button id="googleSignInBtn" type="button" class="primaryBtn">Continue with Google</button>
+        </div>
+      `;
+
+      document.getElementById("googleSignInBtn")?.addEventListener("click", async () => {
+        const btn = document.getElementById("googleSignInBtn");
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Opening Google...";
+        }
+
+        try {
+          await signInWithGoogle();
+        } catch (error) {
+          console.error(error);
+          showMessage(authErrorMessage(error), "error");
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Continue with Google";
+          }
+        }
+      });
+    }
+
+    if (allWorkoutsGrid) allWorkoutsGrid.innerHTML = "";
+    if (recentCard) recentCard.innerHTML = "";
+    if (progressCard) progressCard.innerHTML = "";
+    if (planCard) planCard.innerHTML = "";
+    accountBtn?.classList.add("hidden");
+  }
+
+  function setupAccountButton() {
+    if (!accountBtn) return;
+
+    accountBtn.classList.remove("hidden");
+    accountBtn.textContent = displayName ? `Signed in: ${displayName}` : "Account";
+
+    accountBtn.addEventListener("click", async () => {
+      const ok = confirm(`Sign out of ${displayName || "this account"}?`);
+      if (!ok) return;
+
+      await signOut(auth);
+      window.location.reload();
+    });
+  }
+
   /* =====================================================
      HOME
   ===================================================== */
@@ -457,7 +688,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (activePlanMeta) {
       const totalExercises = workoutDays.reduce((sum, day) => sum + workouts[day].length, 0);
-      activePlanMeta.textContent = `${workoutDays.length} workout days • ${totalExercises} exercises`;
+      activePlanMeta.textContent = `${workoutDays.length} workout days / ${totalExercises} exercises`;
     }
 
     if (suggestedDay) {
@@ -699,14 +930,21 @@ document.addEventListener("DOMContentLoaded", async () => {
           <h3>Create days like Push A, Pull A, Legs</h3>
 
           <div id="builderDayChips" class="builderDayChips">
-            ${builderDays.map(day => `
-              <button
-                type="button"
-                class="builderDayChip ${day === selectedBuilderDay ? "active" : ""}"
-                data-day="${escapeAttribute(day)}"
-              >
-                ${escapeHtml(day)}
-              </button>
+            ${builderDays.map((day, index) => `
+              <div class="builderDayOrderItem ${day === selectedBuilderDay ? "active" : ""}">
+                <button
+                  type="button"
+                  class="builderDayChip ${day === selectedBuilderDay ? "active" : ""}"
+                  data-day="${escapeAttribute(day)}"
+                >
+                  <span>${index + 1}</span>
+                  ${escapeHtml(day)}
+                </button>
+                <div class="builderDayOrderActions">
+                  <button type="button" class="builderDayMoveBtn" data-action="day-up" data-day="${escapeAttribute(day)}" ${index === 0 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} up">Up</button>
+                  <button type="button" class="builderDayMoveBtn" data-action="day-down" data-day="${escapeAttribute(day)}" ${index === builderDays.length - 1 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} down">Down</button>
+                </div>
+              </div>
             `).join("")}
           </div>
 
@@ -742,18 +980,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <div>
                       <strong>${escapeHtml(exercise.name)}</strong>
                       <p>
-                        ${Number(exercise.sets) || 0} sets • Target ${escapeHtml(exercise.target || "")}
-                        ${exercise.rest ? ` • Rest ${escapeHtml(exercise.rest)}` : ""}
-                        ${exercise.superset ? ` • Superset ${escapeHtml(exercise.superset)}` : ""}
-                        ${exercise.equipment ? ` • ${escapeHtml(exercise.equipment)}` : ""}
+                        ${Number(exercise.sets) || 0} sets / Target ${escapeHtml(exercise.target || "")}
+                        ${exercise.rest ? ` / Rest ${escapeHtml(exercise.rest)}` : ""}
+                        ${exercise.superset ? ` / Superset ${escapeHtml(exercise.superset)}` : ""}
+                        ${exercise.equipment ? ` / ${escapeHtml(exercise.equipment)}` : ""}
                       </p>
                     </div>
                   </div>
 
                   <div class="builderExerciseActions">
                     <button type="button" class="builderMiniBtn" data-action="edit" data-index="${index}">Edit</button>
-                    <button type="button" class="builderMiniBtn" data-action="up" data-index="${index}">↑</button>
-                    <button type="button" class="builderMiniBtn" data-action="down" data-index="${index}">↓</button>
+                    <button type="button" class="builderMiniBtn" data-action="up" data-index="${index}">Up</button>
+                    <button type="button" class="builderMiniBtn" data-action="down" data-index="${index}">Down</button>
                     <button type="button" class="builderMiniBtn danger" data-action="delete" data-index="${index}">Delete</button>
                   </div>
                 </article>
@@ -868,6 +1106,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     });
 
+    document.querySelectorAll(".builderDayMoveBtn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        moveBuilderDay(btn.dataset.day || "", btn.dataset.action);
+      });
+    });
+
     document.getElementById("addDayBtn")?.addEventListener("click", () => {
       const input = document.getElementById("newDayName");
       const name = input?.value.trim();
@@ -972,6 +1216,29 @@ document.addEventListener("DOMContentLoaded", async () => {
       btn.textContent = text;
       btn.disabled = disabled;
     });
+  }
+
+  function moveBuilderDay(day, action) {
+    const days = Object.keys(builderWorkouts || {});
+    const index = days.indexOf(day);
+
+    if (index === -1) return;
+
+    const nextIndex = action === "day-up" ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= days.length) return;
+
+    [days[index], days[nextIndex]] = [days[nextIndex], days[index]];
+
+    const reordered = {};
+    days.forEach(dayName => {
+      reordered[dayName] = builderWorkouts[dayName];
+    });
+
+    builderWorkouts = reordered;
+    selectedBuilderDay = day;
+    editingExerciseIndex = null;
+    markBuilderDirty();
+    renderPlanPage();
   }
 
   function handleBuilderExerciseAction(action, index) {
@@ -1083,7 +1350,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (validation.errors.length) {
       showBuilderMessage(
-        `Fix these issues first:\n${validation.errors.map(error => `• ${error}`).join("\n")}`,
+        `Fix these issues first:\n${validation.errors.map(error => `- ${error}`).join("\n")}`,
         "error"
       );
       return;
@@ -1345,7 +1612,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
             ${exercise.note ? `<p class="exerciseNote">${escapeHtml(exercise.note)}</p>` : ""}
             ${previousNote ? `<p class="lastHint">Previous note: ${escapeHtml(previousNote)}</p>` : ""}
-            ${previousSets.length ? `<p class="lastHint">Last: ${escapeHtml(formatSets(previousSets))}${previousExercise?.pulley ? ` • ${escapeHtml(formatPulley(previousExercise.pulley))}` : ""}</p>` : ""}
+            ${previousSets.length ? `<p class="lastHint">Last: ${escapeHtml(formatSets(previousSets))}${previousExercise?.pulley ? ` / ${escapeHtml(formatPulley(previousExercise.pulley))}` : ""}</p>` : ""}
           </div>
         </div>
         <div class="sessionNote">
@@ -1680,6 +1947,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       clearDraft();
 
+      if (saveAnimation) {
+        saveAnimation.textContent = "Saved";
+      }
       saveAnimation?.classList.remove("hidden");
       setTimeout(() => saveAnimation?.classList.add("hidden"), 1200);
 
@@ -1794,7 +2064,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="historyCardMain">
             <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
             <div class="historyCardMeta">
-              ${escapeHtml(formatCompactTime(log.t))} • ${exerciseCount} exercises • ${workingSets} sets
+              ${escapeHtml(formatCompactTime(log.t))} / ${exerciseCount} exercises / ${workingSets} sets
             </div>
           </div>
           <div class="historyCardSide">
@@ -2058,7 +2328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function workoutSummaryText(day) {
     const list = workouts[day] || [];
     const setCount = list.reduce((sum, exercise) => sum + Number(exercise.sets || 0), 0);
-    return `${list.length} exercises • ${setCount} sets`;
+    return `${list.length} exercises / ${setCount} sets`;
   }
 
   function findLatestLogForDay(logs, day) {
