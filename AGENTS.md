@@ -20,10 +20,9 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
 
 ## Current Focus
 
-1. Add Plan Builder edit auto-scroll.
-2. Add a compact Home Screen install prompt.
-3. Add compact exercise notes during workouts.
-4. Add session-only exercise swaps.
+1. Mobile PWA UI polish pass.
+2. PWA hardening for install/update behavior.
+3. Deliberate old-data migration path if pre-Google data is missing.
 
 ## Todo Later
 
@@ -32,10 +31,13 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
   - Keep desktop preview internally mobile-sized.
   - Keep Save Workout dock near the bottom nav without hiding workout rows.
   - Preserve existing features; this is a layout-density pass, not a behavior change.
-- Prompt users to save the app to their Home Screen if they are not already running it as an installed app.
-  - On iOS, detect the current launch mode with `window.navigator.standalone === true`.
-  - In supporting browsers, also check `window.matchMedia("(display-mode: standalone)").matches`.
-  - If neither signal is true, show a simple iPhone-friendly Home Screen install hint.
+- PWA hardening:
+  - Keep the Home Screen install prompt hidden in standalone mode and non-annoying in Safari.
+  - Review service worker cache versioning so deployed updates are picked up predictably.
+  - Keep the update prompt clear and usable.
+- Data/account follow-up:
+  - Keep Google UID as the primary user path going forward.
+  - If old pre-Google data is missing, add a deliberate one-time migration path rather than weakening Firestore rules.
 - Exercise notes during workout should stay compact because this is a niche feature.
 - Exercise swaps during workout are for the current session only and should not permanently change the workout plan.
 - Injury/reset-aware progression is on the back burner.

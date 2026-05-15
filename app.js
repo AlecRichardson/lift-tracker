@@ -179,6 +179,10 @@ function registerServiceWorker() {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./service-worker.js")
       .then(registration => {
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          showAppUpdatePrompt(registration);
+        }
+
         registration.addEventListener("updatefound", () => {
           const nextWorker = registration.installing;
           if (!nextWorker) return;
@@ -662,7 +666,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!accountBtn) return;
 
     accountBtn.classList.remove("hidden");
-    accountBtn.textContent = displayName ? `Signed in: ${displayName}` : "Account";
+    accountBtn.textContent = displayName || "Account";
+    accountBtn.title = displayName ? `Signed in as ${displayName}` : "Account";
+    accountBtn.setAttribute("aria-label", accountBtn.title);
 
     accountBtn.addEventListener("click", async () => {
       const ok = confirm(`Sign out of ${displayName || "this account"}?`);
@@ -1616,10 +1622,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       exerciseCard.dataset.plannedExerciseName = exercise.name;
       exerciseCard.dataset.pulley = startingPulley;
 
+      const lastSummary = previousSets.length
+        ? `Last: ${escapeHtml(formatSets(previousSets))}${previousExercise?.pulley ? ` / ${escapeHtml(formatPulley(previousExercise.pulley))}` : ""}`
+        : "Last: No previous sets";
+
       exerciseCard.innerHTML = `
         <div class="exerciseHeader">
           <div class="exerciseTitle">
-            <h4 class="exerciseNameText">${escapeHtml(sessionExerciseName)}</h4>
+            <div class="exerciseNameRow">
+              <h4 class="exerciseNameText">${escapeHtml(sessionExerciseName)}</h4>
+              <div class="exerciseUtilityActions">
+                <button type="button" class="noteToggleBtn ${draftNote ? "active" : ""}">${draftNote ? "Edit Note" : "Note"}</button>
+                <button type="button" class="swapToggleBtn ${isSwapped ? "active" : ""}">${isSwapped ? "Edit Swap" : "Swap"}</button>
+              </div>
+            </div>
             <div class="exerciseMeta">
               <span class="pill target">Target ${escapeHtml(exercise.target)}</span>
               <span class="pill">${exercise.sets} sets</span>
@@ -1630,22 +1646,20 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
             ${exercise.note ? `<p class="exerciseNote">${escapeHtml(exercise.note)}</p>` : ""}
             ${previousNote ? `<p class="lastHint">Previous note: ${escapeHtml(previousNote)}</p>` : ""}
-            ${previousSets.length ? `<p class="lastHint">Last: ${escapeHtml(formatSets(previousSets))}${previousExercise?.pulley ? ` / ${escapeHtml(formatPulley(previousExercise.pulley))}` : ""}</p>` : ""}
-          </div>
-        </div>
-        <div class="sessionNote">
-          <button type="button" class="noteToggleBtn">${draftNote ? "Edit Note" : "+ Note"}</button>
-          <div class="noteEditor ${draftNote ? "" : "hidden"}">
-            <textarea class="sessionNoteInput" rows="2" placeholder="Session note">${escapeHtml(draftNote)}</textarea>
           </div>
         </div>
 
-        <div class="sessionSwap">
-          <button type="button" class="swapToggleBtn">${isSwapped ? "Edit Swap" : "Swap"}</button>
-          <div class="swapEditor ${isSwapped ? "" : "hidden"}">
-            <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" />
-            <button type="button" class="swapResetBtn">Use planned</button>
-          </div>
+        <div class="exerciseUtilityRow">
+          <p class="lastHint exerciseLastHint">${lastSummary}</p>
+        </div>
+
+        <div class="noteEditor ${draftNote ? "" : "hidden"}">
+          <textarea class="sessionNoteInput" rows="2" placeholder="Session note">${escapeHtml(draftNote)}</textarea>
+        </div>
+
+        <div class="swapEditor ${isSwapped ? "" : "hidden"}">
+          <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" />
+          <button type="button" class="swapResetBtn">Use planned</button>
         </div>
 
         ${isCable ? `
