@@ -510,31 +510,141 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      NAVIGATION
   ===================================================== */
+  const MAIN_PAGE_ORDER = ["homePage", "workoutPage", "historyPage", "planPage"];
+  const SWIPE_MIN_DISTANCE = 70;
+  const SWIPE_DOMINANCE_RATIO = 1.5;
+  const SWIPE_EDGE_GUARD = 20;
+  let swipeStart = null;
+  let swipeNavigationBusy = false;
+
   function setupBottomNav() {
     document.getElementById("bottomHome")?.addEventListener("click", async () => {
-      await renderHome();
-      showPage("homePage");
+      await navigateToMainPage("homePage");
     });
 
     document.getElementById("bottomWorkout")?.addEventListener("click", async () => {
+      await navigateToMainPage("workoutPage");
+    });
+
+    document.getElementById("bottomHistory")?.addEventListener("click", async () => {
+      await navigateToMainPage("historyPage");
+    });
+
+    document.getElementById("bottomPlan")?.addEventListener("click", async () => {
+      await navigateToMainPage("planPage");
+    });
+
+    setupSwipeNavigation();
+  }
+
+  async function navigateToMainPage(pageId) {
+    if (pageId === "homePage") {
+      await renderHome();
+      showPage("homePage");
+      return;
+    }
+
+    if (pageId === "workoutPage") {
       if (!currentDay) {
         await openSuggestedWorkoutFromNav();
       } else {
         await renderWorkout();
         showPage("workoutPage");
       }
-    });
+      return;
+    }
 
-    document.getElementById("bottomHistory")?.addEventListener("click", async () => {
+    if (pageId === "historyPage") {
       await renderHistory();
       showPage("historyPage");
-    });
+      return;
+    }
 
-    document.getElementById("bottomPlan")?.addEventListener("click", () => {
+    if (pageId === "planPage") {
       initBuilderFromActivePlan();
       renderPlanPage();
       showPage("planPage");
-    });
+    }
+  }
+
+  function setupSwipeNavigation() {
+    const shell = document.querySelector(".appShell");
+    if (!shell) return;
+
+    shell.addEventListener("touchstart", event => {
+      if (event.touches.length !== 1 || shouldIgnoreSwipeTarget(event.target)) {
+        swipeStart = null;
+        return;
+      }
+
+      const touch = event.touches[0];
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+
+      if (touch.clientX <= SWIPE_EDGE_GUARD || touch.clientX >= viewportWidth - SWIPE_EDGE_GUARD) {
+        swipeStart = null;
+        return;
+      }
+
+      swipeStart = {
+        x: touch.clientX,
+        y: touch.clientY
+      };
+    }, { passive: true });
+
+    shell.addEventListener("touchend", event => {
+      handleSwipeEnd(event).catch(error => {
+        console.error(error);
+        showMessage("Couldn’t change pages. Try the bottom navigation.", "error");
+      });
+    }, { passive: true });
+
+    shell.addEventListener("touchcancel", () => {
+      swipeStart = null;
+    }, { passive: true });
+  }
+
+  function shouldIgnoreSwipeTarget(target) {
+    return Boolean(target?.closest?.(
+      "button, input, textarea, select, a, canvas, .bottomNav, .saveDock, .noteEditor, .swapEditor, .pulleyToggle, [contenteditable='true']"
+    ));
+  }
+
+  async function handleSwipeEnd(event) {
+    if (!swipeStart || swipeNavigationBusy || event.changedTouches.length !== 1) {
+      swipeStart = null;
+      return;
+    }
+
+    if (shouldIgnoreSwipeTarget(document.activeElement)) {
+      swipeStart = null;
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - swipeStart.x;
+    const deltaY = touch.clientY - swipeStart.y;
+    swipeStart = null;
+
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (absX < SWIPE_MIN_DISTANCE || absX < absY * SWIPE_DOMINANCE_RATIO) {
+      return;
+    }
+
+    const currentIndex = MAIN_PAGE_ORDER.indexOf(currentPage);
+    if (currentIndex === -1) return;
+
+    const direction = deltaX < 0 ? 1 : -1;
+    const nextPage = MAIN_PAGE_ORDER[currentIndex + direction];
+    if (!nextPage) return;
+
+    swipeNavigationBusy = true;
+    try {
+      await navigateToMainPage(nextPage);
+    } finally {
+      swipeNavigationBusy = false;
+    }
   }
 
   async function startWorkout(day) {
