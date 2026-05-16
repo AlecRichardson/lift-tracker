@@ -2377,3 +2377,35 @@ select,
     gap: 7px;
   }
 }
+
+/* Final mobile header/cable alignment guard */
+.topbar {
+  display: block;
+  position: sticky;
+  left: auto;
+  right: auto;
+  transform: none;
+  margin: 0 auto;
+  min-height: calc(var(--topbar-height) + env(safe-area-inset-top));
+}
+
+.topbarTitleWrap {
+  display: block;
+  width: 100%;
+  padding-right: min(210px, 48vw);
+  min-width: 0;
+}
+
+.accountBtn {
+  position: absolute;
+  right: 14px;
+  top: calc(50% + (env(safe-area-inset-top) / 2));
+  transform: translateY(-50%);
+  max-width: min(190px, 44vw);
+}
+
+.pulleyToggle {
+  display: flex;
+  grid-template-columns: none;
+  box-shadow: none;
+}
