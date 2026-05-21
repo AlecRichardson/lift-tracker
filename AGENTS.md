@@ -28,6 +28,7 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
 
 - Mobile PWA UI polish pass:
   - Tighten Workout and Plan Builder spacing from mobile screenshots.
+  - Tighten Workout History item spacing; saved workout cards currently have too much vertical space between list items.
   - Keep desktop preview internally mobile-sized.
   - Keep Save Workout dock near the bottom nav without hiding workout rows.
   - Preserve existing features; this is a layout-density pass, not a behavior change.

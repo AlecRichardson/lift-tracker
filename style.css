@@ -2409,3 +2409,74 @@ select,
   grid-template-columns: none;
   box-shadow: none;
 }
+
+/* Workout history density polish */
+#historyList {
+  gap: 6px;
+}
+
+.historyDateGroup {
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.historyDateHeading {
+  margin: 6px 2px 0;
+  font-size: 11px;
+}
+
+.historyCardHeader {
+  min-height: 54px;
+  padding: 9px 10px;
+}
+
+.historyCardMeta {
+  margin-top: 2px;
+  line-height: 1.22;
+}
+
+.historyChevron {
+  margin-top: 2px;
+}
+
+.historyCardDetails {
+  padding: 0 10px 10px;
+}
+
+.historyDetailsTop {
+  gap: 6px;
+  padding-top: 8px;
+}
+
+.historyDetailsTop div {
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.historyExerciseList {
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.historyExerciseBlock {
+  border-radius: 11px;
+  padding: 9px;
+}
+
+.historyExerciseHead {
+  margin-bottom: 6px;
+}
+
+.historySetList {
+  gap: 4px;
+}
+
+.historyActions {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.historyActionBtn {
+  min-height: 38px;
+  border-radius: 11px;
+}
