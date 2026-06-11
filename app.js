@@ -391,17 +391,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     activePlan = await loadOrCreateActivePlan(defaultValidation.workouts);
     workouts = activePlan.workouts;
-    workoutDays = Object.keys(workouts);
+    workoutDays = getOrderedWorkoutDays(workouts, activePlan.dayOrder);
   } catch (error) {
     console.error(error);
     showMessage("Couldn’t load your workout plan.", "error");
     activePlan = {
       id: "local_fallback",
       name: "Local Fallback Plan",
-      workouts: defaultValidation.workouts
+      workouts: defaultValidation.workouts,
+      dayOrder: Object.keys(defaultValidation.workouts)
     };
     workouts = activePlan.workouts;
-    workoutDays = Object.keys(workouts);
+    workoutDays = activePlan.dayOrder;
   }
 
   if (!workoutDays.length) {
@@ -429,11 +430,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (activePlanSnap.exists()) {
         const data = activePlanSnap.data();
         const validation = validateWorkoutObject(data.workouts || {});
+        const dayOrder = getOrderedWorkoutDays(validation.workouts, data.dayOrder);
 
         return {
           id: activePlanSnap.id,
           name: data.name || "Current Plan",
-          workouts: validation.workouts,
+          workouts: orderWorkoutObject(validation.workouts, dayOrder),
+          dayOrder,
           createdAt: data.createdAt || "",
           updatedAt: data.updatedAt || ""
         };
@@ -447,6 +450,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await setDoc(seedPlanRef, {
       name: "Current Plan",
       workouts: defaultWorkouts,
+      dayOrder: Object.keys(defaultWorkouts),
       createdAt: now,
       updatedAt: now
     });
@@ -460,12 +464,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       id: seedPlanId,
       name: "Current Plan",
       workouts: defaultWorkouts,
+      dayOrder: Object.keys(defaultWorkouts),
       createdAt: now,
       updatedAt: now
     };
   }
 
-  async function saveActivePlanToStorage(nextWorkouts, planName = "Current Plan") {
+  async function saveActivePlanToStorage(nextWorkouts, planName = "Current Plan", nextDayOrder = []) {
     const validation = validateWorkoutObject(nextWorkouts);
 
     if (validation.errors.length) {
@@ -475,10 +480,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const now = new Date().toISOString();
     const planId = activePlan?.id || "current_plan";
     const planRef = doc(db, "users", userId, "plans", planId);
+    const orderedDays = getOrderedWorkoutDays(validation.workouts, nextDayOrder);
+    const orderedWorkouts = orderWorkoutObject(validation.workouts, orderedDays);
 
     await setDoc(planRef, {
       name: planName,
-      workouts: validation.workouts,
+      workouts: orderedWorkouts,
+      dayOrder: orderedDays,
       updatedAt: now,
       createdAt: activePlan?.createdAt || now
     });
@@ -492,13 +500,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       ...(activePlan || {}),
       id: planId,
       name: planName,
-      workouts: validation.workouts,
+      workouts: orderedWorkouts,
+      dayOrder: orderedDays,
       updatedAt: now,
       createdAt: activePlan?.createdAt || now
     };
 
-    workouts = validation.workouts;
-    workoutDays = Object.keys(workouts);
+    workouts = orderedWorkouts;
+    workoutDays = orderedDays;
 
     if (!workoutDays.includes(currentDay)) {
       currentDay = "";
@@ -975,7 +984,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function getSuggestedNextWorkout(logs) {
     if (!workoutDays.length) return "";
 
-    const latestLog = logs.length ? logs[logs.length - 1] : null;
+    const latestLog = getLatestWorkoutLog(logs);
 
     if (!latestLog?.d) {
       return workoutDays[0];
@@ -1009,8 +1018,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (builderWorkouts && !force) return;
 
     builderPlanName = activePlan?.name || "Current Plan";
-    builderWorkouts = deepClone(activePlan?.workouts || workouts || {});
-    selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
+    const orderedDays = getOrderedWorkoutDays(activePlan?.workouts || workouts || {}, activePlan?.dayOrder || workoutDays);
+    builderWorkouts = orderWorkoutObject(
+      deepClone(activePlan?.workouts || workouts || {}),
+      orderedDays
+    );
+    selectedBuilderDay = orderedDays[0] || "";
     editingExerciseIndex = null;
     builderDirty = false;
     builderSavedNotice = false;
@@ -1497,11 +1510,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         btn.textContent = "Saving...";
       });
 
-      await saveActivePlanToStorage(validation.workouts, planName);
+      await saveActivePlanToStorage(validation.workouts, planName, Object.keys(builderWorkouts || {}));
 
       builderPlanName = activePlan.name;
       builderWorkouts = deepClone(activePlan.workouts);
-      selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
+      selectedBuilderDay = workoutDays[0] || "";
       editingExerciseIndex = null;
       builderDirty = false;
       builderSavedNotice = true;
@@ -1670,7 +1683,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     hideMessage();
 
     const template = workouts[currentDay] || [];
-    const lastLog = findLatestLogForDay(logs, currentDay);
     const draft = getDraft();
     const useDraft =
       draft?.day === currentDay &&
@@ -1698,15 +1710,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       const exerciseKey = getExerciseKey(exercise);
-      const previousExercise = findExerciseInLog(lastLog, exercise);
-      const previousSets = previousExercise?.s || [];
       const draftEntry = useDraft ? draft.exercises?.[exerciseKey] : null;
       const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
       const draftNote = !Array.isArray(draftEntry) ? draftEntry?.note || "" : "";
       const draftActualName = !Array.isArray(draftEntry) ? draftEntry?.actualName || "" : "";
-      const previousNote = previousExercise?.note || "";
       const sessionExerciseName = draftActualName || exercise.name;
       const isSwapped = sessionExerciseName !== exercise.name;
+      const previousExercise = findPreviousExerciseLog(logs, exercise, {
+        actualName: isSwapped ? sessionExerciseName : ""
+      });
+      const previousSets = previousExercise?.s || [];
+      const previousNote = previousExercise?.note || "";
 
       const nextExercise = template[index + 1];
       const isSupersetEnd =
@@ -1760,7 +1774,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
 
         <div class="exerciseUtilityRow">
-          <p class="lastHint exerciseLastHint">${lastSummary}</p>
+          <p class="lastHint exerciseLastHint" data-role="last-summary">${lastSummary}</p>
         </div>
 
         <div class="noteEditor ${draftNote ? "" : "hidden"}">
@@ -1820,18 +1834,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       exerciseCard.querySelector(".swapInput")?.addEventListener("input", event => {
         const nextName = event.target.value.trim() || exercise.name;
+        const nextPreviousExercise = findPreviousExerciseLog(logs, exercise, {
+          actualName: nextName !== exercise.name ? nextName : ""
+        });
+
         exerciseCard.dataset.exerciseName = nextName;
         exerciseCard.querySelector(".exerciseNameText").textContent = nextName;
+        updatePreviousExerciseDisplay(exerciseCard, nextPreviousExercise);
+        applyPreviousSetsToEmptyInputs(exerciseCard, nextPreviousExercise);
         saveDraft(currentDay);
       });
 
       exerciseCard.querySelector(".swapResetBtn")?.addEventListener("click", () => {
         const swapInput = exerciseCard.querySelector(".swapInput");
+        const nextPreviousExercise = findPreviousExerciseLog(logs, exercise);
         exerciseCard.dataset.exerciseName = exercise.name;
         exerciseCard.querySelector(".exerciseNameText").textContent = exercise.name;
         if (swapInput) {
           swapInput.value = exercise.name;
         }
+        updatePreviousExerciseDisplay(exerciseCard, nextPreviousExercise);
+        applyPreviousSetsToEmptyInputs(exerciseCard, nextPreviousExercise);
         saveDraft(currentDay);
       });
 
@@ -1873,12 +1896,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const draftSet = draftSets?.[i];
         const previousSet = previousSets?.[i];
-        const valueSource = draftSet || previousSet;
 
-        if (valueSource) {
-          repsInput.value = valueSource.reps || "";
-          weightInput.value = valueSource.weight || "";
-        }
+        repsInput.value = draftSet?.reps || previousSet?.reps || "";
+        weightInput.value = draftSet?.weight || previousSet?.weight || "";
 
         if (draftSet?.done) {
           setNumber.dataset.done = "true";
@@ -2062,8 +2082,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
       exercises.push({
-        id: isSwapped ? slugify(exerciseName) : exerciseKey,
+        id: isSwapped ? exerciseSlug(exerciseName) : exerciseKey,
         n: exerciseName,
+        swapped: isSwapped,
+        originalId: isSwapped ? plannedExerciseId : "",
+        originalName: isSwapped ? plannedExerciseName : "",
         plannedId: isSwapped ? plannedExerciseId : "",
         plannedName: isSwapped ? plannedExerciseName : "",
         pulley,
@@ -2473,34 +2496,140 @@ document.addEventListener("DOMContentLoaded", async () => {
     return `${list.length} exercises / ${setCount} sets`;
   }
 
-  function findLatestLogForDay(logs, day) {
-    return [...logs]
-      .filter(log => log.d === day)
+  function getOrderedWorkoutDays(workoutMap, preferredOrder = []) {
+    const days = Object.keys(workoutMap || {});
+    const seen = new Set();
+    const ordered = [];
+
+    (Array.isArray(preferredOrder) ? preferredOrder : []).forEach(day => {
+      if (days.includes(day) && !seen.has(day)) {
+        ordered.push(day);
+        seen.add(day);
+      }
+    });
+
+    days.forEach(day => {
+      if (!seen.has(day)) {
+        ordered.push(day);
+      }
+    });
+
+    return ordered;
+  }
+
+  function orderWorkoutObject(workoutMap, dayOrder) {
+    const ordered = {};
+
+    getOrderedWorkoutDays(workoutMap, dayOrder).forEach(day => {
+      ordered[day] = workoutMap[day];
+    });
+
+    return ordered;
+  }
+
+  function getLatestWorkoutLog(logs) {
+    return [...(logs || [])]
+      .filter(log => log?.t)
       .sort((a, b) => new Date(a.t) - new Date(b.t))
       .pop() || null;
   }
 
-  function findExerciseInLog(log, exerciseTemplate) {
-    if (!log?.e?.length) return null;
+  function findPreviousExerciseLog(logs, exerciseTemplate, options = {}) {
+    const savedExercisesNewestFirst = [...(logs || [])]
+      .sort((a, b) => new Date(b.t) - new Date(a.t))
+      .flatMap(log => log.e || []);
+    const actualName = String(options.actualName || "").trim();
 
-    const wantedId = getExerciseKey(exerciseTemplate);
-    const wantedNames = [
+    if (actualName && actualName !== exerciseTemplate.name) {
+      const actualCandidates = getExerciseMatchCandidates({
+        id: exerciseSlug(actualName),
+        name: actualName,
+        lastAlias: []
+      });
+      const actualMatch = savedExercisesNewestFirst
+        .find(savedExercise => exerciseMatchesCandidates(savedExercise, actualCandidates));
+
+      if (actualMatch) return actualMatch;
+    }
+
+    const plannedCandidates = getExerciseMatchCandidates(exerciseTemplate);
+    return savedExercisesNewestFirst
+      .find(savedExercise => exerciseMatchesCandidates(savedExercise, plannedCandidates)) || null;
+  }
+
+  function getExerciseMatchCandidates(exerciseTemplate) {
+    const names = [
       exerciseTemplate.name,
       ...(Array.isArray(exerciseTemplate.lastAlias) ? exerciseTemplate.lastAlias : [])
-    ]
-      .filter(Boolean)
-      .map(normalizeName);
+    ].filter(Boolean);
+    const ids = [
+      getExerciseKey(exerciseTemplate),
+      exerciseTemplate.id,
+      exerciseSlug(exerciseTemplate.name)
+    ].filter(Boolean);
+    const normalizedNames = names.flatMap(name => [
+      normalizeExerciseName(name),
+      canonicalExerciseName(name)
+    ]).filter(Boolean);
 
-    return log.e.find(savedExercise => {
-      const savedId = savedExercise.id || slugify(savedExercise.n || "");
-      const savedName = normalizeName(savedExercise.n || "");
+    return {
+      ids: new Set(ids),
+      names: new Set(normalizedNames)
+    };
+  }
 
-      return savedId === wantedId || wantedNames.includes(savedName);
-    }) || null;
+  function exerciseMatchesCandidates(savedExercise, candidates) {
+    const savedId = savedExercise.id || exerciseSlug(savedExercise.n || "");
+    const savedNames = [
+      savedExercise.n,
+      savedExercise.plannedName,
+      savedExercise.originalName
+    ].filter(Boolean);
+
+    if (savedId && candidates.ids.has(savedId)) {
+      return true;
+    }
+
+    return savedNames.some(name =>
+      candidates.names.has(normalizeExerciseName(name)) ||
+      candidates.names.has(canonicalExerciseName(name)) ||
+      candidates.ids.has(exerciseSlug(name))
+    );
   }
 
   function getExerciseKey(exercise) {
     return exercise.id || slugify(exercise.name || "");
+  }
+
+  function updatePreviousExerciseDisplay(card, previousExercise) {
+    const summary = card.querySelector("[data-role='last-summary']");
+    if (!summary) return;
+
+    const sets = previousExercise?.s || [];
+    summary.textContent = sets.length
+      ? `Last: ${formatSets(sets)}${previousExercise?.pulley ? ` / ${formatPulley(previousExercise.pulley)}` : ""}`
+      : "Last: No previous sets";
+  }
+
+  function applyPreviousSetsToEmptyInputs(card, previousExercise) {
+    const sets = previousExercise?.s || [];
+    if (!sets.length) return;
+
+    card.querySelectorAll(".setRow").forEach((row, index) => {
+      const previousSet = sets[index];
+      if (!previousSet) return;
+
+      const repsInput = row.querySelector("input[data-field='reps']");
+      const weightInput = row.querySelector("input[data-field='weight']");
+
+      if (repsInput && !String(repsInput.value || "").trim()) {
+        repsInput.value = previousSet.reps || "";
+      }
+
+      if (weightInput && !String(weightInput.value || "").trim()) {
+        weightInput.value = previousSet.weight || "";
+      }
+    });
   }
 
   function isCableExercise(exercise) {
@@ -2816,11 +2945,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       .replace(/^_+|_+$/g, "");
   }
 
-  function normalizeName(value) {
-    return String(value || "")
+  function normalizeExerciseName(name) {
+    return String(name || "")
       .toLowerCase()
       .trim()
-      .replace(/\s+/g, " ");
+      .replace(/['â€™]/g, "")
+      .replace(/&/g, "and")
+      .replace(/\bdb\b/g, "dumbbell")
+      .replace(/\bbb\b/g, "barbell")
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function exerciseSlug(name) {
+    return normalizeExerciseName(name).replace(/\s+/g, "_");
+  }
+
+  function canonicalExerciseName(name) {
+    const tokens = normalizeExerciseName(name).split(" ").filter(Boolean);
+    const equipmentWords = new Set(["dumbbell", "barbell", "cable", "machine", "bodyweight"]);
+    const equipment = tokens.filter(token => equipmentWords.has(token));
+    const rest = tokens.filter(token => !equipmentWords.has(token));
+
+    return [...equipment, ...rest].join(" ");
   }
 
   function roundNumber(value) {
