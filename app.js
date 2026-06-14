@@ -1710,6 +1710,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       const exerciseKey = getExerciseKey(exercise);
+      const swapListId = `swapOptions-${exerciseKey}`;
       const draftEntry = useDraft ? draft.exercises?.[exerciseKey] : null;
       const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
       const draftNote = !Array.isArray(draftEntry) ? draftEntry?.note || "" : "";
@@ -1782,7 +1783,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
 
         <div class="swapEditor ${isSwapped ? "" : "hidden"}">
-          <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" />
+          <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" list="${escapeAttribute(swapListId)}" />
+          <datalist id="${escapeAttribute(swapListId)}">
+            ${getSwapSuggestions(logs, exercise).map(name => `<option value="${escapeAttribute(name)}"></option>`).join("")}
+          </datalist>
           <button type="button" class="swapResetBtn">Use planned</button>
         </div>
 
@@ -1834,27 +1838,40 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       exerciseCard.querySelector(".swapInput")?.addEventListener("input", event => {
         const nextName = event.target.value.trim() || exercise.name;
-        const nextPreviousExercise = findPreviousExerciseLog(logs, exercise, {
-          actualName: nextName !== exercise.name ? nextName : ""
-        });
-
-        exerciseCard.dataset.exerciseName = nextName;
-        exerciseCard.querySelector(".exerciseNameText").textContent = nextName;
-        updatePreviousExerciseDisplay(exerciseCard, nextPreviousExercise);
-        applyPreviousSetsToEmptyInputs(exerciseCard, nextPreviousExercise);
+        applySwapSelection({ card: exerciseCard, exercise, logs, nextName, overwriteSets: true });
         saveDraft(currentDay);
       });
 
+      const commitSwapInput = event => {
+        const nextName = titleCaseExerciseName(event.target.value.trim() || exercise.name);
+        event.target.value = nextName;
+        applySwapSelection({
+          card: exerciseCard,
+          exercise,
+          logs,
+          nextName,
+          overwriteSets: true,
+          clearWhenMissing: true
+        });
+        saveDraft(currentDay);
+      };
+
+      exerciseCard.querySelector(".swapInput")?.addEventListener("change", commitSwapInput);
+      exerciseCard.querySelector(".swapInput")?.addEventListener("blur", commitSwapInput);
+
       exerciseCard.querySelector(".swapResetBtn")?.addEventListener("click", () => {
         const swapInput = exerciseCard.querySelector(".swapInput");
-        const nextPreviousExercise = findPreviousExerciseLog(logs, exercise);
-        exerciseCard.dataset.exerciseName = exercise.name;
-        exerciseCard.querySelector(".exerciseNameText").textContent = exercise.name;
         if (swapInput) {
           swapInput.value = exercise.name;
         }
-        updatePreviousExerciseDisplay(exerciseCard, nextPreviousExercise);
-        applyPreviousSetsToEmptyInputs(exerciseCard, nextPreviousExercise);
+        applySwapSelection({
+          card: exerciseCard,
+          exercise,
+          logs,
+          nextName: exercise.name,
+          overwriteSets: true,
+          clearWhenMissing: true
+        });
         saveDraft(currentDay);
       });
 
@@ -2060,12 +2077,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.querySelectorAll(".exerciseCard").forEach(card => {
       const exerciseKey = card.dataset.exerciseKey;
-      const exerciseName = card.dataset.exerciseName;
+      const rawExerciseName = card.dataset.exerciseName;
       const plannedExerciseId = card.dataset.plannedExerciseId || exerciseKey;
-      const plannedExerciseName = card.dataset.plannedExerciseName || exerciseName;
+      const plannedExerciseName = card.dataset.plannedExerciseName || rawExerciseName;
       const pulley = card.dataset.pulley || "";
       const note = card.querySelector(".sessionNoteInput")?.value.trim() || "";
-      const isSwapped = exerciseName && plannedExerciseName && exerciseName !== plannedExerciseName;
+      const isSwapped = rawExerciseName && plannedExerciseName && exerciseSlug(rawExerciseName) !== exerciseSlug(plannedExerciseName);
+      const exerciseName = isSwapped ? titleCaseExerciseName(rawExerciseName) : plannedExerciseName;
 
       const sets = [];
 
@@ -2557,6 +2575,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       .find(savedExercise => exerciseMatchesCandidates(savedExercise, plannedCandidates)) || null;
   }
 
+  function getSwapSuggestions(logs, exerciseTemplate) {
+    const plannedCandidates = getExerciseMatchCandidates(exerciseTemplate);
+    const suggestions = new Map();
+
+    [...(logs || [])]
+      .sort((a, b) => new Date(b.t) - new Date(a.t))
+      .flatMap(log => log.e || [])
+      .forEach(savedExercise => {
+        const name = String(savedExercise.n || "").trim();
+        if (!name || name === exerciseTemplate.name) return;
+
+        const wasSwapForThisExercise =
+          savedExercise.swapped &&
+          (
+            savedExercise.originalId === getExerciseKey(exerciseTemplate) ||
+            savedExercise.plannedId === getExerciseKey(exerciseTemplate) ||
+            normalizeExerciseName(savedExercise.originalName || savedExercise.plannedName || "") === normalizeExerciseName(exerciseTemplate.name)
+          );
+
+        const matchesThisExercise = exerciseMatchesCandidates(savedExercise, plannedCandidates);
+
+        if (!wasSwapForThisExercise && !matchesThisExercise) return;
+
+        const key = exerciseSlug(name);
+        if (!suggestions.has(key)) {
+          suggestions.set(key, name);
+        }
+      });
+
+    return [...suggestions.values()].slice(0, 8);
+  }
+
   function getExerciseMatchCandidates(exerciseTemplate) {
     const names = [
       exerciseTemplate.name,
@@ -2611,23 +2661,46 @@ document.addEventListener("DOMContentLoaded", async () => {
       : "Last: No previous sets";
   }
 
-  function applyPreviousSetsToEmptyInputs(card, previousExercise) {
+  function applySwapSelection({
+    card,
+    exercise,
+    logs,
+    nextName,
+    overwriteSets = false,
+    clearWhenMissing = false
+  }) {
+    const actualName = String(nextName || exercise.name).trim() || exercise.name;
+    const previousExercise = findPreviousExerciseLog(logs, exercise, {
+      actualName: actualName !== exercise.name ? actualName : ""
+    });
+
+    card.dataset.exerciseName = actualName;
+    card.querySelector(".exerciseNameText").textContent = actualName;
+    updatePreviousExerciseDisplay(card, previousExercise);
+    applyPreviousSetsToInputs(card, previousExercise, { overwrite: overwriteSets, clearWhenMissing });
+  }
+
+  function applyPreviousSetsToInputs(card, previousExercise, options = {}) {
+    const overwrite = Boolean(options.overwrite);
+    const clearWhenMissing = Boolean(options.clearWhenMissing);
     const sets = previousExercise?.s || [];
-    if (!sets.length) return;
+    if (!sets.length && !(overwrite && clearWhenMissing)) return;
 
     card.querySelectorAll(".setRow").forEach((row, index) => {
       const previousSet = sets[index];
-      if (!previousSet) return;
+      if (!previousSet && !(overwrite && clearWhenMissing)) return;
 
       const repsInput = row.querySelector("input[data-field='reps']");
       const weightInput = row.querySelector("input[data-field='weight']");
+      const repsValue = previousSet?.reps || "";
+      const weightValue = previousSet?.weight || "";
 
-      if (repsInput && !String(repsInput.value || "").trim()) {
-        repsInput.value = previousSet.reps || "";
+      if (repsInput && (overwrite || !String(repsInput.value || "").trim())) {
+        repsInput.value = repsValue;
       }
 
-      if (weightInput && !String(weightInput.value || "").trim()) {
-        weightInput.value = previousSet.weight || "";
+      if (weightInput && (overwrite || !String(weightInput.value || "").trim())) {
+        weightInput.value = weightValue;
       }
     });
   }
@@ -2960,6 +3033,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function exerciseSlug(name) {
     return normalizeExerciseName(name).replace(/\s+/g, "_");
+  }
+
+  function titleCaseExerciseName(name) {
+    const smallWords = new Set(["and", "or", "of", "the", "to", "with", "for"]);
+
+    return String(name || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .split(" ")
+      .map((word, index) => {
+        const lower = word.toLowerCase();
+        if (lower === "db") return "DB";
+        if (lower === "bb") return "BB";
+        if (smallWords.has(lower) && index > 0) return lower;
+
+        return lower
+          .split("-")
+          .map(part => part ? part[0].toUpperCase() + part.slice(1) : part)
+          .join("-");
+      })
+      .join(" ");
   }
 
   function canonicalExerciseName(name) {
