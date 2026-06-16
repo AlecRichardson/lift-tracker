@@ -430,7 +430,8 @@ body {
 }
 
 .exerciseNote,
-.lastHint {
+.lastHint,
+.plannedExerciseHint {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 13px;
@@ -502,14 +503,33 @@ body {
   grid-template-columns: 1fr auto;
   gap: 8px;
   margin-top: 8px;
+  align-items: start;
+  overflow: visible;
+}
+
+.swapCombo {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-3);
+  overflow: visible;
+}
+
+.swapCombo:focus-within {
+  outline: 2px solid rgba(114, 137, 218, 0.45);
+  border-color: rgba(114, 137, 218, 0.65);
 }
 
 .swapInput {
+  width: 100%;
   min-width: 0;
   min-height: 38px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--panel-3);
+  border: 0;
+  background: transparent;
   color: var(--text);
   padding: 8px 10px;
   font: inherit;
@@ -517,8 +537,75 @@ body {
 }
 
 .swapInput:focus {
-  outline: 2px solid rgba(114, 137, 218, 0.45);
-  border-color: rgba(114, 137, 218, 0.65);
+  outline: 0;
+}
+
+.swapMenuBtn {
+  appearance: none;
+  -webkit-appearance: none;
+  position: static;
+  width: 34px;
+  height: 100%;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.swapMenuBtn::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  margin: 0 auto;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid currentColor;
+}
+
+.swapOptionList {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid rgba(111, 168, 255, 0.42);
+  border-radius: 12px;
+  background: #171c25;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.42);
+}
+
+.swapOption {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.swapOption:hover,
+.swapOption:focus,
+.swapOption:active {
+  background: rgba(111, 168, 255, 0.16);
+  outline: 0;
 }
 
 /* Cable Pulley */
@@ -1010,6 +1097,16 @@ select:focus {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 12px;
+}
+
+.historyToolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 10px;
+}
+
+.historyToolbar .historyActionBtn {
+  min-width: 132px;
 }
 
 .historyActionBtn {
@@ -1954,7 +2051,8 @@ select {
 }
 
 .exerciseNote,
-.lastHint {
+.lastHint,
+.plannedExerciseHint {
   margin-top: 7px;
   font-size: 12px;
 }
@@ -2337,6 +2435,41 @@ select,
 .noteEditor,
 .swapEditor:not(.hidden) {
   margin-top: 8px;
+}
+
+.swapEditor:not(.hidden) .swapCombo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  min-height: 34px;
+  overflow: visible;
+}
+
+.swapEditor:not(.hidden) .swapInput {
+  min-height: 34px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border: 0;
+  background: transparent;
+}
+
+.swapEditor:not(.hidden) .swapMenuBtn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 34px;
+}
+
+.swapEditor:not(.hidden) .swapOptionList {
+  background: #171c25;
+}
+
+.swapEditor:not(.hidden) .swapOption {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: var(--text);
 }
 
 .pulleyToggle {

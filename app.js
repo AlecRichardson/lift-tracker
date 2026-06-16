@@ -334,6 +334,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let chart = null;
   let historyFilter = "All";
   const activeRestTimers = new Map();
+  const EXPORT_WORKOUT_LIMIT = 30;
 
   let builderPlanName = "";
   let builderWorkouts = null;
@@ -658,6 +659,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function startWorkout(day) {
     currentDay = day;
+    clearDraft();
     await renderWorkout();
     showPage("workoutPage");
   }
@@ -1711,6 +1713,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const exerciseKey = getExerciseKey(exercise);
       const swapListId = `swapOptions-${exerciseKey}`;
+      const swapSuggestions = getSwapSuggestions(logs, exercise);
       const draftEntry = useDraft ? draft.exercises?.[exerciseKey] : null;
       const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
       const draftNote = !Array.isArray(draftEntry) ? draftEntry?.note || "" : "";
@@ -1764,11 +1767,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="exerciseMeta">
               <span class="pill target">Target ${escapeHtml(exercise.target)}</span>
               <span class="pill">${exercise.sets} sets</span>
-              ${isSwapped ? `<span class="pill">Planned ${escapeHtml(exercise.name)}</span>` : ""}
               ${exercise.superset ? `<span class="pill supersetPill">Superset ${escapeHtml(exercise.superset)}</span>` : ""}
               ${exercise.rest ? `<span class="pill">Rest ${escapeHtml(exercise.rest)}</span>` : ""}
               ${exercise.type ? `<span class="pill">${escapeHtml(exercise.type)}</span>` : ""}
             </div>
+            ${isSwapped ? `<p class="plannedExerciseHint">Planned: ${escapeHtml(exercise.name)}</p>` : ""}
             ${exercise.note ? `<p class="exerciseNote">${escapeHtml(exercise.note)}</p>` : ""}
             ${previousNote ? `<p class="lastHint">Previous note: ${escapeHtml(previousNote)}</p>` : ""}
           </div>
@@ -1783,10 +1786,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
 
         <div class="swapEditor ${isSwapped ? "" : "hidden"}">
-          <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" list="${escapeAttribute(swapListId)}" />
-          <datalist id="${escapeAttribute(swapListId)}">
-            ${getSwapSuggestions(logs, exercise).map(name => `<option value="${escapeAttribute(name)}"></option>`).join("")}
-          </datalist>
+          <div class="swapCombo">
+            <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="${escapeAttribute(swapListId)}" />
+            <button type="button" class="swapMenuBtn ${swapSuggestions.length ? "" : "hidden"}" aria-label="Show previous swaps"></button>
+            <div class="swapOptionList hidden" id="${escapeAttribute(swapListId)}" role="listbox">
+              ${swapSuggestions.map(name => `<button type="button" class="swapOption" role="option" data-swap-name="${escapeAttribute(name)}">${escapeHtml(name)}</button>`).join("")}
+            </div>
+          </div>
           <button type="button" class="swapResetBtn">Use planned</button>
         </div>
 
@@ -1831,15 +1837,48 @@ document.addEventListener("DOMContentLoaded", async () => {
         const swapInput = exerciseCard.querySelector(".swapInput");
         const isHidden = swapEditor?.classList.toggle("hidden");
         if (!isHidden) {
+          setSwapMenuOpen(exerciseCard, true);
           swapInput?.focus();
           swapInput?.select();
         }
       });
 
-      exerciseCard.querySelector(".swapInput")?.addEventListener("input", event => {
-        const nextName = event.target.value.trim() || exercise.name;
-        applySwapSelection({ card: exerciseCard, exercise, logs, nextName, overwriteSets: true });
-        saveDraft(currentDay);
+      const setSwapMenuOpen = (card, open) => {
+        const input = card.querySelector(".swapInput");
+        const optionList = card.querySelector(".swapOptionList");
+        const options = [...card.querySelectorAll(".swapOption")];
+        if (!input || !optionList) return;
+
+        const inputName = normalizeExerciseName(input.value);
+        const plannedName = normalizeExerciseName(exercise.name);
+        const query = inputName === plannedName ? "" : inputName;
+        let visibleCount = 0;
+
+        options.forEach(option => {
+          const name = option.dataset.swapName || "";
+          const isVisible = !query || normalizeExerciseName(name).includes(query);
+          option.classList.toggle("hidden", !isVisible);
+          if (isVisible) visibleCount++;
+        });
+
+        const shouldOpen = open && visibleCount > 0;
+        optionList.classList.toggle("hidden", !shouldOpen);
+        input.setAttribute("aria-expanded", String(shouldOpen));
+      };
+
+      const swapInput = exerciseCard.querySelector(".swapInput");
+      swapInput?.addEventListener("focus", () => {
+        setSwapMenuOpen(exerciseCard, true);
+      });
+
+      swapInput?.addEventListener("input", event => {
+        const nextName = event.target.value.trim();
+        setSwapMenuOpen(exerciseCard, true);
+        const matchesSuggestion = swapSuggestions.some(name => normalizeExerciseName(name) === normalizeExerciseName(nextName));
+        if (matchesSuggestion) {
+          applySwapSelection({ card: exerciseCard, exercise, logs, nextName, overwriteSets: true });
+          saveDraft(currentDay);
+        }
       });
 
       const commitSwapInput = event => {
@@ -1856,11 +1895,39 @@ document.addEventListener("DOMContentLoaded", async () => {
         saveDraft(currentDay);
       };
 
-      exerciseCard.querySelector(".swapInput")?.addEventListener("change", commitSwapInput);
-      exerciseCard.querySelector(".swapInput")?.addEventListener("blur", commitSwapInput);
+      swapInput?.addEventListener("change", commitSwapInput);
+      swapInput?.addEventListener("blur", event => {
+        setTimeout(() => setSwapMenuOpen(exerciseCard, false), 120);
+        commitSwapInput(event);
+      });
+
+      exerciseCard.querySelector(".swapMenuBtn")?.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        setSwapMenuOpen(exerciseCard, true);
+        swapInput?.focus();
+      });
+
+      exerciseCard.querySelectorAll(".swapOption").forEach(option => {
+        option.addEventListener("pointerdown", event => {
+          event.preventDefault();
+          const nextName = titleCaseExerciseName(option.dataset.swapName || exercise.name);
+          if (swapInput) {
+            swapInput.value = nextName;
+          }
+          applySwapSelection({
+            card: exerciseCard,
+            exercise,
+            logs,
+            nextName,
+            overwriteSets: true,
+            clearWhenMissing: true
+          });
+          setSwapMenuOpen(exerciseCard, false);
+          saveDraft(currentDay);
+        });
+      });
 
       exerciseCard.querySelector(".swapResetBtn")?.addEventListener("click", () => {
-        const swapInput = exerciseCard.querySelector(".swapInput");
         if (swapInput) {
           swapInput.value = exercise.name;
         }
@@ -2174,13 +2241,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!logs.length) {
       container.innerHTML = `
+        <div class="historyToolbar">
+          <button id="exportWorkoutData" type="button" class="historyActionBtn">Export Last ${EXPORT_WORKOUT_LIMIT}</button>
+        </div>
         <div class="historyEmpty">
           <h4>No saved workouts yet.</h4>
           <p>Save a workout and it will show up here.</p>
         </div>
       `;
+      setupHistoryExportButton();
       return;
     }
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "historyToolbar";
+    toolbar.innerHTML = `
+      <button id="exportWorkoutData" type="button" class="historyActionBtn">Export Last ${EXPORT_WORKOUT_LIMIT}</button>
+    `;
+    container.appendChild(toolbar);
+    setupHistoryExportButton();
 
     const filterWrap = document.createElement("div");
     filterWrap.className = "historyFilters";
@@ -2376,6 +2455,157 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       container.appendChild(group);
     });
+  }
+
+  function setupHistoryExportButton() {
+    const exportButton = document.getElementById("exportWorkoutData");
+    if (!exportButton) return;
+
+    exportButton.addEventListener("click", async () => {
+      await exportWorkoutData(exportButton);
+    });
+  }
+
+  async function exportWorkoutData(button) {
+    const originalText = button.textContent;
+
+    try {
+      button.disabled = true;
+      button.textContent = "Exporting...";
+
+      const logs = await getLogs();
+      const exportData = buildWorkoutDataExport(logs, EXPORT_WORKOUT_LIMIT);
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const namePart = slugify(displayName || "lifter") || "lifter";
+
+      downloadJsonFile(`lift-tracker-${namePart}-last-${EXPORT_WORKOUT_LIMIT}-${dateStamp}.json`, exportData);
+
+      button.textContent = "Exported";
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 1400);
+    } catch (error) {
+      console.error(error);
+      button.textContent = "Export Failed";
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 1400);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function buildWorkoutDataExport(logs, workoutLimit = EXPORT_WORKOUT_LIMIT) {
+    const allChronologicalLogs = [...(logs || [])].sort((a, b) => new Date(a.t) - new Date(b.t));
+    const chronologicalLogs = allChronologicalLogs.slice(-workoutLimit);
+    const exerciseTimelines = buildExerciseTimelines(chronologicalLogs);
+
+    return {
+      exportVersion: 1,
+      exportedAt: new Date().toISOString(),
+      app: "Lift Tracker",
+      exportScope: {
+        workoutLimit,
+        totalSavedWorkouts: allChronologicalLogs.length,
+        includedWorkouts: chronologicalLogs.length,
+        includesEveryExerciseInIncludedWorkouts: true
+      },
+      profile: {
+        name: displayName || "",
+        userKey: usernameKey || ""
+      },
+      activePlan: {
+        id: activePlan?.id || "",
+        name: activePlan?.name || "Current Plan",
+        dayOrder: [...workoutDays],
+        workouts: deepClone(workouts)
+      },
+      summary: {
+        totalSavedWorkouts: allChronologicalLogs.length,
+        includedWorkouts: chronologicalLogs.length,
+        firstWorkoutAt: chronologicalLogs[0]?.t || "",
+        latestWorkoutAt: chronologicalLogs[chronologicalLogs.length - 1]?.t || "",
+        totalVolume: chronologicalLogs.reduce((sum, log) => sum + workoutVolume(log), 0),
+        workingSets: chronologicalLogs.reduce((sum, log) => sum + countWorkingSets(log), 0),
+        workoutDays: [...new Set(chronologicalLogs.map(log => log.d).filter(Boolean))],
+        exerciseCount: exerciseTimelines.length
+      },
+      analysis: {
+        exerciseTimelines
+      },
+      workoutLogs: chronologicalLogs.map(log => deepClone(log))
+    };
+  }
+
+  function buildExerciseTimelines(logs) {
+    const exerciseMap = new Map();
+
+    logs.forEach(log => {
+      (log.e || []).forEach(exercise => {
+        const key = getProgressExerciseKey(exercise);
+        const label = getProgressExerciseLabel(exercise);
+        const sets = Array.isArray(exercise.s) ? exercise.s : [];
+        const cleanSets = sets
+          .map((set, index) => ({
+            set: index + 1,
+            reps: Number(set.reps) || 0,
+            weight: Number(set.weight) || 0,
+            done: Boolean(set.done),
+            volume: (Number(set.reps) || 0) * (Number(set.weight) || 0)
+          }))
+          .filter(set => set.reps > 0 || set.weight > 0);
+
+        if (!exerciseMap.has(key)) {
+          exerciseMap.set(key, {
+            key,
+            name: label,
+            sessions: []
+          });
+        }
+
+        exerciseMap.get(key).sessions.push({
+          workoutId: log.id || "",
+          workoutDay: log.d || "",
+          workoutAt: log.t || "",
+          plannedName: exercise.plannedName || exercise.originalName || "",
+          swapped: Boolean(exercise.swapped),
+          pulley: exercise.pulley || "",
+          note: exercise.note || "",
+          sets: cleanSets,
+          metrics: {
+            bestSet: bestSetText(cleanSets),
+            estimatedOneRepMax: calculateMetric(cleanSets, "est1rm"),
+            totalVolume: calculateMetric(cleanSets, "volume"),
+            topWeight: calculateMetric(cleanSets, "topWeight"),
+            workingSets: cleanSets.length
+          }
+        });
+      });
+    });
+
+    return [...exerciseMap.values()]
+      .map(exercise => ({
+        ...exercise,
+        sessionCount: exercise.sessions.length,
+        latestWorkoutAt: exercise.sessions[exercise.sessions.length - 1]?.workoutAt || ""
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function downloadJsonFile(filename, data) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   /* =====================================================
@@ -2586,17 +2816,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         const name = String(savedExercise.n || "").trim();
         if (!name || name === exerciseTemplate.name) return;
 
+        const savedPlannedName = savedExercise.originalName || savedExercise.plannedName || "";
+        const savedPlannedId = savedExercise.originalId || savedExercise.plannedId || "";
+        const hasPlannedReference =
+          savedPlannedId === getExerciseKey(exerciseTemplate) ||
+          normalizeExerciseName(savedPlannedName) === normalizeExerciseName(exerciseTemplate.name) ||
+          exerciseSlug(savedPlannedName) === exerciseSlug(exerciseTemplate.name);
         const wasSwapForThisExercise =
-          savedExercise.swapped &&
-          (
-            savedExercise.originalId === getExerciseKey(exerciseTemplate) ||
-            savedExercise.plannedId === getExerciseKey(exerciseTemplate) ||
-            normalizeExerciseName(savedExercise.originalName || savedExercise.plannedName || "") === normalizeExerciseName(exerciseTemplate.name)
-          );
+          savedExercise.swapped && hasPlannedReference;
 
         const matchesThisExercise = exerciseMatchesCandidates(savedExercise, plannedCandidates);
 
-        if (!wasSwapForThisExercise && !matchesThisExercise) return;
+        if (!wasSwapForThisExercise && !hasPlannedReference && !matchesThisExercise) return;
 
         const key = exerciseSlug(name);
         if (!suggestions.has(key)) {
@@ -2674,10 +2905,41 @@ document.addEventListener("DOMContentLoaded", async () => {
       actualName: actualName !== exercise.name ? actualName : ""
     });
 
-    card.dataset.exerciseName = actualName;
-    card.querySelector(".exerciseNameText").textContent = actualName;
+    updateSwapVisualState(card, exercise, actualName);
     updatePreviousExerciseDisplay(card, previousExercise);
     applyPreviousSetsToInputs(card, previousExercise, { overwrite: overwriteSets, clearWhenMissing });
+  }
+
+  function updateSwapVisualState(card, exercise, actualName) {
+    const plannedName = exercise.name;
+    const isSwapped = exerciseSlug(actualName) !== exerciseSlug(plannedName);
+    const title = card.querySelector(".exerciseNameText");
+    const swapButton = card.querySelector(".swapToggleBtn");
+    const meta = card.querySelector(".exerciseMeta");
+    let plannedHint = card.querySelector(".plannedExerciseHint");
+
+    card.dataset.exerciseName = actualName;
+    if (title) {
+      title.textContent = actualName;
+    }
+
+    if (swapButton) {
+      swapButton.classList.toggle("active", isSwapped);
+      swapButton.textContent = isSwapped ? "Edit Swap" : "Swap";
+    }
+
+    if (isSwapped) {
+      if (!plannedHint && meta) {
+        plannedHint = document.createElement("p");
+        plannedHint.className = "plannedExerciseHint";
+        meta.insertAdjacentElement("afterend", plannedHint);
+      }
+      if (plannedHint) {
+        plannedHint.textContent = `Planned: ${plannedName}`;
+      }
+    } else {
+      plannedHint?.remove();
+    }
   }
 
   function applyPreviousSetsToInputs(card, previousExercise, options = {}) {
