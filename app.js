@@ -328,6 +328,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let activePlan = null;
   let workouts = {};
   let workoutDays = [];
+  let gymOptions = [];
+  let selectedGym = "";
 
   let currentDay = "";
   let currentPage = "homePage";
@@ -412,7 +414,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setupBottomNav();
   setupAccountButton();
+  setupGymControls();
   setupTimerResumeHandlers();
+  await loadGymSettings();
   await renderHome();
   showPage("homePage");
 
@@ -515,6 +519,105 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     historyFilter = "All";
+  }
+
+  async function loadGymSettings() {
+    try {
+      const settingsSnap = await getDoc(userSettingsDoc());
+      const data = settingsSnap.exists() ? settingsSnap.data() : {};
+      const savedGyms = Array.isArray(data.gyms) ? data.gyms : [];
+      const storedGym = localStorage.getItem("selectedGym") || "";
+
+      selectedGym = normalizeGymName(data.lastGym || storedGym || "");
+      gymOptions = normalizeGymOptions([
+        ...savedGyms,
+        selectedGym
+      ]);
+    } catch (error) {
+      console.error(error);
+      selectedGym = normalizeGymName(localStorage.getItem("selectedGym") || "");
+      gymOptions = normalizeGymOptions([selectedGym]);
+    }
+
+    renderGymSelector();
+  }
+
+  function setupGymControls() {
+    document.getElementById("gymSelect")?.addEventListener("change", async event => {
+      selectedGym = normalizeGymName(event.target.value);
+
+      if (selectedGym) {
+        gymOptions = normalizeGymOptions([...gymOptions, selectedGym]);
+      }
+
+      renderGymSelector();
+      await saveGymSettings();
+    });
+
+    document.getElementById("addGymBtn")?.addEventListener("click", async () => {
+      const nextGym = normalizeGymName(prompt("Gym name", selectedGym || ""));
+      if (!nextGym) return;
+
+      selectedGym = nextGym;
+      gymOptions = normalizeGymOptions([...gymOptions, nextGym]);
+      renderGymSelector();
+      await saveGymSettings();
+    });
+  }
+
+  function renderGymSelector() {
+    const gymSelect = document.getElementById("gymSelect");
+    if (!gymSelect) return;
+
+    const options = normalizeGymOptions(gymOptions);
+    gymSelect.innerHTML = `<option value="">Not set</option>`;
+
+    options.forEach(gym => {
+      const option = document.createElement("option");
+      option.value = gym;
+      option.textContent = gym;
+      gymSelect.appendChild(option);
+    });
+
+    gymSelect.value = selectedGym || "";
+  }
+
+  async function saveGymSettings() {
+    const gyms = normalizeGymOptions([...gymOptions, selectedGym]);
+
+    localStorage.setItem("selectedGym", selectedGym || "");
+
+    try {
+      await setDoc(userSettingsDoc(), {
+        lastGym: selectedGym || "",
+        gyms,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      console.error(error);
+      showMessage("Gym selection did not save. Check your connection and try again.", "error");
+    }
+  }
+
+  function normalizeGymName(value) {
+    return String(value || "")
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  function normalizeGymOptions(values) {
+    const seen = new Set();
+
+    return (values || [])
+      .map(normalizeGymName)
+      .filter(Boolean)
+      .filter(gym => {
+        const key = gym.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.localeCompare(b));
   }
 
   /* =====================================================
@@ -1725,6 +1828,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       const previousSets = previousExercise?.s || [];
       const previousNote = previousExercise?.note || "";
+      const recommendation = getExerciseRecommendation(exercise, previousExercise);
 
       const nextExercise = template[index + 1];
       const isSupersetEnd =
@@ -1779,6 +1883,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         <div class="exerciseUtilityRow">
           <p class="lastHint exerciseLastHint" data-role="last-summary">${lastSummary}</p>
+          <button type="button" class="recommendationBtn" aria-expanded="false">Tip</button>
+        </div>
+
+        <div class="recommendationPanel hidden" data-role="recommendation-panel">
+          ${renderRecommendationContent(recommendation)}
         </div>
 
         <div class="noteEditor ${draftNote ? "" : "hidden"}">
@@ -1830,6 +1939,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!isHidden) {
           noteInput?.focus();
         }
+      });
+
+      exerciseCard.querySelector(".recommendationBtn")?.addEventListener("click", event => {
+        const panel = exerciseCard.querySelector("[data-role='recommendation-panel']");
+        const isHidden = panel?.classList.toggle("hidden");
+        event.currentTarget.setAttribute("aria-expanded", String(!isHidden));
       });
 
       exerciseCard.querySelector(".swapToggleBtn")?.addEventListener("click", () => {
@@ -2190,6 +2305,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         schemaVersion: 4,
         planId: activePlan?.id || "",
         planName: activePlan?.name || "",
+        gym: selectedGym || "",
         t: new Date().toISOString(),
         d: currentDay,
         e: exercises
@@ -2318,6 +2434,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const exerciseCount = Array.isArray(log.e) ? log.e.length : 0;
         const workingSets = countWorkingSets(log);
         const totalVolume = workoutVolume(log);
+        const gymText = log.gym ? `${log.gym} / ` : "";
 
         const header = document.createElement("button");
         header.type = "button";
@@ -2326,7 +2443,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="historyCardMain">
             <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
             <div class="historyCardMeta">
-              ${escapeHtml(formatCompactTime(log.t))} / ${exerciseCount} exercises / ${workingSets} sets
+              ${escapeHtml(formatCompactTime(log.t))} / ${escapeHtml(gymText)}${exerciseCount} exercises / ${workingSets} sets
             </div>
           </div>
           <div class="historyCardSide">
@@ -2349,6 +2466,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             <strong>Working Sets</strong>
             <span>${workingSets}</span>
           </div>
+          ${log.gym ? `
+            <div>
+              <strong>Gym</strong>
+              <span>${escapeHtml(log.gym)}</span>
+            </div>
+          ` : ""}
         `;
         details.appendChild(detailsTop);
 
@@ -2514,6 +2637,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         name: displayName || "",
         userKey: usernameKey || ""
       },
+      gymSettings: {
+        selectedGym: selectedGym || "",
+        gyms: normalizeGymOptions(gymOptions)
+      },
       activePlan: {
         id: activePlan?.id || "",
         name: activePlan?.name || "Current Plan",
@@ -2567,6 +2694,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           workoutId: log.id || "",
           workoutDay: log.d || "",
           workoutAt: log.t || "",
+          gym: log.gym || "",
           plannedName: exercise.plannedName || exercise.originalName || "",
           swapped: Boolean(exercise.swapped),
           pulley: exercise.pulley || "",
@@ -2783,9 +2911,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function findPreviousExerciseLog(logs, exerciseTemplate, options = {}) {
+    const preferredGym = normalizeGymName(options.gym || selectedGym || "");
     const savedExercisesNewestFirst = [...(logs || [])]
       .sort((a, b) => new Date(b.t) - new Date(a.t))
-      .flatMap(log => log.e || []);
+      .flatMap(log => (log.e || []).map(exercise => ({
+        ...exercise,
+        logGym: normalizeGymName(log.gym || "")
+      })));
     const actualName = String(options.actualName || "").trim();
 
     if (actualName && actualName !== exerciseTemplate.name) {
@@ -2794,15 +2926,38 @@ document.addEventListener("DOMContentLoaded", async () => {
         name: actualName,
         lastAlias: []
       });
-      const actualMatch = savedExercisesNewestFirst
-        .find(savedExercise => exerciseMatchesCandidates(savedExercise, actualCandidates));
+      const actualMatch = findPreferredExerciseMatch(
+        savedExercisesNewestFirst,
+        actualCandidates,
+        preferredGym
+      );
 
       if (actualMatch) return actualMatch;
     }
 
     const plannedCandidates = getExerciseMatchCandidates(exerciseTemplate);
-    return savedExercisesNewestFirst
-      .find(savedExercise => exerciseMatchesCandidates(savedExercise, plannedCandidates)) || null;
+    return findPreferredExerciseMatch(
+      savedExercisesNewestFirst,
+      plannedCandidates,
+      preferredGym
+    );
+  }
+
+  function findPreferredExerciseMatch(savedExercises, candidates, preferredGym = "") {
+    const matches = savedExercises
+      .filter(savedExercise => exerciseMatchesCandidates(savedExercise, candidates));
+
+    if (!matches.length) return null;
+
+    if (preferredGym) {
+      const sameGymMatch = matches.find(savedExercise => {
+        return normalizeGymName(savedExercise.logGym || "") === preferredGym;
+      });
+
+      if (sameGymMatch) return sameGymMatch;
+    }
+
+    return matches[0] || null;
   }
 
   function getSwapSuggestions(logs, exerciseTemplate) {
@@ -2892,6 +3047,110 @@ document.addEventListener("DOMContentLoaded", async () => {
       : "Last: No previous sets";
   }
 
+  function renderRecommendationContent(recommendation) {
+    return `
+      <div class="recommendationPanelHeader">
+        <strong>${escapeHtml(recommendation.label)}</strong>
+        <span>${escapeHtml(recommendation.confidence)}</span>
+      </div>
+      <p>${escapeHtml(recommendation.reason)}</p>
+      <p>${escapeHtml(recommendation.action)}</p>
+    `;
+  }
+
+  function getExerciseRecommendation(exercise, previousExercise) {
+    const target = parseTargetRange(exercise?.target || "");
+    const sets = getWorkingSets(previousExercise?.s || []);
+
+    if (!previousExercise || !sets.length) {
+      return {
+        label: "No prior data",
+        reason: "There is not enough saved history for this exercise yet.",
+        action: "Use a conservative starting weight and save the workout.",
+        confidence: "New"
+      };
+    }
+
+    if (!target) {
+      return {
+        label: "Repeat and track",
+        reason: `Last time: ${formatSets(previousExercise.s || [])}.`,
+        action: "Use the last working weight and focus on clean reps.",
+        confidence: "Basic"
+      };
+    }
+
+    const reps = sets.map(set => set.reps);
+    const weights = sets.map(set => set.weight);
+    const lowMisses = reps.filter(rep => rep < target.low).length;
+    const topHits = reps.filter(rep => rep >= target.high).length;
+    const allTopHits = topHits === reps.length;
+    const mostlyTopHits = topHits >= Math.ceil(reps.length * 0.75);
+    const mostlyBelowTarget = lowMisses >= Math.ceil(reps.length / 2);
+    const firstWeight = weights[0] || 0;
+    const sameWeightSets = weights.filter(weight => weight === firstWeight).length;
+    const consistentLoad = firstWeight > 0 && sameWeightSets >= Math.ceil(weights.length * 0.75);
+    const bestWeight = Math.max(...weights);
+
+    if (allTopHits && consistentLoad) {
+      return {
+        label: "Increase weight",
+        reason: `Last time all working sets reached ${target.high}+ reps at about ${roundNumber(firstWeight)} lb.`,
+        action: "Try a small weight increase and keep reps inside the target range.",
+        confidence: "Strong"
+      };
+    }
+
+    if (mostlyTopHits) {
+      return {
+        label: "Small increase",
+        reason: `Most working sets reached the top of the ${target.low}-${target.high} target.`,
+        action: "Consider a small increase, or repeat once if form was not solid.",
+        confidence: "Moderate"
+      };
+    }
+
+    if (mostlyBelowTarget) {
+      return {
+        label: "Repeat or reduce",
+        reason: `Most working sets were below the ${target.low}-${target.high} target.`,
+        action: `Repeat ${roundNumber(bestWeight)} lb only if form was good; otherwise reduce slightly.`,
+        confidence: "Moderate"
+      };
+    }
+
+    return {
+      label: "Repeat weight",
+      reason: `Last time landed within the ${target.low}-${target.high} target range but did not clearly top it out.`,
+      action: "Repeat the same weight and aim to add reps before increasing load.",
+      confidence: "Moderate"
+    };
+  }
+
+  function parseTargetRange(targetText) {
+    const numbers = String(targetText || "")
+      .match(/\d+/g)
+      ?.map(Number)
+      .filter(number => Number.isFinite(number)) || [];
+
+    if (!numbers.length) return null;
+
+    const low = Math.min(numbers[0], numbers[1] || numbers[0]);
+    const high = Math.max(numbers[0], numbers[1] || numbers[0]);
+
+    return { low, high };
+  }
+
+  function getWorkingSets(sets) {
+    return (sets || [])
+      .map(set => ({
+        reps: Number(set.reps) || 0,
+        weight: Number(set.weight) || 0,
+        done: Boolean(set.done)
+      }))
+      .filter(set => set.reps > 0 && set.weight > 0);
+  }
+
   function applySwapSelection({
     card,
     exercise,
@@ -2907,7 +3166,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     updateSwapVisualState(card, exercise, actualName);
     updatePreviousExerciseDisplay(card, previousExercise);
+    updateRecommendationDisplay(card, getExerciseRecommendation(exercise, previousExercise));
     applyPreviousSetsToInputs(card, previousExercise, { overwrite: overwriteSets, clearWhenMissing });
+  }
+
+  function updateRecommendationDisplay(card, recommendation) {
+    const panel = card.querySelector("[data-role='recommendation-panel']");
+    if (panel) {
+      panel.innerHTML = renderRecommendationContent(recommendation);
+    }
   }
 
   function updateSwapVisualState(card, exercise, actualName) {
@@ -3193,6 +3460,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const lines = [];
 
     lines.push(`${log.d || "Workout"} — ${formatTimestamp(log.t)}`);
+    if (log.gym) {
+      lines.push(`Gym: ${log.gym}`);
+    }
     lines.push(`Total volume: ${formatLargeNumber(workoutVolume(log))} lb`);
     lines.push(`Working sets: ${countWorkingSets(log)}`);
     lines.push("");

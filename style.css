@@ -1935,6 +1935,59 @@ select {
   padding-bottom: calc(var(--bottom-nav-height) + 104px + env(safe-area-inset-bottom));
 }
 
+.workoutContextBar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.gymSelectorPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 72%;
+  min-height: 34px;
+  padding: 4px 8px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(32, 39, 51, 0.86);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.gymSelectorPill select {
+  min-width: 0;
+  max-width: 150px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 18px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.gymSelectorPill select:focus {
+  outline: 0;
+}
+
+.gymAddBtn {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(32, 39, 51, 0.86);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .pageHeader,
 .dashboardCard,
 .homeHero,
@@ -2359,10 +2412,14 @@ select,
 
 /* Workout card utility row polish */
 .exerciseUtilityRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 6px;
 }
 
 .exerciseLastHint {
+  flex: 1 1 auto;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -2372,6 +2429,60 @@ select,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.recommendationBtn {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 168, 255, 0.34);
+  background: rgba(111, 168, 255, 0.12);
+  color: #d8e8ff;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.recommendationBtn[aria-expanded="true"] {
+  background: rgba(111, 168, 255, 0.22);
+  color: var(--text);
+}
+
+.recommendationPanel {
+  margin-top: 7px;
+  padding: 8px 10px;
+  border: 1px solid rgba(111, 168, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(32, 39, 51, 0.68);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.recommendationPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.recommendationPanelHeader strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.recommendationPanelHeader span {
+  color: #9fb2ca;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.recommendationPanel p {
+  margin: 4px 0 0;
 }
 
 .exerciseNameRow {
