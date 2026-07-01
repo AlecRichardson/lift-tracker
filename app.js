@@ -1,4 +1,11 @@
 import { auth, db } from "./firebase.js";
+import {
+  exerciseMatchesCandidates,
+  exerciseSlug,
+  getBestPreviousExerciseContext,
+  getExerciseMatchCandidates,
+  normalizeExerciseName
+} from "./history-context.mjs";
 import { getExerciseRecommendation } from "./recommendations.mjs";
 import {
   GoogleAuthProvider,
@@ -1734,6 +1741,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll(".exerciseCard").forEach(card => {
       const exerciseKey = card.dataset.exerciseKey;
       if (!exerciseKey) return;
+      const exerciseInstanceKey = card.dataset.exerciseInstanceKey || exerciseKey;
 
       const sets = [];
       const note = card.querySelector(".sessionNoteInput")?.value.trim() || "";
@@ -1750,11 +1758,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       });
 
-      exercises[exerciseKey] = {
+      exercises[exerciseInstanceKey] = {
         pulley: card.dataset.pulley || "",
         note,
         actualName: card.dataset.exerciseName || "",
         plannedName: card.dataset.plannedExerciseName || "",
+        plannedIndex: Number(card.dataset.plannedIndex),
         sets
       };
     });
@@ -1877,29 +1886,37 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       const exerciseKey = getExerciseKey(exercise);
+      const exerciseInstanceKey = `${exerciseKey}__${index}`;
       const swapListId = `swapOptions-${exerciseKey}`;
       const swapSuggestions = getSwapSuggestions(logs, exercise);
-      const draftEntry = useDraft ? draft.exercises?.[exerciseKey] : null;
+      const draftEntry = useDraft ? (draft.exercises?.[exerciseInstanceKey] || draft.exercises?.[exerciseKey]) : null;
       const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
       const draftNote = !Array.isArray(draftEntry) ? draftEntry?.note || "" : "";
       const draftActualName = !Array.isArray(draftEntry) ? draftEntry?.actualName || "" : "";
       const sessionExerciseName = draftActualName || exercise.name;
       const isSwapped = sessionExerciseName !== exercise.name;
-      const previousExercise = findPreviousExerciseLog(logs, exercise, {
-        actualName: isSwapped ? sessionExerciseName : ""
+      const isCable = isCableExercise(exercise);
+      const draftPulley = !Array.isArray(draftEntry) ? draftEntry?.pulley : "";
+      const historyContext = getPreviousExerciseContext(logs, exercise, {
+        actualName: isSwapped ? sessionExerciseName : "",
+        plannedIndex: index,
+        pulleyVariant: isCable ? draftPulley : ""
       });
+      const previousExercise = historyContext.selectedExercise;
+      const globalPreviousExercise = historyContext.globalReferenceExercise;
       const previousSets = previousExercise?.s || [];
       const previousNote = previousExercise?.note || "";
-      const recommendation = getExerciseRecommendation(exercise, previousExercise);
+      const recommendation = getRecommendationWithContext(
+        getExerciseRecommendation(exercise, previousExercise),
+        historyContext
+      );
 
       const nextExercise = template[index + 1];
       const isSupersetEnd =
         exercise.superset &&
         (!nextExercise || nextExercise.superset !== exercise.superset);
 
-      const isCable = isCableExercise(exercise);
-      const previousPulley = previousExercise?.pulley || "";
-      const draftPulley = !Array.isArray(draftEntry) ? draftEntry?.pulley : "";
+      const previousPulley = previousExercise?.pulley || globalPreviousExercise?.pulley || "";
       const startingPulley = isCable ? (draftPulley || previousPulley || "single") : "";
 
       const exerciseCard = document.createElement("article");
@@ -1911,13 +1928,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       ].filter(Boolean).join(" ");
 
       exerciseCard.dataset.exerciseKey = exerciseKey;
+      exerciseCard.dataset.exerciseInstanceKey = exerciseInstanceKey;
       exerciseCard.dataset.exerciseName = sessionExerciseName;
       exerciseCard.dataset.plannedExerciseId = exerciseKey;
       exerciseCard.dataset.plannedExerciseName = exercise.name;
+      exerciseCard.dataset.plannedIndex = String(index);
       exerciseCard.dataset.pulley = startingPulley;
 
-      const lastSummary = previousSets.length
-        ? `Last: ${escapeHtml(formatSets(previousSets))}${previousExercise?.pulley ? ` / ${escapeHtml(formatPulley(previousExercise.pulley))}` : ""}`
+      const globalPreviousSets = globalPreviousExercise?.s || [];
+      const lastSummary = globalPreviousSets.length
+        ? `Last: ${escapeHtml(formatSets(globalPreviousSets))}${globalPreviousExercise?.pulley ? ` / ${escapeHtml(formatPulley(globalPreviousExercise.pulley))}` : ""}`
         : "Last: No previous sets";
 
       exerciseCard.innerHTML = `
@@ -1988,6 +2008,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             exerciseCard.dataset.pulley = btn.dataset.pulley || "single";
             exerciseCard.querySelectorAll(".pulleyBtn").forEach(b => {
               b.classList.toggle("active", b === btn);
+            });
+            applySwapSelection({
+              card: exerciseCard,
+              exercise,
+              logs,
+              nextName: exerciseCard.dataset.exerciseName || exercise.name,
+              overwriteSets: true
             });
             saveDraft(currentDay);
           });
@@ -2324,6 +2351,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const rawExerciseName = card.dataset.exerciseName;
       const plannedExerciseId = card.dataset.plannedExerciseId || exerciseKey;
       const plannedExerciseName = card.dataset.plannedExerciseName || rawExerciseName;
+      const plannedIndex = Number(card.dataset.plannedIndex);
       const pulley = card.dataset.pulley || "";
       const note = card.querySelector(".sessionNoteInput")?.value.trim() || "";
       const isSwapped = rawExerciseName && plannedExerciseName && exerciseSlug(rawExerciseName) !== exerciseSlug(plannedExerciseName);
@@ -2351,6 +2379,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         originalName: isSwapped ? plannedExerciseName : "",
         plannedId: isSwapped ? plannedExerciseId : "",
         plannedName: isSwapped ? plannedExerciseName : "",
+        plannedIndex: Number.isFinite(plannedIndex) ? plannedIndex : 0,
         pulley,
         note,
         s: sets
@@ -2972,56 +3001,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       .pop() || null;
   }
 
-  function findPreviousExerciseLog(logs, exerciseTemplate, options = {}) {
-    const preferredGym = normalizeGymName(options.gym || selectedGym || "");
-    const savedExercisesNewestFirst = [...(logs || [])]
-      .sort((a, b) => new Date(b.t) - new Date(a.t))
-      .flatMap(log => (log.e || []).map(exercise => ({
-        ...exercise,
-        logGym: normalizeGymName(log.gym || "")
-      })));
-    const actualName = String(options.actualName || "").trim();
-
-    if (actualName && actualName !== exerciseTemplate.name) {
-      const actualCandidates = getExerciseMatchCandidates({
-        id: exerciseSlug(actualName),
-        name: actualName,
-        lastAlias: []
-      });
-      const actualMatch = findPreferredExerciseMatch(
-        savedExercisesNewestFirst,
-        actualCandidates,
-        preferredGym
-      );
-
-      if (actualMatch) return actualMatch;
-    }
-
-    const plannedCandidates = getExerciseMatchCandidates(exerciseTemplate);
-    return findPreferredExerciseMatch(
-      savedExercisesNewestFirst,
-      plannedCandidates,
-      preferredGym
-    );
-  }
-
-  function findPreferredExerciseMatch(savedExercises, candidates, preferredGym = "") {
-    const matches = savedExercises
-      .filter(savedExercise => exerciseMatchesCandidates(savedExercise, candidates));
-
-    if (!matches.length) return null;
-
-    if (preferredGym) {
-      const sameGymMatch = matches.find(savedExercise => {
-        return normalizeGymName(savedExercise.logGym || "") === preferredGym;
-      });
-
-      if (sameGymMatch) return sameGymMatch;
-    }
-
-    return matches[0] || null;
-  }
-
   function getSwapSuggestions(logs, exerciseTemplate) {
     const plannedCandidates = getExerciseMatchCandidates(exerciseTemplate);
     const suggestions = new Map();
@@ -3057,47 +3036,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     return [...suggestions.values()].slice(0, 8);
   }
 
-  function getExerciseMatchCandidates(exerciseTemplate) {
-    const names = [
-      exerciseTemplate.name,
-      ...(Array.isArray(exerciseTemplate.lastAlias) ? exerciseTemplate.lastAlias : [])
-    ].filter(Boolean);
-    const ids = [
-      getExerciseKey(exerciseTemplate),
-      exerciseTemplate.id,
-      exerciseSlug(exerciseTemplate.name)
-    ].filter(Boolean);
-    const normalizedNames = names.flatMap(name => [
-      normalizeExerciseName(name),
-      canonicalExerciseName(name)
-    ]).filter(Boolean);
-
-    return {
-      ids: new Set(ids),
-      names: new Set(normalizedNames)
-    };
-  }
-
-  function exerciseMatchesCandidates(savedExercise, candidates, options = {}) {
-    const savedId = savedExercise.id || exerciseSlug(savedExercise.n || "");
-    const savedNames = [savedExercise.n];
-
-    if (options.includePlannedNames) {
-      savedNames.push(savedExercise.plannedName, savedExercise.originalName);
-    }
-    const namesToMatch = savedNames.filter(Boolean);
-
-    if (savedId && candidates.ids.has(savedId)) {
-      return true;
-    }
-
-    return namesToMatch.some(name =>
-      candidates.names.has(normalizeExerciseName(name)) ||
-      candidates.names.has(canonicalExerciseName(name)) ||
-      candidates.ids.has(exerciseSlug(name))
-    );
-  }
-
   function getExerciseKey(exercise) {
     return exercise.id || slugify(exercise.name || "");
   }
@@ -3112,14 +3050,51 @@ document.addEventListener("DOMContentLoaded", async () => {
       : "Last: No previous sets";
   }
 
+  function getPreviousExerciseContext(logs, exercise, options = {}) {
+    return getBestPreviousExerciseContext({
+      logs,
+      exerciseId: getExerciseKey(exercise),
+      exerciseName: exercise.name,
+      aliases: Array.isArray(exercise.lastAlias) ? exercise.lastAlias : [],
+      workoutDay: currentDay,
+      plannedIndex: options.plannedIndex,
+      actualName: options.actualName || "",
+      pulleyVariant: options.pulleyVariant || "",
+      selectedGym
+    });
+  }
+
+  function getRecommendationWithContext(recommendation, historyContext) {
+    return {
+      ...recommendation,
+      context: historyContext?.reason || "",
+      reference: buildGlobalReferenceText(historyContext)
+    };
+  }
+
+  function buildGlobalReferenceText(historyContext) {
+    const selected = historyContext?.selectedEntry;
+    const global = historyContext?.globalReferenceEntry;
+
+    if (!selected || !global || selected === global) return "";
+
+    const globalSets = global.exercise?.s || [];
+    if (!globalSets.length) return "";
+
+    const dayText = global.workoutDay ? ` on ${global.workoutDay}` : "";
+    return `Global latest${dayText}: ${formatSets(globalSets)}.`;
+  }
+
   function renderRecommendationContent(recommendation) {
     return `
       <div class="recommendationPanelHeader">
         <strong>${escapeHtml(recommendation.label)}</strong>
         <span>${escapeHtml(recommendation.confidence)}</span>
       </div>
+      ${recommendation.context ? `<p>${escapeHtml(recommendation.context)}</p>` : ""}
       <p>${escapeHtml(recommendation.reason)}</p>
       <p>${escapeHtml(recommendation.action)}</p>
+      ${recommendation.reference ? `<p>${escapeHtml(recommendation.reference)}</p>` : ""}
     `;
   }
 
@@ -3132,13 +3107,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     clearWhenMissing = false
   }) {
     const actualName = String(nextName || exercise.name).trim() || exercise.name;
-    const previousExercise = findPreviousExerciseLog(logs, exercise, {
-      actualName: actualName !== exercise.name ? actualName : ""
+    const plannedIndex = Number(card.dataset.plannedIndex);
+    const historyContext = getPreviousExerciseContext(logs, exercise, {
+      actualName: actualName !== exercise.name ? actualName : "",
+      plannedIndex,
+      pulleyVariant: card.dataset.pulley || ""
     });
+    const previousExercise = historyContext.selectedExercise;
+    const globalPreviousExercise = historyContext.globalReferenceExercise;
 
     updateSwapVisualState(card, exercise, actualName);
-    updatePreviousExerciseDisplay(card, previousExercise);
-    updateRecommendationDisplay(card, getExerciseRecommendation(exercise, previousExercise));
+    updatePreviousExerciseDisplay(card, globalPreviousExercise);
+    updateRecommendationDisplay(
+      card,
+      getRecommendationWithContext(getExerciseRecommendation(exercise, previousExercise), historyContext)
+    );
     applyPreviousSetsToInputs(card, previousExercise, { overwrite: overwriteSets, clearWhenMissing });
   }
 
@@ -3522,22 +3505,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       .replace(/^_+|_+$/g, "");
   }
 
-  function normalizeExerciseName(name) {
-    return String(name || "")
-      .toLowerCase()
-      .trim()
-      .replace(/['â€™]/g, "")
-      .replace(/&/g, "and")
-      .replace(/\bdb\b/g, "dumbbell")
-      .replace(/\bbb\b/g, "barbell")
-      .replace(/[^a-z0-9 ]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function exerciseSlug(name) {
-    return normalizeExerciseName(name).replace(/\s+/g, "_");
-  }
 
   function titleCaseExerciseName(name) {
     const smallWords = new Set(["and", "or", "of", "the", "to", "with", "for"]);
@@ -3560,14 +3527,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       .join(" ");
   }
 
-  function canonicalExerciseName(name) {
-    const tokens = normalizeExerciseName(name).split(" ").filter(Boolean);
-    const equipmentWords = new Set(["dumbbell", "barbell", "cable", "machine", "bodyweight"]);
-    const equipment = tokens.filter(token => equipmentWords.has(token));
-    const rest = tokens.filter(token => !equipmentWords.has(token));
-
-    return [...equipment, ...rest].join(" ");
-  }
 
   function roundNumber(value) {
     const number = Number(value) || 0;
