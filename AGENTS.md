@@ -8,6 +8,7 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
 - Do not use backend/developer terms in user-facing copy.
 - Keep UI simple for iPhone.
 - Make changes incrementally.
+- After making code or repo changes, commit and push them once checks pass unless the user explicitly says not to.
 - Avoid breaking History, Progress, Plan Builder, and workout logging.
 
 ## Main Files
