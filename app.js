@@ -3060,7 +3060,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       plannedIndex: options.plannedIndex,
       actualName: options.actualName || "",
       pulleyVariant: options.pulleyVariant || "",
-      selectedGym
+      selectedGym,
+      equipment: exercise.equipment || ""
     });
   }
 

@@ -154,6 +154,81 @@ test("pulley variants stay separated for context suggestions", () => {
   assert.equal(context.globalReferenceExercise.pulley, "double");
 });
 
+test("machine rear delt does not use newer dumbbell rear delt history", () => {
+  const context = getBestPreviousExerciseContext({
+    exerciseId: "machine_rear_delt_fly",
+    exerciseName: "Machine Rear Delt Fly",
+    aliases: ["Rear Delt Fly", "Dumbbell Rear Delt Fly"],
+    equipment: "machine",
+    workoutDay: "Pull A",
+    plannedIndex: 3,
+    logs: [
+      log({
+        id: "machine-old",
+        day: "Pull A",
+        date: "2026-06-01T12:00:00Z",
+        exercises: [
+          exercise({
+            id: "machine_rear_delt_fly",
+            name: "Machine Rear Delt Fly",
+            reps: [15, 15, 12],
+            weight: 70,
+            plannedIndex: 3
+          })
+        ]
+      }),
+      log({
+        id: "dumbbell-new",
+        day: "Pull B",
+        date: "2026-06-05T12:00:00Z",
+        exercises: [
+          exercise({
+            id: "dumbbell_rear_delt_fly",
+            name: "Dumbbell Rear Delt Fly",
+            reps: [15, 15, 15],
+            weight: 15,
+            plannedIndex: 3
+          })
+        ]
+      })
+    ]
+  });
+
+  assert.equal(context.selectedExercise.id, "machine_rear_delt_fly");
+  assert.equal(context.selectedExercise.s[0].weight, 70);
+  assert.equal(context.globalReferenceExercise.id, "machine_rear_delt_fly");
+});
+
+test("machine rear delt has no fallback when only dumbbell rear delt exists", () => {
+  const context = getBestPreviousExerciseContext({
+    exerciseId: "machine_rear_delt_fly",
+    exerciseName: "Machine Rear Delt Fly",
+    aliases: ["Rear Delt Fly", "Dumbbell Rear Delt Fly"],
+    equipment: "machine",
+    workoutDay: "Pull A",
+    plannedIndex: 3,
+    logs: [
+      log({
+        id: "dumbbell-only",
+        day: "Pull B",
+        date: "2026-06-05T12:00:00Z",
+        exercises: [
+          exercise({
+            id: "dumbbell_rear_delt_fly",
+            name: "Dumbbell Rear Delt Fly",
+            reps: [15, 15, 15],
+            weight: 15,
+            plannedIndex: 3
+          })
+        ]
+      })
+    ]
+  });
+
+  assert.equal(context.selectedExercise, null);
+  assert.equal(context.matchType, "none");
+});
+
 test("context helper does not mutate existing saved workout logs", () => {
   const logs = [
     log({

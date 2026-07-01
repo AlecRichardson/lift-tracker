@@ -121,7 +121,7 @@ window.workouts = {
       equipment: "machine",
       note: "Use controlled reps.",
       superset: "A",
-      lastAlias: ["Rear Delt Fly", "DB Rear Delt Fly", "Dumbbell Rear Delt Fly"]
+      lastAlias: ["Rear Delt Machine Fly", "Machine Reverse Fly"]
     },
     {
       id: "barbell_curl",
@@ -334,7 +334,7 @@ window.workouts = {
       equipment: "machine",
       note: "Use controlled reps.",
       superset: "A",
-      lastAlias: ["Rear Delt Fly", "DB Rear Delt Fly", "Dumbbell Rear Delt Fly"]
+      lastAlias: ["Rear Delt Machine Fly", "Machine Reverse Fly"]
     },
     {
       id: "barbell_curl",

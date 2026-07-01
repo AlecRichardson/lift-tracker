@@ -7,13 +7,15 @@ export function getBestPreviousExerciseContext({
   plannedIndex = null,
   actualName = "",
   pulleyVariant = "",
-  selectedGym = ""
+  selectedGym = "",
+  equipment = ""
 } = {}) {
   const queryName = String(actualName || "").trim() || exerciseName;
   const candidates = getExerciseMatchCandidates({
     id: actualName ? exerciseSlug(queryName) : exerciseId,
     name: queryName,
-    lastAlias: actualName ? [] : aliases
+    lastAlias: actualName ? [] : aliases,
+    equipment: actualName ? "" : equipment
   });
   const preferredGym = normalizeName(selectedGym);
   const preferredDay = String(workoutDay || "").trim();
@@ -26,9 +28,11 @@ export function getBestPreviousExerciseContext({
   if (!entries.length) {
     return {
       selectedEntry: null,
+      selectedExercise: null,
       matchType: "none",
       confidence: "none",
       globalReferenceEntry: null,
+      globalReferenceExercise: null,
       reason: "No previous history for this exercise."
     };
   }
@@ -102,6 +106,10 @@ export function getExerciseMatchCandidates(exerciseTemplate) {
     exerciseTemplate.id,
     exerciseSlug(exerciseTemplate.name)
   ].filter(Boolean);
+  const equipment = equipmentTokens([
+    exerciseTemplate.equipment,
+    exerciseTemplate.name
+  ].filter(Boolean).join(" "));
   const normalizedNames = names.flatMap(name => [
     normalizeExerciseName(name),
     canonicalExerciseName(name)
@@ -109,7 +117,8 @@ export function getExerciseMatchCandidates(exerciseTemplate) {
 
   return {
     ids: new Set(ids),
-    names: new Set(normalizedNames)
+    names: new Set(normalizedNames),
+    equipment
   };
 }
 
@@ -126,9 +135,11 @@ export function exerciseMatchesCandidates(savedExercise, candidates, options = {
   }
 
   return savedNames.filter(Boolean).some(name =>
-    candidates.names.has(normalizeExerciseName(name)) ||
-    candidates.names.has(canonicalExerciseName(name)) ||
-    candidates.ids.has(exerciseSlug(name))
+    !hasConflictingEquipment(name, candidates.equipment) && (
+      candidates.names.has(normalizeExerciseName(name)) ||
+      candidates.names.has(canonicalExerciseName(name)) ||
+      candidates.ids.has(exerciseSlug(name))
+    )
   );
 }
 
@@ -151,11 +162,28 @@ export function exerciseSlug(name) {
 
 export function canonicalExerciseName(name) {
   const tokens = normalizeExerciseName(name).split(" ").filter(Boolean);
-  const equipmentWords = new Set(["dumbbell", "barbell", "cable", "machine", "bodyweight"]);
-  const equipment = tokens.filter(token => equipmentWords.has(token));
-  const rest = tokens.filter(token => !equipmentWords.has(token));
+  const equipment = tokens.filter(token => EQUIPMENT_WORDS.has(token));
+  const rest = tokens.filter(token => !EQUIPMENT_WORDS.has(token));
 
   return [...equipment, ...rest].join(" ");
+}
+
+const EQUIPMENT_WORDS = new Set(["dumbbell", "barbell", "cable", "machine", "bodyweight"]);
+
+function equipmentTokens(value) {
+  return new Set(
+    normalizeExerciseName(value)
+      .split(" ")
+      .filter(token => EQUIPMENT_WORDS.has(token))
+  );
+}
+
+function hasConflictingEquipment(savedName, candidateEquipment = new Set()) {
+  const savedEquipment = equipmentTokens(savedName);
+
+  if (!savedEquipment.size || !candidateEquipment?.size) return false;
+
+  return ![...savedEquipment].some(token => candidateEquipment.has(token));
 }
 
 function flattenExerciseHistory(logs) {
