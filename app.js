@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { getExerciseRecommendation } from "./recommendations.mjs";
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
@@ -26,6 +27,7 @@ import {
 ===================================================== */
 let userId = localStorage.getItem("userId");
 let displayName = localStorage.getItem("displayName");
+let userEmail = localStorage.getItem("userEmail");
 let usernameKey = localStorage.getItem("usernameKey");
 const googleProvider = new GoogleAuthProvider();
 let authPersistenceReady = null;
@@ -67,11 +69,13 @@ async function initializeUser() {
   }
 
   displayName = authUser.displayName || authUser.email || "Lifter";
+  userEmail = authUser.email || "";
   usernameKey = normalizeUsername(displayName);
   userId = authUser.uid;
 
   localStorage.setItem("userId", userId);
   localStorage.setItem("displayName", displayName);
+  localStorage.setItem("userEmail", userEmail);
   localStorage.setItem("usernameKey", usernameKey);
   localStorage.setItem("authUid", authUser.uid);
 
@@ -393,6 +397,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   try {
     activePlan = await loadOrCreateActivePlan(defaultValidation.workouts);
+    activePlan = await applyAccountPlanUpdates(activePlan, defaultValidation.workouts);
     workouts = activePlan.workouts;
     workoutDays = getOrderedWorkoutDays(workouts, activePlan.dayOrder);
   } catch (error) {
@@ -442,6 +447,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           name: data.name || "Current Plan",
           workouts: orderWorkoutObject(validation.workouts, dayOrder),
           dayOrder,
+          templateId: data.templateId || "",
           createdAt: data.createdAt || "",
           updatedAt: data.updatedAt || ""
         };
@@ -472,6 +478,62 @@ document.addEventListener("DOMContentLoaded", async () => {
       dayOrder: Object.keys(defaultWorkouts),
       createdAt: now,
       updatedAt: now
+    };
+  }
+
+  async function applyAccountPlanUpdates(currentPlan, defaultWorkouts) {
+    const targetEmail = "alecwrichardson@gmail.com";
+    const templateId = "clean_final_split_2026_07_01";
+    const accountEmail = String(userEmail || auth.currentUser?.email || "").toLowerCase();
+
+    if (accountEmail !== targetEmail) {
+      return currentPlan;
+    }
+
+    const settingsRef = userSettingsDoc();
+    const settingsSnap = await getDoc(settingsRef);
+    const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+
+    if (settings.planTemplateId === templateId || currentPlan?.templateId === templateId) {
+      return currentPlan;
+    }
+
+    const validation = validateWorkoutObject(defaultWorkouts);
+    if (validation.errors.length) {
+      throw new Error(validation.errors.join("\n"));
+    }
+
+    const now = new Date().toISOString();
+    const planId = currentPlan?.id || "current_plan";
+    const dayOrder = Object.keys(defaultWorkouts);
+    const orderedDays = getOrderedWorkoutDays(validation.workouts, dayOrder);
+    const orderedWorkouts = orderWorkoutObject(validation.workouts, orderedDays);
+
+    await setDoc(doc(db, "users", userId, "plans", planId), {
+      name: "Clean Final Split",
+      workouts: orderedWorkouts,
+      dayOrder: orderedDays,
+      templateId,
+      updatedAt: now,
+      createdAt: currentPlan?.createdAt || now
+    });
+
+    await setDoc(settingsRef, {
+      activePlanId: planId,
+      planTemplateId: templateId,
+      planTemplateAppliedAt: now,
+      updatedAt: now
+    }, { merge: true });
+
+    return {
+      ...(currentPlan || {}),
+      id: planId,
+      name: "Clean Final Split",
+      workouts: orderedWorkouts,
+      dayOrder: orderedDays,
+      templateId,
+      updatedAt: now,
+      createdAt: currentPlan?.createdAt || now
     };
   }
 
@@ -2980,7 +3042,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const wasSwapForThisExercise =
           savedExercise.swapped && hasPlannedReference;
 
-        const matchesThisExercise = exerciseMatchesCandidates(savedExercise, plannedCandidates);
+        const matchesThisExercise = exerciseMatchesCandidates(savedExercise, plannedCandidates, {
+          includePlannedNames: true
+        });
 
         if (!wasSwapForThisExercise && !hasPlannedReference && !matchesThisExercise) return;
 
@@ -3014,19 +3078,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
   }
 
-  function exerciseMatchesCandidates(savedExercise, candidates) {
+  function exerciseMatchesCandidates(savedExercise, candidates, options = {}) {
     const savedId = savedExercise.id || exerciseSlug(savedExercise.n || "");
-    const savedNames = [
-      savedExercise.n,
-      savedExercise.plannedName,
-      savedExercise.originalName
-    ].filter(Boolean);
+    const savedNames = [savedExercise.n];
+
+    if (options.includePlannedNames) {
+      savedNames.push(savedExercise.plannedName, savedExercise.originalName);
+    }
+    const namesToMatch = savedNames.filter(Boolean);
 
     if (savedId && candidates.ids.has(savedId)) {
       return true;
     }
 
-    return savedNames.some(name =>
+    return namesToMatch.some(name =>
       candidates.names.has(normalizeExerciseName(name)) ||
       candidates.names.has(canonicalExerciseName(name)) ||
       candidates.ids.has(exerciseSlug(name))
@@ -3056,99 +3121,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       <p>${escapeHtml(recommendation.reason)}</p>
       <p>${escapeHtml(recommendation.action)}</p>
     `;
-  }
-
-  function getExerciseRecommendation(exercise, previousExercise) {
-    const target = parseTargetRange(exercise?.target || "");
-    const sets = getWorkingSets(previousExercise?.s || []);
-
-    if (!previousExercise || !sets.length) {
-      return {
-        label: "No prior data",
-        reason: "There is not enough saved history for this exercise yet.",
-        action: "Use a conservative starting weight and save the workout.",
-        confidence: "New"
-      };
-    }
-
-    if (!target) {
-      return {
-        label: "Repeat and track",
-        reason: `Last time: ${formatSets(previousExercise.s || [])}.`,
-        action: "Use the last working weight and focus on clean reps.",
-        confidence: "Basic"
-      };
-    }
-
-    const reps = sets.map(set => set.reps);
-    const weights = sets.map(set => set.weight);
-    const lowMisses = reps.filter(rep => rep < target.low).length;
-    const topHits = reps.filter(rep => rep >= target.high).length;
-    const allTopHits = topHits === reps.length;
-    const mostlyTopHits = topHits >= Math.ceil(reps.length * 0.75);
-    const mostlyBelowTarget = lowMisses >= Math.ceil(reps.length / 2);
-    const firstWeight = weights[0] || 0;
-    const sameWeightSets = weights.filter(weight => weight === firstWeight).length;
-    const consistentLoad = firstWeight > 0 && sameWeightSets >= Math.ceil(weights.length * 0.75);
-    const bestWeight = Math.max(...weights);
-
-    if (allTopHits && consistentLoad) {
-      return {
-        label: "Increase weight",
-        reason: `Last time all working sets reached ${target.high}+ reps at about ${roundNumber(firstWeight)} lb.`,
-        action: "Try a small weight increase and keep reps inside the target range.",
-        confidence: "Strong"
-      };
-    }
-
-    if (mostlyTopHits) {
-      return {
-        label: "Small increase",
-        reason: `Most working sets reached the top of the ${target.low}-${target.high} target.`,
-        action: "Consider a small increase, or repeat once if form was not solid.",
-        confidence: "Moderate"
-      };
-    }
-
-    if (mostlyBelowTarget) {
-      return {
-        label: "Repeat or reduce",
-        reason: `Most working sets were below the ${target.low}-${target.high} target.`,
-        action: `Repeat ${roundNumber(bestWeight)} lb only if form was good; otherwise reduce slightly.`,
-        confidence: "Moderate"
-      };
-    }
-
-    return {
-      label: "Repeat weight",
-      reason: `Last time landed within the ${target.low}-${target.high} target range but did not clearly top it out.`,
-      action: "Repeat the same weight and aim to add reps before increasing load.",
-      confidence: "Moderate"
-    };
-  }
-
-  function parseTargetRange(targetText) {
-    const numbers = String(targetText || "")
-      .match(/\d+/g)
-      ?.map(Number)
-      .filter(number => Number.isFinite(number)) || [];
-
-    if (!numbers.length) return null;
-
-    const low = Math.min(numbers[0], numbers[1] || numbers[0]);
-    const high = Math.max(numbers[0], numbers[1] || numbers[0]);
-
-    return { low, high };
-  }
-
-  function getWorkingSets(sets) {
-    return (sets || [])
-      .map(set => ({
-        reps: Number(set.reps) || 0,
-        weight: Number(set.weight) || 0,
-        done: Boolean(set.done)
-      }))
-      .filter(set => set.reps > 0 && set.weight > 0);
   }
 
   function applySwapSelection({

@@ -1,9 +1,10 @@
-const CACHE_NAME = "lift-tracker-shell-v2";
+const CACHE_NAME = "lift-tracker-shell-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./recommendations.mjs",
   "./firebase.js",
   "./workouts.js",
   "./manifest.json",
