@@ -469,7 +469,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   document.addEventListener("lift:before-update", event => {
     if (builderDirty || exerciseFormDirty) {
-      event.detail.reason = exerciseFormDirty ? "Save the exercise, then save your plan before updating." : "Save your plan changes before updating.";
+      event.detail.reason = "Save your plan changes before updating.";
       event.preventDefault();
       return;
     }
@@ -481,7 +481,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
   document.addEventListener("input", event => {
-    if (event.target.closest?.("#exerciseEditorCard")) exerciseFormDirty = true;
+    if (event.target.closest?.("#exerciseEditorCard")) {
+      exerciseFormDirty = true;
+      updateBuilderSaveButtons();
+    }
+  });
+  window.addEventListener("beforeunload", event => {
+    if (!builderDirty && !exerciseFormDirty) return;
+    event.preventDefault();
+    event.returnValue = "";
   });
   await loadGymSettings();
   await renderHome();
@@ -964,8 +972,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function updateBottomNav() {
     document.querySelectorAll(".bottomNavBtn").forEach(btn => {
-      btn.classList.toggle("active", btn.dataset.page === currentPage);
-      if (btn.dataset.page === currentPage) btn.setAttribute("aria-current", "page");
+      const active = btn.dataset.page === currentPage || (currentPage === "progressPage" && btn.dataset.page === "homePage");
+      btn.classList.toggle("active", active);
+      if (active) btn.setAttribute("aria-current", currentPage === "progressPage" ? "location" : "page");
       else btn.removeAttribute("aria-current");
     });
   }
@@ -1032,7 +1041,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!accountBtn) return;
 
     accountBtn.classList.remove("hidden");
-    accountBtn.textContent = userEmail || displayName || "Account";
+    accountBtn.innerHTML = escapeHtml(userEmail || displayName || "Account").replace("@", "@<wbr>");
     accountBtn.title = `Account: ${userEmail || displayName || "Lifter"}`;
     accountBtn.setAttribute("aria-label", accountBtn.title);
 
@@ -1078,7 +1087,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const latestLog = logs.length ? logs[logs.length - 1] : null;
     const suggestedDay = getSuggestedNextWorkout(logs);
-    renderResumeWorkout();
+    const resumeDraft = renderResumeWorkout(suggestedDay);
     renderInstallPrompt();
 
     if (activePlanName) {
@@ -1091,18 +1100,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (suggestedDay) {
+      const continuing = resumeDraft?.day === suggestedDay;
       todayCard.innerHTML = `
         <div class="todayWorkoutTitle">
           <div>
-            <p class="eyebrow">Today's Workout</p>
+            <p class="eyebrow">${continuing ? "In progress" : "Today's Workout"}</p>
             <div class="todayWorkoutName">${escapeHtml(suggestedDay)}</div>
-            <p>${escapeHtml(getSuggestionReason(latestLog, suggestedDay))}</p>
+            <p>${escapeHtml(continuing ? (resumeDraft.gym || "Gym not set") : getSuggestionReason(latestLog, suggestedDay))}</p>
           </div>
-          <div class="todayBadge">Next Up</div>
+          <div class="todayBadge">${continuing ? "Continue" : "Next Up"}</div>
         </div>
 
         <div class="homeActions">
-          <button id="startSuggestedWorkout" type="button" class="primaryBtn">Start ${escapeHtml(suggestedDay)}</button>
+          <button id="startSuggestedWorkout" type="button" class="primaryBtn">${continuing ? "Resume" : "Start"} ${escapeHtml(suggestedDay)}</button>
         </div>
       `;
 
@@ -1238,7 +1248,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  function renderResumeWorkout() {
+  function renderResumeWorkout(suggestedDay) {
     const card = document.getElementById("resumeWorkoutCard");
     const drafts = workoutDays.map(day => {
       try {
@@ -1247,12 +1257,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       } catch { return null; }
     }).filter(Boolean).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     const draft = drafts[0];
-    card.classList.toggle("hidden", !draft);
-    if (!draft) { card.innerHTML = ""; return; }
+    const suggestedDraft = drafts.find(entry => entry.day === suggestedDay);
+    card.classList.toggle("hidden", !draft || draft.day === suggestedDay);
+    if (!draft || draft.day === suggestedDay) { card.innerHTML = ""; return draft; }
     card.innerHTML = `<p class="eyebrow">Unfinished workout</p><h3>${escapeHtml(draft.day)}</h3>
       <p>${escapeHtml(draft.gym || "Gym not set")}</p>
       <div class="homeActions"><button id="resumeWorkoutBtn" class="secondaryBtn" type="button">Resume ${escapeHtml(draft.day)}</button></div>`;
     document.getElementById("resumeWorkoutBtn").addEventListener("click", () => startWorkout(draft.day));
+    return suggestedDraft;
   }
 
   function setupMobileViewport() {
@@ -1411,15 +1423,16 @@ document.addEventListener("DOMContentLoaded", async () => {
           <section class="dashboardCard">
             <p class="eyebrow">Selected Day</p>
             <h3>${escapeHtml(selectedBuilderDay)}</h3>
-
+            <details class="daySettings"><summary>Day settings</summary>
             <div class="builderRow">
-              <input id="renameDayInput" class="builderInput" value="${escapeAttribute(selectedBuilderDay)}" />
+              <input id="renameDayInput" class="builderInput" aria-label="Selected day name" value="${escapeAttribute(selectedBuilderDay)}" />
               <button id="renameDayBtn" type="button" class="secondaryBtn">Rename Day</button>
             </div>
 
             <div class="homeActions">
               <button id="deleteDayBtn" type="button" class="dangerBtn">Delete ${escapeHtml(selectedBuilderDay)}</button>
             </div>
+            </details>
           </section>
 
           <section class="dashboardCard">
@@ -1535,6 +1548,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         `}
 
         <section class="dashboardCard builderSaveSimple">
+          <p id="builderDockStatus" class="builderDockStatus" aria-live="polite"></p>
           <button id="savePlanBottomBtn" type="button" class="primaryBtn">Save Changes</button>
         </section>
       </div>
@@ -1553,6 +1567,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.querySelectorAll(".builderDayChip").forEach(btn => {
       btn.addEventListener("click", () => {
+        if (selectedBuilderDay === btn.dataset.day || !keepPendingExerciseEdit()) return;
         selectedBuilderDay = btn.dataset.day || "";
         editingExerciseIndex = null;
         renderPlanPage();
@@ -1579,6 +1594,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
 
+      if (!keepPendingExerciseEdit()) return;
       builderWorkouts[name] = [];
       selectedBuilderDay = name;
       editingExerciseIndex = null;
@@ -1600,6 +1616,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
 
+      if (!keepPendingExerciseEdit()) return;
       const renamed = {};
       Object.entries(builderWorkouts).forEach(([day, exercises]) => {
         renamed[day === selectedBuilderDay ? nextName : day] = exercises;
@@ -1661,7 +1678,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function updateBuilderSaveButtons() {
     const text = "Save Changes";
-    const disabled = !builderDirty;
+    const disabled = !builderDirty && !exerciseFormDirty;
+    const status = document.getElementById("builderDockStatus");
+    if (status) status.textContent = exerciseFormDirty ? "Exercise changes not saved" : builderDirty ? "Unsaved changes" : "All changes saved";
 
     ["savePlanTopBtn", "savePlanBottomBtn"].forEach(id => {
       const btn = document.getElementById(id);
@@ -1672,6 +1691,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function moveBuilderDay(day, action) {
+    if (!keepPendingExerciseEdit()) return;
     const days = Object.keys(builderWorkouts || {});
     const index = days.indexOf(day);
 
@@ -1695,6 +1715,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function handleBuilderExerciseAction(action, index) {
+    if (!keepPendingExerciseEdit()) return;
     const list = builderWorkouts[selectedBuilderDay] || [];
 
     if (!Number.isInteger(index) || !list[index]) return;
@@ -1739,7 +1760,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function saveBuilderExercise() {
+  function keepPendingExerciseEdit() {
+    return !exerciseFormDirty || saveBuilderExercise({ render: false });
+  }
+
+  function saveBuilderExercise({ render = true } = {}) {
     if (!selectedBuilderDay) return;
 
     const name = document.getElementById("exerciseNameInput")?.value.trim() || "";
@@ -1753,16 +1778,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!name) {
       showBuilderMessage("Exercise name is required.", "error");
+      document.getElementById("exerciseNameInput")?.focus();
       return;
     }
 
     if (!sets || sets < 1) {
       showBuilderMessage("Sets must be at least 1.", "error");
+      document.getElementById("exerciseSetsInput")?.focus();
       return;
     }
 
     if (!target) {
       showBuilderMessage("Target reps are required.", "error");
+      document.getElementById("exerciseTargetInput")?.focus();
       return;
     }
 
@@ -1789,12 +1817,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     builderWorkouts[selectedBuilderDay] = list;
-    editingExerciseIndex = null;
+    editingExerciseIndex = render ? null : list.indexOf(exercise);
+    exerciseFormDirty = false;
     markBuilderDirty();
-    renderPlanPage();
+    if (render) renderPlanPage();
+    return true;
   }
 
   async function saveBuilderPlan() {
+    if (!keepPendingExerciseEdit()) return;
     const topBtn = document.getElementById("savePlanTopBtn");
     const bottomBtn = document.getElementById("savePlanBottomBtn");
     const planName = (document.getElementById("builderPlanName")?.value || builderPlanName || "Current Plan").trim();
@@ -1833,7 +1864,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }, 0);
     } catch (error) {
       console.error(error);
-      showBuilderMessage(`Plan did not save:\n${error.message || error}`, "error");
+      showBuilderMessage("Couldn't save your plan. Check your connection and try again.", "error");
     } finally {
       updateBuilderSaveButtons();
     }
@@ -2155,7 +2186,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
 
         <div class="exerciseUtilityRow">
-          <p class="lastHint exerciseLastHint" data-role="last-summary">${lastSummary}</p>
+          <p class="lastHint exerciseLastHint" data-role="last-summary" title="${escapeAttribute(formatEntrySource(historyContext.globalReferenceEntry))}">${lastSummary}</p>
           <button type="button" class="recommendationBtn" aria-expanded="false">Tip</button>
         </div>
 
@@ -2378,7 +2409,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         setNumber.textContent = String(i + 1);
         setNumber.dataset.setNumber = String(i + 1);
         setNumber.dataset.done = "false";
-        setNumber.setAttribute("aria-label", `${exercise.name}, set ${i + 1} completed`);
+        setNumber.setAttribute("aria-label", `${sessionExerciseName}, set ${i + 1} completed`);
         setNumber.setAttribute("aria-pressed", "false");
 
         setNumber.addEventListener("click", () => {
@@ -2396,7 +2427,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         repsInput.placeholder = "Reps";
         repsInput.dataset.field = "reps";
         repsInput.dataset.setIndex = String(i);
-        repsInput.setAttribute("aria-label", `${exercise.name}, set ${i + 1} reps`);
+        repsInput.setAttribute("aria-label", `${sessionExerciseName}, set ${i + 1} reps`);
 
         const weightInput = document.createElement("input");
         weightInput.type = "number";
@@ -2406,7 +2437,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         weightInput.placeholder = "Weight";
         weightInput.dataset.field = "weight";
         weightInput.dataset.setIndex = String(i);
-        weightInput.setAttribute("aria-label", `${exercise.name}, set ${i + 1} weight in pounds`);
+        weightInput.setAttribute("aria-label", `${sessionExerciseName}, set ${i + 1} weight in pounds`);
 
         const draftSet = draftSets?.[i];
         const previousSet = previousSets?.[i];
@@ -2773,7 +2804,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="historyCardMain">
             <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
             <div class="historyCardMeta">
-              ${escapeHtml(formatCompactTime(log.t))} / ${escapeHtml(gymText)}${exerciseCount} exercises / ${workingSets} sets
+              ${escapeHtml(formatCompactTime(log.t))} / ${escapeHtml(gymText)}${exerciseCount} ${exerciseCount === 1 ? "exercise" : "exercises"} / ${workingSets} ${workingSets === 1 ? "set" : "sets"}
             </div>
           </div>
           <div class="historyCardSide">
@@ -3328,20 +3359,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function formatHistorySource(historyContext) {
     const entry = historyContext.selectedEntry;
-    if (!entry) return selectedGym ? "No previous sets at this gym and setup" : "No previous sets for this setup";
+    const reference = historyContext.globalReferenceEntry;
+    const lastSource = reference && reference !== entry ? `Last performed: ${formatEntrySource(reference)}\n` : "";
+    if (!entry) return `${lastSource}${selectedGym ? "No previous sets at this gym and setup" : "No previous sets for this setup"}`;
     const otherGym = selectedGym && normalizeGymKey(entry.gym) !== normalizeGymKey(selectedGym);
-    return `${otherGym ? "Reference from another gym" : "Based on"}: ${formatEntrySource(entry)}`;
+    return `${lastSource}${otherGym ? "Reference from another gym" : "Based on"}: ${formatEntrySource(entry)}`;
   }
 
   function formatGlobalLast(historyContext) {
     const entry = historyContext.globalReferenceEntry;
     const sets = entry?.exercise?.s || [];
-    return sets.length ? `Last: ${formatSets(sets)} / ${formatEntrySource(entry)}` : "Last: No previous sets";
+    return sets.length ? `Last: ${formatSets(sets)}` : "Last: No previous sets";
   }
 
   function updatePreviousExerciseDisplay(card, historyContext) {
     const summary = card.querySelector("[data-role='last-summary']");
     if (summary) summary.textContent = formatGlobalLast(historyContext);
+    if (summary) summary.title = formatEntrySource(historyContext.globalReferenceEntry);
     const source = card.querySelector("[data-role='prefill-source']");
     if (source) source.textContent = formatHistorySource(historyContext);
     const note = card.querySelector("[data-role='previous-note']");
@@ -3412,6 +3446,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     const plannedIndex = Number(card.dataset.plannedIndex);
     const isSwapped = exerciseSlug(actualName) !== exerciseSlug(exercise.name);
     const identityChanged = exerciseSlug(actualName) !== exerciseSlug(card.dataset.exerciseName);
+    if (identityChanged && card.querySelector('.setNumber[data-done="true"]')) {
+      if (!confirm("Change this exercise? Its completed sets will be reset for the replacement.")) {
+        const input = card.querySelector(".swapInput");
+        if (input) input.value = card.dataset.exerciseName;
+        return;
+      }
+      card.querySelectorAll(".setNumber").forEach(button => {
+        stopRestTimer(button);
+        button.dataset.done = "false";
+        button.setAttribute("aria-pressed", "false");
+        button.textContent = button.dataset.setNumber;
+        button.closest(".setRow")?.classList.remove("setDone");
+      });
+      updateWorkoutCompletion();
+    }
     const lookupOptions = {
       actualName: actualName !== exercise.name ? actualName : "",
       plannedIndex
@@ -3435,7 +3484,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       card,
       getRecommendationWithContext(getExerciseRecommendation(exercise, previousExercise), historyContext)
     );
-    applyPreviousSetsToInputs(card, previousExercise, { overwrite: overwriteSets, clearWhenMissing, preserveEdited });
+    applyPreviousSetsToInputs(card, previousExercise, {
+      overwrite: overwriteSets,
+      clearWhenMissing,
+      preserveEdited: preserveEdited || !identityChanged
+    });
   }
 
   function updateRecommendationDisplay(card, recommendation) {
@@ -3457,6 +3510,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (title) {
       title.textContent = actualName;
     }
+    card.querySelectorAll(".setRow").forEach((row, index) => {
+      row.querySelector(".setNumber")?.setAttribute("aria-label", `${actualName}, set ${index + 1} completed`);
+      row.querySelector('input[data-field="reps"]')?.setAttribute("aria-label", `${actualName}, set ${index + 1} reps`);
+      row.querySelector('input[data-field="weight"]')?.setAttribute("aria-label", `${actualName}, set ${index + 1} weight in pounds`);
+    });
 
     if (swapButton) {
       swapButton.classList.toggle("active", isSwapped);

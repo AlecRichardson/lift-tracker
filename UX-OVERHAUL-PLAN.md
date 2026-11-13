@@ -99,9 +99,9 @@ Implemented: Home includes a Resume entry for the latest unfinished workout; das
 
 Implemented: install prompts are limited to relevant devices, respect dismissal, and hide in standalone mode. Supported browsers can use their installation prompt. Update prompts offer Later, checkpoint the workout before activation, and block updating while plan/exercise form changes are unsaved. Activating an update in another tab does not force this tab to reload. Versioned cache-first shell assets remain coherent until the next worker is activated; only the app's obsolete caches are deleted. Auth callbacks, unrelated navigation, external services, and failed responses are excluded from shell caching.
 
-Current checks: all 39 tests pass, including seven service-worker regression tests. JavaScript syntax and diff whitespace checks pass. Browser screenshot/device verification is unavailable because local browser use is disabled in Work settings; do not describe the UI as visually verified. Local preview startup was previously rejected by policy. Live sign-in, saved account records, physical iPhone keyboard behavior, and a real deployed update still require user verification. No live workout records were modified.
+Original implementation checks: 39 automated tests passed while browser access was unavailable. Follow-up browser access is now working: see `UX-AUDIT.md` for the mobile/desktop walkthrough, findings, fixes, screenshots, and remaining physical-device limitations. No live workout records were modified.
 
-Release rule: bump the service-worker shell version whenever bundled HTML/CSS/JS changes. Current version: v6. The PWA identity and icon assets were retained.
+Release rule: bump the service-worker shell version whenever bundled HTML/CSS/JS changes. Current version: v7. The PWA identity and icon assets were retained.
 
 - Review install-prompt dismissal and standalone detection.
 - Review service-worker update behavior; ensure updates do not discard an unfinished workout.
@@ -119,4 +119,4 @@ Release rule: bump the service-worker shell version whenever bundled HTML/CSS/JS
 
 The implementation pass is complete; verification on the user's iPhone remains. Check full-email header wrapping, keyboard/dock positioning, gym-switch preservation, resume/timers, history actions, progress gym filtering, Plan Builder save/reorder after refresh, and deployed update acceptance/defer. Cross-gym free-weight fallback and whole-session gym correction were confirmed on 2026-11-13.
 
-Open product question: does a single gym contain multiple machines used for the same exercise with different weight scales? If so, tracking the station/equipment identity separately may be the next useful refinement.
+Per-machine identities were discussed after implementation and deferred as excessive. Keep gym/pulley separation without adding another station selector unless explicitly requested.

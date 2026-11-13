@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "lift-tracker-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v6`;
+const CACHE_NAME = `${CACHE_PREFIX}v7`;
 const APP_SHELL = [
   "./",
   "./index.html",
