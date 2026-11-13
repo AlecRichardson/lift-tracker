@@ -8,7 +8,8 @@ export function getBestPreviousExerciseContext({
   actualName = "",
   pulleyVariant = "",
   selectedGym = "",
-  equipment = ""
+  equipment = "",
+  allowFreeWeightFallback = true
 } = {}) {
   const queryName = String(actualName || "").trim() || exerciseName;
   const candidates = getExerciseMatchCandidates({
@@ -17,84 +18,77 @@ export function getBestPreviousExerciseContext({
     lastAlias: actualName ? [] : aliases,
     equipment: actualName ? "" : equipment
   });
-  const preferredGym = normalizeName(selectedGym);
+  const preferredGym = normalizeGymKey(selectedGym);
   const preferredDay = String(workoutDay || "").trim();
   const preferredPulley = String(pulleyVariant || "").trim();
-  const preferredIndex = Number.isFinite(Number(plannedIndex)) ? Number(plannedIndex) : null;
+  const preferredIndex = plannedIndex !== null && plannedIndex !== "" && Number.isFinite(Number(plannedIndex)) ? Number(plannedIndex) : null;
   const entries = flattenExerciseHistory(logs)
     .filter(entry => exerciseMatchesCandidates(entry.exercise, candidates));
   const globalReferenceEntry = entries[0] || null;
 
-  if (!entries.length) {
-    return {
+  // Setup and location compatibility must be resolved before day/position ranking.
+  const compatibleEntries = preferredPulley
+    ? entries.filter(entry => entry.exercise?.pulley === preferredPulley)
+    : entries;
+  const sameGymEntries = preferredGym
+    ? compatibleEntries.filter(entry => normalizeGymKey(entry.gym) === preferredGym)
+    : compatibleEntries;
+  const freeWeight = [...candidates.equipment].some(value => value === "dumbbell" || value === "barbell") &&
+    ![...candidates.equipment].some(value => value === "machine" || value === "cable") && !preferredPulley;
+  const crossGymFallback = Boolean(preferredGym && !sameGymEntries.length && freeWeight && allowFreeWeightFallback);
+  const eligibleEntries = sameGymEntries.length ? sameGymEntries : crossGymFallback ? compatibleEntries : [];
+
+  if (!eligibleEntries.length) {
+    return buildContextResult({
       selectedEntry: null,
-      selectedExercise: null,
       matchType: "none",
       confidence: "none",
-      globalReferenceEntry: null,
-      globalReferenceExercise: null,
-      reason: "No previous history for this exercise."
-    };
+      globalReferenceEntry,
+      reason: entries.length
+        ? "No previous sets for this gym and setup. Other sessions are available as reference only."
+        : "No previous history for this exercise."
+    });
   }
 
+  const select = (selectedEntry, matchType, confidence, reason) => buildContextResult({
+    selectedEntry,
+    globalReferenceEntry,
+    matchType: crossGymFallback ? "global_fallback" : matchType,
+    confidence: crossGymFallback ? "low" : confidence,
+    reason: crossGymFallback
+      ? `No history at ${normalizeName(selectedGym)}. Free-weight reference from ${selectedEntry.gym || "an unspecified gym"}; check the load before lifting.`
+      : reason
+  });
+
   const sameDayEntries = preferredDay
-    ? entries.filter(entry => entry.workoutDay === preferredDay)
+    ? eligibleEntries.filter(entry => entry.workoutDay === preferredDay)
     : [];
 
   if (sameDayEntries.length && preferredIndex !== null) {
     const samePosition = sameDayEntries.filter(entry => entry.plannedIndex === preferredIndex);
-    const selectedEntry = pickPreferredEntry(samePosition, preferredGym);
+    const selectedEntry = samePosition[0];
 
     if (selectedEntry) {
-      return buildContextResult({
-        selectedEntry,
-        globalReferenceEntry,
-        matchType: "same_workout_day_same_position",
-        confidence: "high",
-        reason: `Based on your last ${preferredDay} session at this position.`
-      });
+      return select(selectedEntry, "same_workout_day_same_position", "high", `Based on your last ${preferredDay} session at this position.`);
     }
   }
 
-  const sameDayEntry = pickPreferredEntry(sameDayEntries, preferredGym);
+  const sameDayEntry = sameDayEntries[0];
   if (sameDayEntry) {
-    return buildContextResult({
-      selectedEntry: sameDayEntry,
-      globalReferenceEntry,
-      matchType: "same_workout_day",
-      confidence: "high",
-      reason: `Based on your last ${preferredDay} session.`
-    });
+    return select(sameDayEntry, "same_workout_day", "high", `Based on your last ${preferredDay} session.`);
   }
 
   if (preferredPulley) {
-    const sameVariantEntry = pickPreferredEntry(
-      entries.filter(entry => String(entry.exercise?.pulley || "") === preferredPulley),
-      preferredGym
-    );
+    const sameVariantEntry = eligibleEntries[0];
 
     if (sameVariantEntry) {
-      return buildContextResult({
-        selectedEntry: sameVariantEntry,
-        globalReferenceEntry,
-        matchType: "same_variant",
-        confidence: "medium",
-        reason: `No ${preferredDay || "same-day"} history found, so this uses the same setup.`
-      });
+      return select(sameVariantEntry, "same_variant", "medium", `No ${preferredDay || "same-day"} history found, so this uses the same setup.`);
     }
   }
 
-  const fallbackEntry = pickPreferredEntry(entries, preferredGym) || globalReferenceEntry;
-
-  return buildContextResult({
-    selectedEntry: fallbackEntry,
-    globalReferenceEntry,
-    matchType: "global_fallback",
-    confidence: "low",
-    reason: preferredDay
+  return select(eligibleEntries[0], "global_fallback", "low", preferredDay
       ? `No ${preferredDay} history found, so this uses your latest matching entry.`
-      : "Using your latest matching entry."
-  });
+      : "Using your latest matching entry.");
 }
 
 export function getExerciseMatchCandidates(exerciseTemplate) {
@@ -195,21 +189,10 @@ function flattenExerciseHistory(logs) {
       workoutDay: String(log.d || "").trim(),
       workoutAt: log.t || "",
       gym: normalizeName(log.gym || ""),
-      plannedIndex: Number.isFinite(Number(exercise.plannedIndex))
+      plannedIndex: exercise.plannedIndex != null && exercise.plannedIndex !== "" && Number.isFinite(Number(exercise.plannedIndex))
         ? Number(exercise.plannedIndex)
         : index
     })));
-}
-
-function pickPreferredEntry(entries, preferredGym = "") {
-  if (!entries.length) return null;
-
-  if (preferredGym) {
-    const sameGymEntry = entries.find(entry => entry.gym === preferredGym);
-    if (sameGymEntry) return sameGymEntry;
-  }
-
-  return entries[0] || null;
 }
 
 function buildContextResult({ selectedEntry, globalReferenceEntry, matchType, confidence, reason }) {
@@ -226,4 +209,8 @@ function buildContextResult({ selectedEntry, globalReferenceEntry, matchType, co
 
 function normalizeName(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+export function normalizeGymKey(value) {
+  return normalizeName(value).toLowerCase();
 }

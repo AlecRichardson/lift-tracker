@@ -1,3 +1,5 @@
+import { normalizeGymKey } from "./history-context.mjs";
+
 const FORM_WARNING_WORDS = [
   "hard",
   "sloppy",
@@ -5,6 +7,20 @@ const FORM_WARNING_WORDS = [
   "bad form",
   "not clean"
 ];
+
+export function applyRecommendationContext(recommendation, historyContext, selectedGym = "") {
+  const selected = historyContext?.selectedEntry;
+  const crossGym = selected && selectedGym && normalizeGymKey(selected.gym) !== normalizeGymKey(selectedGym);
+  if (crossGym) {
+    return {
+      label: "Check working weight", confidence: "Reference",
+      context: historyContext.reason,
+      reason: "These sets were performed at another gym.",
+      action: "Use them as a starting reference. Check the equipment and load before deciding whether to progress."
+    };
+  }
+  return { ...recommendation, context: historyContext?.reason || "" };
+}
 
 export function getExerciseRecommendation(exercise, previousExercise) {
   const target = parseTargetRange(exercise?.target || "");

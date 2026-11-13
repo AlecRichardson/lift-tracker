@@ -10,7 +10,7 @@
 
   <title>Lift Tracker</title>
 
-  <meta name="theme-color" content="#1e1f22" />
+  <meta name="theme-color" content="#101112" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -30,14 +30,14 @@
       <h2 id="pageTitle">Lift Tracker</h2>
       <p id="pageSubtitle"></p>
     </div>
-    <button id="accountBtn" type="button" class="accountBtn hidden">Account</button>
+    <button id="accountBtn" type="button" class="accountBtn hidden" aria-haspopup="dialog">Account</button>
   </header>
 
   <main class="appShell">
+    <div id="appMessage" class="appMessage hidden" role="status" aria-live="polite"></div>
     <section id="homePage" class="page">
-      <div id="appMessage" class="appMessage hidden"></div>
-
       <div class="homeHero">
+        <img src="icon-192.png" width="40" height="40" alt="" />
         <div>
           <p class="eyebrow">Active Plan</p>
           <h3 id="activePlanName">Loading...</h3>
@@ -45,9 +45,10 @@
         </div>
       </div>
 
+      <section id="resumeWorkoutCard" class="dashboardCard hidden"></section>
       <section id="todayWorkoutCard" class="dashboardCard"></section>
 
-      <section class="dashboardCard">
+      <section id="homeWorkoutsSection" class="dashboardCard">
         <div class="cardHeaderRow">
           <div>
             <p class="eyebrow">All Workouts</p>
@@ -70,27 +71,28 @@
           <span>Gym</span>
           <select id="gymSelect"></select>
         </label>
-        <button id="addGymBtn" type="button" class="gymAddBtn">Add</button>
+        <button id="addGymBtn" type="button" class="gymAddBtn" aria-label="Add gym" title="Add gym">+</button>
       </div>
 
       <div id="exerciseContainer"></div>
 
       <div class="saveDock">
-        <button id="saveWorkout" type="button" class="primaryBtn">Save Workout</button>
-        <div id="saveAnimation" class="saveAnimation hidden">💾 Saved!</div>
+        <div>
+          <p id="workoutCompletion" class="workoutCompletion" aria-live="polite"></p>
+          <button id="saveWorkout" type="button" class="primaryBtn">Save Workout</button>
+        </div>
+        <div id="saveAnimation" class="saveAnimation hidden" role="status">Saved</div>
       </div>
     </section>
 
     <section id="progressPage" class="page hidden">
-      <div class="pageHeader">
-        <h3>Progress</h3>
-        <p>Track strength with better metrics than average weight alone.</p>
-      </div>
-
-      <label class="fieldLabel" for="exerciseSelect">Exercise</label>
+      <div class="progressFields">
+      <div class="progressField"><label class="fieldLabel" for="exerciseSelect">Exercise</label>
       <select id="exerciseSelect"></select>
-
-      <label class="fieldLabel" for="metricSelect">Metric</label>
+      </div>
+      <div class="progressField"><label class="fieldLabel" for="progressGymSelect">Gym</label>
+      <select id="progressGymSelect"><option value="">All gyms</option></select></div>
+      <div class="progressField"><label class="fieldLabel" for="metricSelect">Metric</label>
       <select id="metricSelect">
         <option value="est1rm">Estimated 1RM</option>
         <option value="volume">Total Volume</option>
@@ -98,30 +100,35 @@
         <option value="bestSetVolume">Best Set Volume</option>
         <option value="avgWeight">Average Weight</option>
       </select>
-
+      </div></div>
+      <div id="progressOverview" class="progressOverview"></div>
       <div class="chartCard">
-        <canvas id="chart"></canvas>
+        <canvas id="chart" role="img" aria-label="Exercise progress chart"></canvas>
+        <p id="chartEmpty" class="chartEmpty hidden" role="status"></p>
       </div>
     </section>
 
     <section id="historyPage" class="page hidden">
-      <div class="pageHeader">
-        <h3>Workout History</h3>
-        <p>Tap a workout to expand. Delete and copy are inside each workout.</p>
-      </div>
-
       <div id="historyList"></div>
     </section>
 
     <section id="planPage" class="page hidden">
-      <div class="pageHeader">
-        <h3>Plan Builder</h3>
-        <p>Create workout days, add exercises, set reps, rest times, and supersets.</p>
-      </div>
-
       <div id="planOverview"></div>
     </section>
   </main>
+
+  <dialog id="accountDialog" class="accountDialog" aria-labelledby="accountDialogTitle">
+    <div class="accountDialogHeader">
+      <div><h3 id="accountDialogTitle">Account</h3><p id="accountName"></p></div>
+      <button id="closeAccountDialog" type="button" aria-label="Close account" title="Close">&times;</button>
+    </div>
+    <p id="accountEmail" class="accountEmail"></p>
+    <div class="accountActions">
+      <button id="accountExportBtn" type="button" class="secondaryBtn">Export Last 30 Workouts</button>
+      <details id="accountInstallHelp"><summary>Add to Home Screen</summary><p class="accountEmail">On iPhone, open this site in Safari, tap Share, then Add to Home Screen.</p></details>
+      <button id="signOutBtn" type="button" class="dangerBtn">Sign Out</button>
+    </div>
+  </dialog>
 
   <nav class="bottomNav" aria-label="Main navigation">
     <button id="bottomHome" type="button" class="bottomNavBtn active" data-page="homePage">

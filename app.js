@@ -4,9 +4,11 @@ import {
   exerciseSlug,
   getBestPreviousExerciseContext,
   getExerciseMatchCandidates,
+  normalizeGymKey,
   normalizeExerciseName
 } from "./history-context.mjs";
-import { getExerciseRecommendation } from "./recommendations.mjs";
+import { applyRecommendationContext, getExerciseRecommendation } from "./recommendations.mjs";
+import { claimLegacyWorkoutDraft, getSetPrefill, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
@@ -38,6 +40,13 @@ let userEmail = localStorage.getItem("userEmail");
 let usernameKey = localStorage.getItem("usernameKey");
 const googleProvider = new GoogleAuthProvider();
 let authPersistenceReady = null;
+let deferredInstallPrompt = null;
+
+window.addEventListener("beforeinstallprompt", event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  document.dispatchEvent(new Event("lift:install-available"));
+});
 
 function isGithubPagesHost() {
   return window.location.hostname.endsWith("github.io");
@@ -188,8 +197,11 @@ function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js")
+    navigator.serviceWorker.register("./service-worker.js", { updateViaCache: "none" })
       .then(registration => {
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") registration.update().catch(() => {});
+        });
         if (registration.waiting && navigator.serviceWorker.controller) {
           showAppUpdatePrompt(registration);
         }
@@ -212,6 +224,7 @@ function registerServiceWorker() {
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (window.__liftTrackerRefreshing) return;
+    if (!window.__liftTrackerUpdateRequested) return;
     window.__liftTrackerRefreshing = true;
     window.location.reload();
   });
@@ -224,18 +237,30 @@ function showAppUpdatePrompt(registration) {
   const prompt = document.createElement("div");
   prompt.id = "appUpdatePrompt";
   prompt.className = "appUpdatePrompt";
+  prompt.setAttribute("role", "status");
   prompt.innerHTML = `
     <div>
       <strong>Update ready</strong>
-      <span>Refresh to use the latest version.</span>
+      <span>Your unfinished workout will be kept.</span>
     </div>
-    <button id="applyAppUpdate" type="button">Refresh</button>
+    <div class="updateActions">
+      <button id="applyAppUpdate" type="button">Update</button>
+      <button id="deferAppUpdate" type="button">Later</button>
+    </div>
   `;
 
   document.body.appendChild(prompt);
   document.getElementById("applyAppUpdate")?.addEventListener("click", () => {
-    registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+    const checkpoint = new CustomEvent("lift:before-update", { cancelable: true, detail: { reason: "" } });
+    if (!document.dispatchEvent(checkpoint)) {
+      prompt.querySelector("span").textContent = checkpoint.detail.reason || "Finish saving before updating.";
+      return;
+    }
+    window.__liftTrackerUpdateRequested = true;
+    if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    else window.location.reload();
   });
+  document.getElementById("deferAppUpdate")?.addEventListener("click", () => prompt.remove());
 }
 
 async function migrateUserData(sourceUserId, targetUserId) {
@@ -341,10 +366,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   let workoutDays = [];
   let gymOptions = [];
   let selectedGym = "";
+  let workoutHistoryLogs = [];
 
   let currentDay = "";
   let currentPage = "homePage";
   let chart = null;
+  let progressRenderVersion = 0;
   let historyFilter = "All";
   const activeRestTimers = new Map();
   const EXPORT_WORKOUT_LIMIT = 30;
@@ -355,6 +382,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let editingExerciseIndex = null;
   let builderDirty = false;
   let builderSavedNotice = false;
+  let exerciseFormDirty = false;
 
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
@@ -428,6 +456,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupAccountButton();
   setupGymControls();
   setupTimerResumeHandlers();
+  setupMobileViewport();
+  document.addEventListener("lift:install-available", renderInstallPrompt);
+  window.matchMedia?.("(display-mode: standalone)")?.addEventListener("change", () => {
+    renderInstallPrompt();
+    document.getElementById("accountInstallHelp").hidden = isRunningInstalled();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    document.getElementById("installPrompt")?.remove();
+    document.getElementById("accountInstallHelp")?.setAttribute("hidden", "");
+  });
+  document.addEventListener("lift:before-update", event => {
+    if (builderDirty || exerciseFormDirty) {
+      event.detail.reason = exerciseFormDirty ? "Save the exercise, then save your plan before updating." : "Save your plan changes before updating.";
+      event.preventDefault();
+      return;
+    }
+    try {
+      if (currentDay && document.querySelector(".exerciseCard")) saveDraft(currentDay);
+    } catch {
+      event.detail.reason = "Your unfinished workout couldn't be kept. Save it before updating.";
+      event.preventDefault();
+    }
+  });
+  document.addEventListener("input", event => {
+    if (event.target.closest?.("#exerciseEditorCard")) exerciseFormDirty = true;
+  });
   await loadGymSettings();
   await renderHome();
   showPage("homePage");
@@ -595,7 +650,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const settingsSnap = await getDoc(userSettingsDoc());
       const data = settingsSnap.exists() ? settingsSnap.data() : {};
       const savedGyms = Array.isArray(data.gyms) ? data.gyms : [];
-      const storedGym = localStorage.getItem("selectedGym") || "";
+      const storedGym = localStorage.getItem(`selectedGym:${userId}`) || "";
 
       selectedGym = normalizeGymName(data.lastGym || storedGym || "");
       gymOptions = normalizeGymOptions([
@@ -604,7 +659,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ]);
     } catch (error) {
       console.error(error);
-      selectedGym = normalizeGymName(localStorage.getItem("selectedGym") || "");
+      selectedGym = normalizeGymName(localStorage.getItem(`selectedGym:${userId}`) || "");
       gymOptions = normalizeGymOptions([selectedGym]);
     }
 
@@ -613,25 +668,33 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function setupGymControls() {
     document.getElementById("gymSelect")?.addEventListener("change", async event => {
-      selectedGym = normalizeGymName(event.target.value);
-
-      if (selectedGym) {
-        gymOptions = normalizeGymOptions([...gymOptions, selectedGym]);
-      }
-
-      renderGymSelector();
-      await saveGymSettings();
+      await changeWorkoutGym(event.target.value);
     });
 
     document.getElementById("addGymBtn")?.addEventListener("click", async () => {
       const nextGym = normalizeGymName(prompt("Gym name", selectedGym || ""));
       if (!nextGym) return;
 
-      selectedGym = nextGym;
-      gymOptions = normalizeGymOptions([...gymOptions, nextGym]);
-      renderGymSelector();
-      await saveGymSettings();
+      await changeWorkoutGym(nextGym);
     });
+  }
+
+  async function changeWorkoutGym(nextGym) {
+    selectedGym = normalizeGymName(nextGym);
+    gymOptions = normalizeGymOptions([...gymOptions, selectedGym]);
+    renderGymSelector();
+    // Refresh in place: rebuilding cards would discard active rest timers and focus.
+    document.querySelectorAll("#exerciseContainer .exerciseCard").forEach(card => {
+      const exercise = workouts[currentDay]?.[Number(card.dataset.plannedIndex)];
+      if (!exercise) return;
+      applySwapSelection({
+        card, exercise, logs: workoutHistoryLogs,
+        nextName: card.dataset.exerciseName,
+        overwriteSets: true, clearWhenMissing: true, preserveEdited: true
+      });
+    });
+    if (currentDay && document.querySelector("#exerciseContainer .exerciseCard")) saveDraft(currentDay);
+    await saveGymSettings();
   }
 
   function renderGymSelector() {
@@ -639,6 +702,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!gymSelect) return;
 
     const options = normalizeGymOptions(gymOptions);
+    selectedGym = options.find(gym => normalizeGymKey(gym) === normalizeGymKey(selectedGym)) || selectedGym;
     gymSelect.innerHTML = `<option value="">Not set</option>`;
 
     options.forEach(gym => {
@@ -654,7 +718,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function saveGymSettings() {
     const gyms = normalizeGymOptions([...gymOptions, selectedGym]);
 
-    localStorage.setItem("selectedGym", selectedGym || "");
+    localStorage.setItem(`selectedGym:${userId}`, selectedGym || "");
 
     try {
       await setDoc(userSettingsDoc(), {
@@ -730,7 +794,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!currentDay) {
         await openSuggestedWorkoutFromNav();
       } else {
-        await renderWorkout();
+        if (!hasRenderedWorkout(currentDay)) await renderWorkout();
         showPage("workoutPage");
       }
       return;
@@ -744,7 +808,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (pageId === "planPage") {
       initBuilderFromActivePlan();
-      renderPlanPage();
+      if (!exerciseFormDirty) renderPlanPage();
       showPage("planPage");
     }
   }
@@ -830,10 +894,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function startWorkout(day) {
+    const keepCurrentWorkout = currentDay === day && hasRenderedWorkout(day);
     currentDay = day;
-    clearDraft();
-    await renderWorkout();
+    if (!keepCurrentWorkout) await renderWorkout();
     showPage("workoutPage");
+  }
+
+  function hasRenderedWorkout(day) {
+    const container = document.getElementById("exerciseContainer");
+    return container?.dataset.renderedDay === day &&
+      container.dataset.renderedTemplate === JSON.stringify(workouts[day] || []);
   }
 
   async function openSuggestedWorkoutFromNav() {
@@ -895,10 +965,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   function updateBottomNav() {
     document.querySelectorAll(".bottomNavBtn").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.page === currentPage);
+      if (btn.dataset.page === currentPage) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
     });
   }
 
   function renderSignInPage() {
+    document.body.classList.add("signedOut");
     currentPage = "homePage";
     document.querySelectorAll(".page").forEach(page => page.classList.add("hidden"));
     document.getElementById("homePage")?.classList.remove("hidden");
@@ -959,11 +1032,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!accountBtn) return;
 
     accountBtn.classList.remove("hidden");
-    accountBtn.textContent = displayName || "Account";
-    accountBtn.title = displayName ? `Signed in as ${displayName}` : "Account";
+    accountBtn.textContent = userEmail || displayName || "Account";
+    accountBtn.title = `Account: ${userEmail || displayName || "Lifter"}`;
     accountBtn.setAttribute("aria-label", accountBtn.title);
 
-    accountBtn.addEventListener("click", async () => {
+    const dialog = document.getElementById("accountDialog");
+    document.getElementById("accountName").textContent = displayName || "";
+    document.getElementById("accountEmail").textContent = userEmail || "";
+    document.getElementById("accountInstallHelp").hidden = isRunningInstalled();
+    accountBtn.addEventListener("click", () => dialog.showModal());
+    document.getElementById("closeAccountDialog").addEventListener("click", () => dialog.close());
+    document.getElementById("accountExportBtn").addEventListener("click", event => exportWorkoutData(event.currentTarget));
+    document.getElementById("signOutBtn").addEventListener("click", async () => {
       const ok = confirm(`Sign out of ${displayName || "this account"}?`);
       if (!ok) return;
 
@@ -976,6 +1056,7 @@ document.addEventListener("DOMContentLoaded", async () => {
      HOME
   ===================================================== */
   async function renderHome() {
+    document.body.classList.remove("signedOut");
     const activePlanName = document.getElementById("activePlanName");
     const activePlanMeta = document.getElementById("activePlanMeta");
     const todayCard = document.getElementById("todayWorkoutCard");
@@ -997,6 +1078,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const latestLog = logs.length ? logs[logs.length - 1] : null;
     const suggestedDay = getSuggestedNextWorkout(logs);
+    renderResumeWorkout();
     renderInstallPrompt();
 
     if (activePlanName) {
@@ -1062,7 +1144,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       recentCard.innerHTML = `
         <p class="eyebrow">Recent Workout</p>
         <h3>${escapeHtml(latestLog.d || "Workout")}</h3>
-        <p>${escapeHtml(formatTimestamp(latestLog.t))}</p>
+        <p>${escapeHtml(formatTimestamp(latestLog.t))}${latestLog.gym ? ` / ${escapeHtml(latestLog.gym)}` : ""}</p>
 
         <div class="statGrid">
           <div class="statTile">
@@ -1088,7 +1170,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div>
           <p class="eyebrow">Progress</p>
           <h3>Charts & trends</h3>
-          <p>View estimated 1RM, volume, top weight, and more.</p>
         </div>
       </div>
       <div class="homeActions">
@@ -1106,7 +1187,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div>
           <p class="eyebrow">Plan</p>
           <h3>${escapeHtml(activePlan?.name || "Current Plan")}</h3>
-          <p>Create workout days and add exercises.</p>
         </div>
       </div>
       <div class="homeActions">
@@ -1115,9 +1195,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     `;
 
     document.getElementById("openPlanFromHome")?.addEventListener("click", () => {
-      initBuilderFromActivePlan();
-      renderPlanPage();
-      showPage("planPage");
+      navigateToMainPage("planPage");
     });
   }
 
@@ -1125,7 +1203,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const existingPrompt = document.getElementById("installPrompt");
     existingPrompt?.remove();
 
-    if (isRunningInstalled() || localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "true") {
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (isRunningInstalled() || localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "true" || (!ios && !deferredInstallPrompt)) {
       return;
     }
 
@@ -1138,7 +1217,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     prompt.innerHTML = `
       <div>
         <strong>Add to Home Screen</strong>
-        <p>For the best workout experience, open Lift Tracker from your iPhone Home Screen. In Safari, tap Share, then Add to Home Screen.</p>
+        <p>${ios ? "In Safari, tap Share, then Add to Home Screen." : "Install Lift Tracker on this device."}</p>
+        ${deferredInstallPrompt ? `<button id="installAppBtn" type="button" class="installAction">Install App</button>` : ""}
       </div>
       <button id="dismissInstallPrompt" type="button" aria-label="Dismiss Home Screen reminder">x</button>
     `;
@@ -1148,6 +1228,59 @@ document.addEventListener("DOMContentLoaded", async () => {
       localStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, "true");
       prompt.remove();
     });
+    document.getElementById("installAppBtn")?.addEventListener("click", async () => {
+      const installer = deferredInstallPrompt;
+      if (!installer) return;
+      deferredInstallPrompt = null;
+      await installer.prompt();
+      await installer.userChoice;
+      prompt.remove();
+    });
+  }
+
+  function renderResumeWorkout() {
+    const card = document.getElementById("resumeWorkoutCard");
+    const drafts = workoutDays.map(day => {
+      try {
+        const draft = JSON.parse(localStorage.getItem(currentDraftKey(day)));
+        return isMatchingWorkoutDraft(draft, { userId, planId: activePlan?.id || "", day }) && draftHasValues(draft) ? draft : null;
+      } catch { return null; }
+    }).filter(Boolean).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    const draft = drafts[0];
+    card.classList.toggle("hidden", !draft);
+    if (!draft) { card.innerHTML = ""; return; }
+    card.innerHTML = `<p class="eyebrow">Unfinished workout</p><h3>${escapeHtml(draft.day)}</h3>
+      <p>${escapeHtml(draft.gym || "Gym not set")}</p>
+      <div class="homeActions"><button id="resumeWorkoutBtn" class="secondaryBtn" type="button">Resume ${escapeHtml(draft.day)}</button></div>`;
+    document.getElementById("resumeWorkoutBtn").addEventListener("click", () => startWorkout(draft.day));
+  }
+
+  function setupMobileViewport() {
+    const header = document.querySelector(".topbar");
+    if (header && window.ResizeObserver) {
+      new ResizeObserver(() => {
+        const height = header.getBoundingClientRect().height;
+        document.documentElement.style.setProperty("--header-offset", `${height}px`);
+      }).observe(header);
+    }
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const refresh = () => {
+      const editing = document.activeElement?.matches("input, textarea, select, [contenteditable='true']");
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      const open = Boolean(editing && inset > 140 && viewport.scale < 1.1);
+      document.body.classList.toggle("keyboardOpen", open);
+      document.documentElement.style.setProperty("--keyboard-inset", `${open ? inset : 0}px`);
+      if (open && !document.activeElement.closest("dialog")) {
+        const rect = document.activeElement.getBoundingClientRect();
+        if (rect.bottom > viewport.offsetTop + viewport.height - 80 || rect.top < (header?.getBoundingClientRect().bottom || 72)) {
+          document.activeElement.scrollIntoView({ block: "center", behavior: "instant" });
+        }
+      }
+    };
+    viewport.addEventListener("resize", refresh);
+    document.addEventListener("focusin", () => requestAnimationFrame(refresh));
+    document.addEventListener("focusout", () => setTimeout(refresh, 100));
   }
 
   function isRunningInstalled() {
@@ -1213,6 +1346,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const planOverview = document.getElementById("planOverview");
     if (!planOverview) return;
+    exerciseFormDirty = false;
 
     const builderDays = Object.keys(builderWorkouts || {});
     const selectedExercises = selectedBuilderDay ? (builderWorkouts[selectedBuilderDay] || []) : [];
@@ -1230,8 +1364,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     planOverview.innerHTML = `
       <div class="builderGrid">
         <section class="dashboardCard">
-          <p class="eyebrow">Plan Name</p>
-          <h3>Active workout plan</h3>
+          <h3>${escapeHtml(builderPlanName || "Workout plan")}</h3>
 
           <div class="builderField">
             <label for="builderPlanName">Plan name</label>
@@ -1242,13 +1375,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div id="builderMessage" class="builderMessage hidden"></div>
         </section>
 
-        <section class="dashboardCard">
+        <section class="dashboardCard builderSaveTop">
           <button id="savePlanTopBtn" type="button" class="primaryBtn">Save Changes</button>
         </section>
 
         <section class="dashboardCard">
-          <p class="eyebrow">Workout Days</p>
-          <h3>Create days like Push A, Pull A, Legs</h3>
+          <h3>Workout days</h3>
 
           <div id="builderDayChips" class="builderDayChips">
             ${builderDays.map((day, index) => `
@@ -1262,8 +1394,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                   ${escapeHtml(day)}
                 </button>
                 <div class="builderDayOrderActions">
-                  <button type="button" class="builderDayMoveBtn" data-action="day-up" data-day="${escapeAttribute(day)}" ${index === 0 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} up">Up</button>
-                  <button type="button" class="builderDayMoveBtn" data-action="day-down" data-day="${escapeAttribute(day)}" ${index === builderDays.length - 1 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} down">Down</button>
+                  <button type="button" class="builderDayMoveBtn" data-action="day-up" data-day="${escapeAttribute(day)}" ${index === 0 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} up" title="Move day up">&#8593;</button>
+                  <button type="button" class="builderDayMoveBtn" data-action="day-down" data-day="${escapeAttribute(day)}" ${index === builderDays.length - 1 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} down" title="Move day down">&#8595;</button>
                 </div>
               </div>
             `).join("")}
@@ -1304,15 +1436,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                         ${Number(exercise.sets) || 0} sets / Target ${escapeHtml(exercise.target || "")}
                         ${exercise.rest ? ` / Rest ${escapeHtml(exercise.rest)}` : ""}
                         ${exercise.superset ? ` / Superset ${escapeHtml(exercise.superset)}` : ""}
-                        ${exercise.equipment ? ` / ${escapeHtml(exercise.equipment)}` : ""}
+                        ${exercise.equipment ? ` / ${escapeHtml(exercise.equipment.replace(/_/g, " "))}` : ""}
                       </p>
                     </div>
                   </div>
 
                   <div class="builderExerciseActions">
                     <button type="button" class="builderMiniBtn" data-action="edit" data-index="${index}">Edit</button>
-                    <button type="button" class="builderMiniBtn" data-action="up" data-index="${index}">Up</button>
-                    <button type="button" class="builderMiniBtn" data-action="down" data-index="${index}">Down</button>
+                    <button type="button" class="builderMiniBtn" data-action="up" data-index="${index}" aria-label="Move ${escapeAttribute(exercise.name)} up" title="Move exercise up" ${index === 0 ? "disabled" : ""}>&#8593;</button>
+                    <button type="button" class="builderMiniBtn" data-action="down" data-index="${index}" aria-label="Move ${escapeAttribute(exercise.name)} down" title="Move exercise down" ${index === selectedExercises.length - 1 ? "disabled" : ""}>&#8595;</button>
                     <button type="button" class="builderMiniBtn danger" data-action="delete" data-index="${index}">Delete</button>
                   </div>
                 </article>
@@ -1528,7 +1660,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function updateBuilderSaveButtons() {
-    const text = builderDirty ? "Save Changes" : "Saved";
+    const text = "Save Changes";
     const disabled = !builderDirty;
 
     ["savePlanTopBtn", "savePlanBottomBtn"].forEach(id => {
@@ -1733,7 +1865,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      DRAFT HELPERS
   ===================================================== */
-  const DRAFT_KEY = "draftWorkoutV4";
+  function currentDraftKey(day = currentDay) {
+    return workoutDraftKey(userId, activePlan?.id || "", day);
+  }
 
   function saveDraft(day) {
     const exercises = {};
@@ -1754,12 +1888,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         sets.push({
           reps: repsInput?.value || "",
           weight: weightInput?.value || "",
+          editedReps: repsInput?.dataset.edited === "true",
+          editedWeight: weightInput?.dataset.edited === "true",
+          restEndsAt: activeRestTimers.get(setNumber)?.endsAt || null,
           done: setNumber?.dataset.done === "true"
         });
       });
 
       exercises[exerciseInstanceKey] = {
         pulley: card.dataset.pulley || "",
+        pulleyEdited: card.dataset.pulleyEdited === "true",
         note,
         actualName: card.dataset.exerciseName || "",
         plannedName: card.dataset.plannedExerciseName || "",
@@ -1769,26 +1907,63 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     localStorage.setItem(
-      DRAFT_KEY,
+      currentDraftKey(day),
       JSON.stringify({
+        userId,
+        gym: selectedGym,
         planId: activePlan?.id || "",
         day,
         updatedAt: new Date().toISOString(),
         exercises
       })
     );
+    updateWorkoutCompletion();
+  }
+
+  function updateWorkoutCompletion() {
+    const rows = [...document.querySelectorAll("#exerciseContainer .setNumber")];
+    const done = rows.filter(button => button.dataset.done === "true").length;
+    const summary = document.getElementById("workoutCompletion");
+    if (summary) summary.textContent = rows.length ? `${done} of ${rows.length} sets completed` : "";
   }
 
   function getDraft() {
     try {
-      return JSON.parse(localStorage.getItem(DRAFT_KEY)) || null;
+      const draft = JSON.parse(localStorage.getItem(currentDraftKey()));
+      return isMatchingWorkoutDraft(draft, { userId, planId: activePlan?.id || "", day: currentDay }) ? draft : null;
     } catch {
       return null;
     }
   }
 
   function clearDraft() {
-    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(currentDraftKey());
+  }
+
+  function renderLegacyDraftRecovery(container) {
+    let legacy;
+    try {
+      legacy = JSON.parse(localStorage.getItem("draftWorkoutV4"));
+    } catch {
+      return;
+    }
+    const identity = { userId, planId: activePlan?.id || "", day: currentDay };
+    if (!claimLegacyWorkoutDraft(legacy, { ...identity, gym: selectedGym })) return;
+
+    const notice = document.createElement("details");
+    notice.className = "legacyDraftNotice historySource";
+    notice.innerHTML = `
+      <summary>Older unfinished workout available</summary>
+      <p>Its account and gym weren't recorded. Restore it only if it belongs to you and was at the gym selected above.</p>
+      <button type="button" class="secondaryBtn">Restore unfinished workout</button>
+    `;
+    notice.querySelector("button").addEventListener("click", async () => {
+      if (draftHasValues(getDraft()) && !confirm("Replace your current unfinished entries with the older workout?")) return;
+      const restored = claimLegacyWorkoutDraft(legacy, { ...identity, gym: selectedGym });
+      localStorage.setItem(currentDraftKey(), JSON.stringify(restored));
+      await renderWorkout();
+    });
+    container.appendChild(notice);
   }
 
   function draftHasValues(draft) {
@@ -1797,17 +1972,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     return Object.values(draft.exercises).some(entry => {
       const sets = Array.isArray(entry) ? entry : entry?.sets || [];
       return String(entry?.note || "").trim() ||
+        Boolean(entry?.pulleyEdited) ||
         Boolean(entry?.actualName && entry.actualName !== entry?.plannedName) ||
-        sets.some(set =>
-        String(set.reps || "").trim() ||
-        String(set.weight || "").trim() ||
-        set.done
-      );
+        sets.some(set => set.editedReps || set.editedWeight || set.done);
     });
   }
 
   document.addEventListener("input", event => {
     if (!event.target.closest?.("#exerciseContainer")) return;
+    if (event.target.matches?.(".setRow input")) event.target.dataset.edited = "true";
+    if (event.target.matches?.(".sessionNoteInput")) {
+      const button = event.target.closest(".exerciseCard")?.querySelector(".noteToggleBtn");
+      const hasNote = Boolean(event.target.value.trim());
+      if (button) {
+        button.classList.toggle("active", hasNote);
+        button.textContent = hasNote ? "Edit Note" : "Note";
+      }
+    }
     saveDraft(currentDay);
   });
 
@@ -1849,6 +2030,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
       logs = await getLogs();
+      workoutHistoryLogs = logs;
     } catch (error) {
       container.innerHTML = "";
       showMessage("Couldn’t load your workout history.", "error");
@@ -1865,7 +2047,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       draft?.planId === activePlan?.id &&
       draftHasValues(draft);
 
+    if (useDraft) {
+      selectedGym = draft.gym;
+      gymOptions = normalizeGymOptions([...gymOptions, selectedGym]);
+      renderGymSelector();
+    }
+
     container.innerHTML = "";
+
+    if (!useDraft) renderLegacyDraftRecovery(container);
 
     let currentSuperset = "";
 
@@ -1887,7 +2077,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const exerciseKey = getExerciseKey(exercise);
       const exerciseInstanceKey = `${exerciseKey}__${index}`;
-      const swapListId = `swapOptions-${exerciseKey}`;
+      const swapListId = `swapOptions-${exerciseInstanceKey}`;
       const swapSuggestions = getSwapSuggestions(logs, exercise);
       const draftEntry = useDraft ? (draft.exercises?.[exerciseInstanceKey] || draft.exercises?.[exerciseKey]) : null;
       const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
@@ -1895,15 +2085,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       const draftActualName = !Array.isArray(draftEntry) ? draftEntry?.actualName || "" : "";
       const sessionExerciseName = draftActualName || exercise.name;
       const isSwapped = sessionExerciseName !== exercise.name;
-      const isCable = isCableExercise(exercise);
       const draftPulley = !Array.isArray(draftEntry) ? draftEntry?.pulley : "";
-      const historyContext = getPreviousExerciseContext(logs, exercise, {
+      let historyContext = getPreviousExerciseContext(logs, exercise, {
         actualName: isSwapped ? sessionExerciseName : "",
-        plannedIndex: index,
-        pulleyVariant: isCable ? draftPulley : ""
+        plannedIndex: index
       });
+      const isCable = isCableExercise(isSwapped ? { name: sessionExerciseName } : exercise) ||
+        Boolean(historyContext.selectedExercise?.pulley || historyContext.globalReferenceExercise?.pulley);
+      const startingPulley = isCable ? (draftPulley || historyContext.selectedExercise?.pulley || "single") : "";
+      if (startingPulley) {
+        historyContext = getPreviousExerciseContext(logs, exercise, {
+          actualName: isSwapped ? sessionExerciseName : "",
+          plannedIndex: index, pulleyVariant: startingPulley
+        });
+      }
       const previousExercise = historyContext.selectedExercise;
-      const globalPreviousExercise = historyContext.globalReferenceExercise;
       const previousSets = previousExercise?.s || [];
       const previousNote = previousExercise?.note || "";
       const recommendation = getRecommendationWithContext(
@@ -1915,9 +2111,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       const isSupersetEnd =
         exercise.superset &&
         (!nextExercise || nextExercise.superset !== exercise.superset);
-
-      const previousPulley = previousExercise?.pulley || globalPreviousExercise?.pulley || "";
-      const startingPulley = isCable ? (draftPulley || previousPulley || "single") : "";
 
       const exerciseCard = document.createElement("article");
       exerciseCard.className = [
@@ -1934,11 +2127,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       exerciseCard.dataset.plannedExerciseName = exercise.name;
       exerciseCard.dataset.plannedIndex = String(index);
       exerciseCard.dataset.pulley = startingPulley;
+      exerciseCard.dataset.pulleyEdited = String(Boolean(draftEntry?.pulleyEdited));
 
-      const globalPreviousSets = globalPreviousExercise?.s || [];
-      const lastSummary = globalPreviousSets.length
-        ? `Last: ${escapeHtml(formatSets(globalPreviousSets))}${globalPreviousExercise?.pulley ? ` / ${escapeHtml(formatPulley(globalPreviousExercise.pulley))}` : ""}`
-        : "Last: No previous sets";
+      const lastSummary = escapeHtml(formatGlobalLast(historyContext));
 
       exerciseCard.innerHTML = `
         <div class="exerciseHeader">
@@ -1959,7 +2150,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
             ${isSwapped ? `<p class="plannedExerciseHint">Planned: ${escapeHtml(exercise.name)}</p>` : ""}
             ${exercise.note ? `<p class="exerciseNote">${escapeHtml(exercise.note)}</p>` : ""}
-            ${previousNote ? `<p class="lastHint">Previous note: ${escapeHtml(previousNote)}</p>` : ""}
+            <p class="lastHint" data-role="previous-note" ${previousNote ? "" : "hidden"}>${previousNote ? `Previous note: ${escapeHtml(previousNote)}` : ""}</p>
           </div>
         </div>
 
@@ -1968,17 +2159,19 @@ document.addEventListener("DOMContentLoaded", async () => {
           <button type="button" class="recommendationBtn" aria-expanded="false">Tip</button>
         </div>
 
+        <p class="historySource" data-role="prefill-source">${escapeHtml(formatHistorySource(historyContext))}</p>
+
         <div class="recommendationPanel hidden" data-role="recommendation-panel">
           ${renderRecommendationContent(recommendation)}
         </div>
 
-        <div class="noteEditor ${draftNote ? "" : "hidden"}">
+        <div class="noteEditor hidden">
           <textarea class="sessionNoteInput" rows="2" placeholder="Session note">${escapeHtml(draftNote)}</textarea>
         </div>
 
-        <div class="swapEditor ${isSwapped ? "" : "hidden"}">
+        <div class="swapEditor hidden">
           <div class="swapCombo">
-            <input class="swapInput" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="${escapeAttribute(swapListId)}" />
+            <input class="swapInput" aria-label="Replacement for ${escapeAttribute(exercise.name)}" value="${escapeAttribute(sessionExerciseName)}" placeholder="Exercise for this session" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="${escapeAttribute(swapListId)}" />
             <button type="button" class="swapMenuBtn ${swapSuggestions.length ? "" : "hidden"}" aria-label="Show previous swaps"></button>
             <div class="swapOptionList hidden" id="${escapeAttribute(swapListId)}" role="listbox">
               ${swapSuggestions.map(name => `<button type="button" class="swapOption" role="option" data-swap-name="${escapeAttribute(name)}">${escapeHtml(name)}</button>`).join("")}
@@ -1987,13 +2180,11 @@ document.addEventListener("DOMContentLoaded", async () => {
           <button type="button" class="swapResetBtn">Use planned</button>
         </div>
 
-        ${isCable ? `
-          <div class="pulleyToggle" data-exercise-key="${escapeAttribute(exerciseKey)}">
+          <div class="pulleyToggle ${isCable ? "" : "hidden"}" data-exercise-key="${escapeAttribute(exerciseKey)}">
             <div class="pulleyToggleLabel">Cable setup</div>
             <button type="button" class="pulleyBtn ${startingPulley === "single" ? "active" : ""}" data-pulley="single">Single</button>
             <button type="button" class="pulleyBtn ${startingPulley === "double" ? "active" : ""}" data-pulley="double">Double</button>
           </div>
-        ` : ""}
 
         <div class="setGridHeader">
           <div>Set</div>
@@ -2002,24 +2193,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
       `;
 
-      if (isCable) {
-        exerciseCard.querySelectorAll(".pulleyBtn").forEach(btn => {
-          btn.addEventListener("click", () => {
-            exerciseCard.dataset.pulley = btn.dataset.pulley || "single";
-            exerciseCard.querySelectorAll(".pulleyBtn").forEach(b => {
-              b.classList.toggle("active", b === btn);
-            });
-            applySwapSelection({
-              card: exerciseCard,
-              exercise,
-              logs,
-              nextName: exerciseCard.dataset.exerciseName || exercise.name,
-              overwriteSets: true
-            });
-            saveDraft(currentDay);
+      exerciseCard.querySelectorAll(".pulleyBtn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          exerciseCard.dataset.pulley = btn.dataset.pulley || "single";
+          exerciseCard.dataset.pulleyEdited = "true";
+          exerciseCard.querySelectorAll(".pulleyBtn").forEach(b => {
+            b.classList.toggle("active", b === btn);
           });
+          applySwapSelection({
+            card: exerciseCard,
+            exercise,
+            logs,
+            nextName: exerciseCard.dataset.exerciseName || exercise.name,
+            overwriteSets: true,
+            clearWhenMissing: true,
+            preserveEdited: true
+          });
+          saveDraft(currentDay);
         });
-      }
+      });
 
       exerciseCard.querySelector(".noteToggleBtn")?.addEventListener("click", () => {
         const noteEditor = exerciseCard.querySelector(".noteEditor");
@@ -2088,6 +2280,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const commitSwapInput = event => {
         const nextName = titleCaseExerciseName(event.target.value.trim() || exercise.name);
         event.target.value = nextName;
+        if (exerciseSlug(nextName) === exerciseSlug(exerciseCard.dataset.exerciseName)) return;
         applySwapSelection({
           card: exerciseCard,
           exercise,
@@ -2101,19 +2294,48 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       swapInput?.addEventListener("change", commitSwapInput);
       swapInput?.addEventListener("blur", event => {
+        if (event.relatedTarget?.closest(".swapEditor") === exerciseCard.querySelector(".swapEditor")) return;
         setTimeout(() => setSwapMenuOpen(exerciseCard, false), 120);
         commitSwapInput(event);
       });
 
       exerciseCard.querySelector(".swapMenuBtn")?.addEventListener("pointerdown", event => {
         event.preventDefault();
+      });
+      exerciseCard.querySelector(".swapMenuBtn")?.addEventListener("click", () => {
         setSwapMenuOpen(exerciseCard, true);
         swapInput?.focus();
+      });
+      swapInput?.addEventListener("keydown", event => {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setSwapMenuOpen(exerciseCard, true);
+          exerciseCard.querySelector(".swapOption:not(.hidden)")?.focus();
+        } else if (event.key === "Escape") {
+          setSwapMenuOpen(exerciseCard, false);
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          commitSwapInput(event);
+          setSwapMenuOpen(exerciseCard, false);
+        }
       });
 
       exerciseCard.querySelectorAll(".swapOption").forEach(option => {
         option.addEventListener("pointerdown", event => {
           event.preventDefault();
+        });
+        option.addEventListener("keydown", event => {
+          const options = [...exerciseCard.querySelectorAll(".swapOption:not(.hidden)")];
+          const index = options.indexOf(option);
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            options[(index + (event.key === "ArrowDown" ? 1 : options.length - 1)) % options.length]?.focus();
+          } else if (event.key === "Escape") {
+            swapInput?.focus();
+            setSwapMenuOpen(exerciseCard, false);
+          }
+        });
+        option.addEventListener("click", () => {
           const nextName = titleCaseExerciseName(option.dataset.swapName || exercise.name);
           if (swapInput) {
             swapInput.value = nextName;
@@ -2156,6 +2378,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         setNumber.textContent = String(i + 1);
         setNumber.dataset.setNumber = String(i + 1);
         setNumber.dataset.done = "false";
+        setNumber.setAttribute("aria-label", `${exercise.name}, set ${i + 1} completed`);
+        setNumber.setAttribute("aria-pressed", "false");
 
         setNumber.addEventListener("click", () => {
           toggleSetDone({
@@ -2172,6 +2396,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         repsInput.placeholder = "Reps";
         repsInput.dataset.field = "reps";
         repsInput.dataset.setIndex = String(i);
+        repsInput.setAttribute("aria-label", `${exercise.name}, set ${i + 1} reps`);
 
         const weightInput = document.createElement("input");
         weightInput.type = "number";
@@ -2181,15 +2406,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         weightInput.placeholder = "Weight";
         weightInput.dataset.field = "weight";
         weightInput.dataset.setIndex = String(i);
+        weightInput.setAttribute("aria-label", `${exercise.name}, set ${i + 1} weight in pounds`);
 
         const draftSet = draftSets?.[i];
         const previousSet = previousSets?.[i];
 
-        repsInput.value = draftSet?.reps || previousSet?.reps || "";
-        weightInput.value = draftSet?.weight || previousSet?.weight || "";
+        const prefill = getSetPrefill(previousSet, draftSet);
+        repsInput.value = prefill.reps;
+        weightInput.value = prefill.weight;
+        repsInput.dataset.edited = String(prefill.editedReps);
+        weightInput.dataset.edited = String(prefill.editedWeight);
 
         if (draftSet?.done) {
           setNumber.dataset.done = "true";
+          setNumber.setAttribute("aria-pressed", "true");
           setNumber.textContent = "✓";
           row.classList.add("setDone");
         }
@@ -2201,7 +2431,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       container.appendChild(exerciseCard);
+      exerciseCard.querySelectorAll(".setNumber").forEach((button, index) => {
+        const endsAt = Number(draftSets?.[index]?.restEndsAt);
+        if (button.dataset.done === "true" && endsAt > Date.now()) startRestTimer(button, 0, endsAt);
+      });
     });
+    container.dataset.renderedDay = currentDay;
+    container.dataset.renderedTemplate = JSON.stringify(workouts[currentDay] || []);
+    updateWorkoutCompletion();
   }
 
   function toggleSetDone({ button, day, restText }) {
@@ -2212,6 +2449,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       stopRestTimer(button);
 
       button.dataset.done = "false";
+      button.setAttribute("aria-pressed", "false");
       button.textContent = button.dataset.setNumber;
       button.classList.remove("timerActive", "timerComplete");
       row?.classList.remove("setDone");
@@ -2220,6 +2458,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     button.dataset.done = "true";
+    button.setAttribute("aria-pressed", "true");
+    row?.querySelectorAll("input").forEach(input => { input.dataset.edited = "true"; });
     row?.classList.add("setDone");
 
     const seconds = parseRestSeconds(restText);
@@ -2233,10 +2473,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     saveDraft(day);
   }
 
-  function startRestTimer(button, seconds) {
+  function startRestTimer(button, seconds, endsAt = Date.now() + seconds * 1000) {
     stopRestTimer(button);
-
-    const endsAt = Date.now() + seconds * 1000;
 
     button.classList.remove("timerComplete");
     button.classList.add("timerActive");
@@ -2248,9 +2486,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     activeRestTimers.set(button, timer);
-    updateRestTimer(button);
-
     timer.intervalId = setInterval(() => updateRestTimer(button), 1000);
+    updateRestTimer(button);
   }
 
   function updateRestTimer(button) {
@@ -2463,6 +2700,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const toolbar = document.createElement("div");
     toolbar.className = "historyToolbar";
     toolbar.innerHTML = `
+      <span>${logs.length} saved workouts</span>
       <button id="exportWorkoutData" type="button" class="historyActionBtn">Export Last ${EXPORT_WORKOUT_LIMIT}</button>
     `;
     container.appendChild(toolbar);
@@ -2530,6 +2768,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const header = document.createElement("button");
         header.type = "button";
         header.className = "historyCardHeader";
+        header.setAttribute("aria-expanded", "false");
         header.innerHTML = `
           <div class="historyCardMain">
             <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
@@ -2660,6 +2899,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         header.addEventListener("click", () => {
           details.classList.toggle("hidden");
           card.classList.toggle("open");
+          header.setAttribute("aria-expanded", String(card.classList.contains("open")));
         });
 
         card.appendChild(header);
@@ -2831,8 +3071,10 @@ document.addEventListener("DOMContentLoaded", async () => {
      PROGRESS CHART
   ===================================================== */
   async function renderChart() {
+    const renderVersion = ++progressRenderVersion;
     const select = document.getElementById("exerciseSelect");
     const metricSelect = document.getElementById("metricSelect");
+    const gymSelect = document.getElementById("progressGymSelect");
     const canvas = document.getElementById("chart");
 
     if (!select || !metricSelect || !canvas) return;
@@ -2847,10 +3089,32 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
+    if (renderVersion !== progressRenderVersion) return;
+    const selectedProgressGym = gymSelect?.value || "";
+    if (gymSelect) {
+      gymSelect.innerHTML = `<option value="">All gyms</option>`;
+      normalizeGymOptions(logs.map(log => log.gym)).forEach(gym => {
+        const option = document.createElement("option");
+        option.value = normalizeGymKey(gym);
+        option.textContent = gym;
+        gymSelect.appendChild(option);
+      });
+      if (logs.some(log => !normalizeGymKey(log.gym))) {
+        const option = document.createElement("option");
+        option.value = "__unrecorded__";
+        option.textContent = "Gym not recorded";
+        gymSelect.appendChild(option);
+      }
+      gymSelect.value = selectedProgressGym;
+      if (!gymSelect.value) gymSelect.value = "";
+    }
+    const filteredLogs = gymSelect?.value
+      ? logs.filter(log => gymSelect.value === "__unrecorded__" ? !normalizeGymKey(log.gym) : normalizeGymKey(log.gym) === gymSelect.value)
+      : logs;
     const previousValue = select.value;
     const exerciseMap = new Map();
 
-    logs.forEach(log => {
+    filteredLogs.forEach(log => {
       (log.e || []).forEach(exercise => {
         const progressKey = getProgressExerciseKey(exercise);
         const label = getProgressExerciseLabel(exercise);
@@ -2883,7 +3147,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const labels = [];
     const data = [];
 
-    logs.forEach(log => {
+    filteredLogs.forEach(log => {
       const exercise = (log.e || []).find(ex => {
         return getProgressExerciseKey(ex) === select.value;
       });
@@ -2899,10 +3163,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     if (chart) chart.destroy();
+    chart = null;
 
     const ctx = canvas.getContext("2d");
     const metricLabel = metricSelect.options[metricSelect.selectedIndex]?.textContent || "Progress";
     const exerciseLabel = select.options[select.selectedIndex]?.textContent || "Exercise";
+    const overview = document.getElementById("progressOverview");
+    overview.innerHTML = data.length ? `
+      <div><strong>${roundNumber(data[data.length - 1])}</strong><span>Latest / ${escapeHtml(metricLabel)}</span></div>
+      <div><strong>${data.length}</strong><span>Recorded sessions</span></div>` : "";
+    const empty = document.getElementById("chartEmpty");
+    const chartAvailable = typeof Chart !== "undefined";
+    empty.classList.toggle("hidden", data.length > 0 && chartAvailable);
+    empty.textContent = !data.length ? "No saved sets for this selection yet." : "Chart unavailable. Reconnect and reopen Progress.";
+    canvas.classList.toggle("hidden", !data.length || !chartAvailable);
+    canvas.setAttribute("aria-label", `${exerciseLabel}: ${metricLabel}, ${data.length} recorded sessions`);
+    if (!data.length || !chartAvailable) return;
 
     chart = new Chart(ctx, {
       type: "line",
@@ -2912,8 +3188,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           {
             label: `${exerciseLabel} — ${metricLabel}`,
             data,
-            borderColor: "#7289da",
-            backgroundColor: "rgba(114, 137, 218, 0.18)",
+            borderColor: "#91bdff",
+            backgroundColor: "rgba(145, 189, 255, 0.06)",
             tension: 0.3,
             pointRadius: 4,
             pointHoverRadius: 6,
@@ -2926,7 +3202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            display: true,
+            display: false,
             labels: {
               color: "#f2f3f5"
             }
@@ -2939,11 +3215,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         },
         scales: {
           y: {
-            ticks: { color: "#b5bac1" },
+            ticks: { color: "#a6aeaf", maxTicksLimit: 5 },
             grid: { color: "rgba(255,255,255,0.08)" }
           },
           x: {
-            ticks: { color: "#b5bac1" },
+            ticks: { color: "#a6aeaf", maxTicksLimit: 4, maxRotation: 0 },
             grid: { color: "rgba(255,255,255,0.04)" }
           }
         }
@@ -2953,6 +3229,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("exerciseSelect")?.addEventListener("change", renderChart);
   document.getElementById("metricSelect")?.addEventListener("change", renderChart);
+  document.getElementById("progressGymSelect")?.addEventListener("change", renderChart);
 
   /* =====================================================
      HELPERS
@@ -3040,14 +3317,39 @@ document.addEventListener("DOMContentLoaded", async () => {
     return exercise.id || slugify(exercise.name || "");
   }
 
-  function updatePreviousExerciseDisplay(card, previousExercise) {
-    const summary = card.querySelector("[data-role='last-summary']");
-    if (!summary) return;
+  function formatEntrySource(entry) {
+    if (!entry) return "";
+    const date = new Date(entry.workoutAt);
+    return [entry.workoutDay, entry.gym || "Gym not recorded",
+      Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      formatPulley(entry.exercise?.pulley)
+    ].filter(Boolean).join(" / ");
+  }
 
-    const sets = previousExercise?.s || [];
-    summary.textContent = sets.length
-      ? `Last: ${formatSets(sets)}${previousExercise?.pulley ? ` / ${formatPulley(previousExercise.pulley)}` : ""}`
-      : "Last: No previous sets";
+  function formatHistorySource(historyContext) {
+    const entry = historyContext.selectedEntry;
+    if (!entry) return selectedGym ? "No previous sets at this gym and setup" : "No previous sets for this setup";
+    const otherGym = selectedGym && normalizeGymKey(entry.gym) !== normalizeGymKey(selectedGym);
+    return `${otherGym ? "Reference from another gym" : "Based on"}: ${formatEntrySource(entry)}`;
+  }
+
+  function formatGlobalLast(historyContext) {
+    const entry = historyContext.globalReferenceEntry;
+    const sets = entry?.exercise?.s || [];
+    return sets.length ? `Last: ${formatSets(sets)} / ${formatEntrySource(entry)}` : "Last: No previous sets";
+  }
+
+  function updatePreviousExerciseDisplay(card, historyContext) {
+    const summary = card.querySelector("[data-role='last-summary']");
+    if (summary) summary.textContent = formatGlobalLast(historyContext);
+    const source = card.querySelector("[data-role='prefill-source']");
+    if (source) source.textContent = formatHistorySource(historyContext);
+    const note = card.querySelector("[data-role='previous-note']");
+    if (note) {
+      const text = historyContext.selectedExercise?.note || "";
+      note.textContent = text ? `Previous note: ${text}` : "";
+      note.hidden = !text;
+    }
   }
 
   function getPreviousExerciseContext(logs, exercise, options = {}) {
@@ -3067,8 +3369,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function getRecommendationWithContext(recommendation, historyContext) {
     return {
-      ...recommendation,
-      context: historyContext?.reason || "",
+      ...applyRecommendationContext(recommendation, historyContext, selectedGym),
       reference: buildGlobalReferenceText(historyContext)
     };
   }
@@ -3077,13 +3378,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const selected = historyContext?.selectedEntry;
     const global = historyContext?.globalReferenceEntry;
 
-    if (!selected || !global || selected === global) return "";
+    if (!global || selected === global) return "";
 
     const globalSets = global.exercise?.s || [];
     if (!globalSets.length) return "";
 
-    const dayText = global.workoutDay ? ` on ${global.workoutDay}` : "";
-    return `Global latest${dayText}: ${formatSets(globalSets)}.`;
+    return `Last performed (${formatEntrySource(global)}): ${formatSets(globalSets)}.`;
   }
 
   function renderRecommendationContent(recommendation) {
@@ -3105,25 +3405,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     logs,
     nextName,
     overwriteSets = false,
-    clearWhenMissing = false
+    clearWhenMissing = false,
+    preserveEdited = false
   }) {
     const actualName = String(nextName || exercise.name).trim() || exercise.name;
     const plannedIndex = Number(card.dataset.plannedIndex);
-    const historyContext = getPreviousExerciseContext(logs, exercise, {
+    const isSwapped = exerciseSlug(actualName) !== exerciseSlug(exercise.name);
+    const identityChanged = exerciseSlug(actualName) !== exerciseSlug(card.dataset.exerciseName);
+    const lookupOptions = {
       actualName: actualName !== exercise.name ? actualName : "",
-      plannedIndex,
-      pulleyVariant: card.dataset.pulley || ""
+      plannedIndex
+    };
+    const unfilteredContext = getPreviousExerciseContext(logs, exercise, lookupOptions);
+    const isCable = isCableExercise(isSwapped ? { name: actualName } : exercise) ||
+      Boolean(unfilteredContext.selectedExercise?.pulley || unfilteredContext.globalReferenceExercise?.pulley);
+    const pulley = isCable
+      ? ((!identityChanged && card.dataset.pulley) || unfilteredContext.selectedExercise?.pulley || "single")
+      : "";
+    card.dataset.pulley = pulley;
+    card.querySelector(".pulleyToggle")?.classList.toggle("hidden", !isCable);
+    card.querySelectorAll(".pulleyBtn").forEach(button => {
+      button.classList.toggle("active", button.dataset.pulley === pulley);
     });
+    const historyContext = getPreviousExerciseContext(logs, exercise, { ...lookupOptions, pulleyVariant: pulley });
     const previousExercise = historyContext.selectedExercise;
-    const globalPreviousExercise = historyContext.globalReferenceExercise;
-
     updateSwapVisualState(card, exercise, actualName);
-    updatePreviousExerciseDisplay(card, globalPreviousExercise);
+    updatePreviousExerciseDisplay(card, historyContext);
     updateRecommendationDisplay(
       card,
       getRecommendationWithContext(getExerciseRecommendation(exercise, previousExercise), historyContext)
     );
-    applyPreviousSetsToInputs(card, previousExercise, { overwrite: overwriteSets, clearWhenMissing });
+    applyPreviousSetsToInputs(card, previousExercise, { overwrite: overwriteSets, clearWhenMissing, preserveEdited });
   }
 
   function updateRecommendationDisplay(card, recommendation) {
@@ -3180,12 +3492,26 @@ document.addEventListener("DOMContentLoaded", async () => {
       const repsValue = previousSet?.reps || "";
       const weightValue = previousSet?.weight || "";
 
+      if (options.preserveEdited) {
+        const prefill = getSetPrefill(previousSet, {
+          reps: repsInput?.value, weight: weightInput?.value,
+          editedReps: repsInput?.dataset.edited === "true",
+          editedWeight: weightInput?.dataset.edited === "true",
+          done: row.querySelector(".setNumber")?.dataset.done === "true"
+        });
+        if (repsInput) repsInput.value = prefill.reps;
+        if (weightInput) weightInput.value = prefill.weight;
+        return;
+      }
+
       if (repsInput && (overwrite || !String(repsInput.value || "").trim())) {
         repsInput.value = repsValue;
+        repsInput.dataset.edited = "false";
       }
 
       if (weightInput && (overwrite || !String(weightInput.value || "").trim())) {
         weightInput.value = weightValue;
+        weightInput.dataset.edited = "false";
       }
     });
   }

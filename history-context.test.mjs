@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getBestPreviousExerciseContext } from "./history-context.mjs";
-import { getExerciseRecommendation } from "./recommendations.mjs";
+import { applyRecommendationContext, getExerciseRecommendation } from "./recommendations.mjs";
 
 const incline = {
   exerciseId: "incline_dumbbell_press",
@@ -277,4 +277,113 @@ test("progression tip uses context-selected entry instead of global latest", () 
 
   assert.equal(context.selectedExercise.s[0].weight, 55);
   assert.notEqual(tip.label, "Increase weight");
+});
+
+const cableRow = {
+  exerciseId: "seated_row", exerciseName: "Seated Row", equipment: "cable",
+  workoutDay: "Pull A", plannedIndex: 1, selectedGym: "Gym B", pulleyVariant: "single"
+};
+
+function rowLog(day, gym, pulley, weight, date = "2026-11-10T12:00:00Z") {
+  return log({ id: `${day}-${gym}-${pulley}-${weight}`, day, gym, date,
+    exercises: [exercise({ id: "seated_row", name: "Seated Row", reps: [10, 10], weight, pulley, plannedIndex: 1 })] });
+}
+
+test("same gym wins over same workout day at another gym", () => {
+  const context = getBestPreviousExerciseContext({ ...cableRow, logs: [
+    rowLog("Pull A", "Gym A", "single", 120, "2026-11-12T12:00:00Z"),
+    rowLog("Pull B", "Gym B", "single", 70)
+  ] });
+  assert.equal(context.selectedExercise.s[0].weight, 70);
+  assert.equal(context.selectedEntry.gym, "Gym B");
+  assert.equal(context.globalReferenceExercise.s[0].weight, 120);
+});
+
+test("same-day lookup excludes conflicting pulley before position matching", () => {
+  const context = getBestPreviousExerciseContext({ ...cableRow, logs: [
+    rowLog("Pull A", "Gym B", "double", 120, "2026-11-12T12:00:00Z"),
+    rowLog("Pull A", "Gym B", "single", 70)
+  ] });
+  assert.equal(context.selectedExercise.s[0].weight, 70);
+  assert.equal(context.selectedExercise.pulley, "single");
+});
+
+test("cables at other gyms and unknown locations remain reference only", () => {
+  for (const gym of ["Gym A", ""]) {
+    const context = getBestPreviousExerciseContext({ ...cableRow, logs: [rowLog("Pull A", gym, "single", 120)] });
+    assert.equal(context.selectedExercise, null);
+    assert.equal(context.globalReferenceExercise.s[0].weight, 120);
+    assert.equal(context.confidence, "none");
+  }
+});
+
+test("unknown or conflicting pulley is reference only when a setup is selected", () => {
+  for (const pulley of ["double", ""]) {
+    const context = getBestPreviousExerciseContext({ ...cableRow, logs: [rowLog("Pull A", "Gym B", pulley, 120)] });
+    assert.equal(context.selectedExercise, null);
+    assert.ok(context.globalReferenceExercise);
+  }
+});
+
+test("gym matching ignores case and extra spaces", () => {
+  const context = getBestPreviousExerciseContext({ ...cableRow, selectedGym: "  GYM   B ",
+    logs: [rowLog("Pull A", "gym b", "single", 70)] });
+  assert.equal(context.selectedExercise.s[0].weight, 70);
+});
+
+test("machine weight never silently falls back to another gym", () => {
+  const context = getBestPreviousExerciseContext({ exerciseId: "machine_chest_press",
+    exerciseName: "Machine Chest Press", equipment: "machine", selectedGym: "Gym B", workoutDay: "Push A",
+    logs: [log({ id: "machine", day: "Push A", gym: "Gym A", date: "2026-11-10",
+      exercises: [exercise({ id: "machine_chest_press", name: "Machine Chest Press", reps: [12], weight: 120 })] })] });
+  assert.equal(context.selectedExercise, null);
+  assert.ok(context.globalReferenceExercise);
+});
+
+test("free weights allow a clearly labeled low confidence cross-gym fallback", () => {
+  const context = getBestPreviousExerciseContext({ ...incline, selectedGym: "Gym B", workoutDay: "Push A",
+    logs: [log({ id: "incline", day: "Push A", gym: "Gym A", date: "2026-11-10",
+      exercises: [exercise({ reps: [10, 10, 10], weight: 55 })] })] });
+  assert.equal(context.selectedExercise.s[0].weight, 55);
+  assert.equal(context.matchType, "global_fallback");
+  assert.equal(context.confidence, "low");
+  assert.match(context.reason, /Gym A/);
+  assert.match(context.reason, /No history at Gym B/);
+  const baseTip = getExerciseRecommendation({ name: "Incline DB Press", target: "8-10", type: "compound" }, context.selectedExercise);
+  assert.equal(baseTip.label, "Increase weight");
+  assert.equal(applyRecommendationContext(baseTip, context, "Gym B").label, "Check working weight");
+  assert.equal(applyRecommendationContext(baseTip, context, "Gym A").label, "Increase weight");
+});
+
+test("swapped actual exercise finds same-gym history across workout days", () => {
+  const context = getBestPreviousExerciseContext({ exerciseId: "machine_rear_delt_fly",
+    exerciseName: "Machine Rear Delt Fly", equipment: "machine", actualName: "DB Rear Delt Fly",
+    selectedGym: "Gym B", workoutDay: "Pull A", logs: [log({ id: "swap", day: "Pull B", gym: "Gym B", date: "2026-11-10",
+      exercises: [exercise({ id: "dumbbell_rear_delt_fly", name: "Dumbbell Rear Delt Fly", reps: [15, 15, 15], weight: 15 })] })] });
+  assert.equal(context.selectedExercise.id, "dumbbell_rear_delt_fly");
+  assert.equal(context.selectedEntry.workoutDay, "Pull B");
+});
+
+test("free-weight same-gym history wins even when another gym matches the day", () => {
+  const context = getBestPreviousExerciseContext({ ...incline, selectedGym: "Gym B", workoutDay: "Push A",
+    logs: [
+      log({ id: "other-gym", day: "Push A", gym: "Gym A", date: "2026-11-12",
+        exercises: [exercise({ reps: [10, 10, 10], weight: 60 })] }),
+      log({ id: "same-gym", day: "Push B", gym: "Gym B", date: "2026-11-10",
+        exercises: [exercise({ reps: [10, 9, 8], weight: 55 })] })
+    ] });
+  assert.equal(context.selectedExercise.s[0].weight, 55);
+  assert.equal(context.globalReferenceExercise.s[0].weight, 60);
+});
+
+test("an unspecified position uses latest same-day history rather than treating null as zero", () => {
+  const context = getBestPreviousExerciseContext({ ...incline, workoutDay: "Push A", plannedIndex: null,
+    logs: [
+      log({ id: "new-position", day: "Push A", date: "2026-11-12",
+        exercises: [exercise({ reps: [10, 9, 8], weight: 60, plannedIndex: 2 })] }),
+      log({ id: "old-position", day: "Push A", date: "2026-11-10",
+        exercises: [exercise({ reps: [10, 9, 8], weight: 55, plannedIndex: 0 })] })
+    ] });
+  assert.equal(context.selectedExercise.s[0].weight, 60);
+  assert.equal(context.matchType, "same_workout_day");
 });

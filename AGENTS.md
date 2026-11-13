@@ -21,22 +21,20 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
 
 ## Current Focus
 
-1. Mobile PWA UI polish pass.
-2. PWA hardening for install/update behavior.
-3. Deliberate old-data migration path if pre-Google data is missing.
+1. Verify the implemented UX overhaul on iPhone, especially header, keyboard, and save dock behavior.
+2. Verify gym/history selection, draft resume, and timers with actual saved workouts.
+3. Verify the new install/update behavior after deployment.
+4. Deliberate old-data migration path if pre-Google data is missing.
+
+Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`.
 
 ## Todo Later
 
-- Mobile PWA UI polish pass:
-  - Tighten Workout and Plan Builder spacing from mobile screenshots.
-  - Tighten Workout History item spacing; saved workout cards currently have too much vertical space between list items.
-  - Keep desktop preview internally mobile-sized.
-  - Keep Save Workout dock near the bottom nav without hiding workout rows.
-  - Preserve existing features; this is a layout-density pass, not a behavior change.
-- PWA hardening:
-  - Keep the Home Screen install prompt hidden in standalone mode and non-annoying in Safari.
-  - Review service worker cache versioning so deployed updates are picked up predictably.
-  - Keep the update prompt clear and usable.
+- UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
+- Keep desktop as a centered mobile preview and retain compact notes/session-only swaps.
+- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v6).
+- Browser/device validation remains pending. Work settings disabled browser access during implementation; 39 automated tests passed.
+- Consider per-machine identities within a gym if the user confirms different machines need separate histories.
 - Data/account follow-up:
   - Keep Google UID as the primary user path going forward.
   - If old pre-Google data is missing, add a deliberate one-time migration path rather than weakening Firestore rules.

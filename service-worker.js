@@ -1,10 +1,12 @@
-const CACHE_NAME = "lift-tracker-shell-v4";
+const CACHE_PREFIX = "lift-tracker-shell-";
+const CACHE_NAME = `${CACHE_PREFIX}v6`;
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
   "./history-context.mjs",
+  "./workout-state.mjs",
   "./recommendations.mjs",
   "./firebase.js",
   "./workouts.js",
@@ -26,7 +28,7 @@ self.addEventListener("activate", event => {
     caches.keys()
       .then(keys => Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
+          .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
           .map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())
@@ -35,25 +37,28 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   const requestUrl = new URL(event.request.url);
+  const shellUrls = APP_SHELL.map(path => new URL(path, self.registration.scope).href);
+  const isAppNavigation = event.request.mode === "navigate" &&
+    [new URL(self.registration.scope).pathname, new URL("./index.html", self.registration.scope).pathname].includes(requestUrl.pathname);
 
-  if (event.request.method !== "GET" || requestUrl.origin !== self.location.origin) {
+  if (event.request.method !== "GET" || requestUrl.origin !== self.location.origin ||
+      (!shellUrls.includes(requestUrl.href) && !isAppNavigation)) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+    caches.open(CACHE_NAME).then(async cache => {
+      // Keep an installed shell coherent until the user activates the next version.
+      const cached = await cache.match(isAppNavigation ? "./index.html" : event.request);
+      if (cached) return cached;
+      try {
+        const response = await fetch(event.request);
+        if (response.ok && shellUrls.includes(requestUrl.href)) await cache.put(event.request, response.clone());
         return response;
-      })
-      .catch(() => caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        if (event.request.mode === "navigate") {
-          return caches.match("./index.html");
-        }
+      } catch {
         return Response.error();
-      }))
+      }
+    })
   );
 });
 
