@@ -21,7 +21,7 @@ This is a mobile-first workout tracking web app used mainly on iPhone/Home Scree
 
 ## Current Focus
 
-1. Verify physical iPhone Safari/Home Screen keyboard and safe-area behavior; desktop browser mobile-width audit is complete (see `UX-AUDIT.md`).
+1. Verify physical iPhone Safari/Home Screen keyboard and safe-area behavior; save docks now hide during keyboard editing instead of being lifted above it. Desktop browser mobile-width audit is complete (see `UX-AUDIT.md`).
 2. Verify gym/history selection, draft resume, and timers with actual saved workouts.
 3. Verify the new install/update behavior after deployment.
 4. Deliberate old-data migration path if pre-Google data is missing.
@@ -32,8 +32,9 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 
 - UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
 - Keep desktop as a centered mobile preview and retain compact notes/session-only swaps.
-- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v7).
-- Browser validation now covers 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Physical iPhone, real auth/update flow, and download verification remain pending. 51 automated tests pass.
+- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v8).
+- Browser validation now covers 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Physical iPhone, real auth/update flow, and download verification remain pending. 54 automated tests pass.
+- Investigate the reported phone startup hang on "Checking your workouts" if still occurring; investigation was interrupted to address the keyboard/save-dock jump.
 - Per-machine identities were discussed and deferred as excessive; do not add a station selector without a new explicit request.
 - Decide whether unchecked prefilled sets should count in a saved workout. Existing save/volume semantics were preserved during the UI audit.
 - Data/account follow-up:

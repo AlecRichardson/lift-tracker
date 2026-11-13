@@ -1280,15 +1280,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const refresh = () => {
       const editing = document.activeElement?.matches("input, textarea, select, [contenteditable='true']");
       const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      const open = Boolean(editing && inset > 140 && viewport.scale < 1.1);
+      const wasOpen = document.body.classList.contains("keyboardOpen");
+      const open = Boolean((editing || wasOpen) && inset > 140 && viewport.scale < 1.1);
       document.body.classList.toggle("keyboardOpen", open);
-      document.documentElement.style.setProperty("--keyboard-inset", `${open ? inset : 0}px`);
-      if (open && !document.activeElement.closest("dialog")) {
-        const rect = document.activeElement.getBoundingClientRect();
-        if (rect.bottom > viewport.offsetTop + viewport.height - 80 || rect.top < (header?.getBoundingClientRect().bottom || 72)) {
-          document.activeElement.scrollIntoView({ block: "center", behavior: "instant" });
-        }
-      }
     };
     viewport.addEventListener("resize", refresh);
     document.addEventListener("focusin", () => requestAnimationFrame(refresh));
