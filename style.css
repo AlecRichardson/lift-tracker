@@ -158,6 +158,9 @@ small { color: var(--muted); }
 .setRow:last-child { margin-bottom: 0; }
 .setNumber { width: 44px; min-height: 46px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: #222729; color: var(--muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .setRow input { height: 46px; font-size: 16px; padding-inline: 10px; }
+.setWeightCell { position: relative; min-width: 0; }
+.setWeightCell.hasWeightFill input { padding-right: 48px; }
+.weightFillBtn { position: absolute; right: 1px; top: 1px; width: 44px; height: 44px; border: 0; border-left: 1px solid var(--border); border-radius: 0 5px 5px 0; background: transparent; color: var(--accent); font-size: 20px; }
 .setRow.setDone input { border-color: #8fdbad45; background: #8fdbad08; color: #caecd6; }
 .setRow.setDone .setNumber { background: #8fdbad18; border-color: #8fdbad60; color: var(--success); }
 .setRow .setNumber.timerActive { color: var(--accent-2); border-color: #91bdff60; background: #91bdff15; font-size: 10px; }

@@ -32,8 +32,9 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 
 - UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
 - Keep desktop as a centered mobile preview and retain compact notes/session-only swaps.
-- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v8).
-- Browser validation now covers 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Physical iPhone, real auth/update flow, and download verification remain pending. 54 automated tests pass.
+- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v9).
+- Browser validation now covers 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Physical iPhone, real auth/update flow, and download verification remain pending. 59 automated tests pass.
+- Weight-row down arrows copy a deliberately entered weight to untouched unfinished sets below. Preserve historical Last/placeholder values and manually edited weights; copied weights are session edits saved in drafts.
 - Investigate the reported phone startup hang on "Checking your workouts" if still occurring; investigation was interrupted to address the keyboard/save-dock jump.
 - Per-machine identities were discussed and deferred as excessive; do not add a station selector without a new explicit request.
 - Decide whether unchecked prefilled sets should count in a saved workout. Existing save/volume semantics were preserved during the UI audit.

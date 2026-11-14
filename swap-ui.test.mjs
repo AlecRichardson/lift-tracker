@@ -26,6 +26,7 @@ function swap({ completed = true, accept = true, same = false } = {}) {
     confirm: () => { calls.prompts++; return accept; },
     stopRestTimer: () => { calls.stopped++; },
     updateWorkoutCompletion: () => {},
+    refreshWeightFillButtons: () => {},
     getPreviousExerciseContext: () => { calls.lookup++; return {}; },
     isCableExercise: () => false,
     updateSwapVisualState: () => {}, updatePreviousExerciseDisplay: () => {},

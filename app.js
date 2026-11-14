@@ -8,7 +8,7 @@ import {
   normalizeExerciseName
 } from "./history-context.mjs";
 import { applyRecommendationContext, getExerciseRecommendation } from "./recommendations.mjs";
-import { claimLegacyWorkoutDraft, getSetPrefill, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
+import { claimLegacyWorkoutDraft, getSetPrefill, getWeightFillTargets, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
@@ -2006,6 +2006,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("input", event => {
     if (!event.target.closest?.("#exerciseContainer")) return;
     if (event.target.matches?.(".setRow input")) event.target.dataset.edited = "true";
+    refreshWeightFillButtons(event.target.closest(".exerciseCard"));
     if (event.target.matches?.(".sessionNoteInput")) {
       const button = event.target.closest(".exerciseCard")?.querySelector(".noteToggleBtn");
       const hasNote = Boolean(event.target.value.trim());
@@ -2435,6 +2436,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const draftSet = draftSets?.[i];
         const previousSet = previousSets?.[i];
+        weightInput.placeholder = previousSet?.weight != null ? `Last: ${previousSet.weight}` : "Weight";
 
         const prefill = getSetPrefill(previousSet, draftSet);
         repsInput.value = prefill.reps;
@@ -2451,11 +2453,30 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         row.appendChild(setNumber);
         row.appendChild(repsInput);
-        row.appendChild(weightInput);
+        const weightCell = document.createElement("div");
+        weightCell.className = "setWeightCell";
+        const fillButton = document.createElement("button");
+        fillButton.type = "button";
+        fillButton.className = "weightFillBtn hidden";
+        fillButton.textContent = "\u2193";
+        fillButton.addEventListener("click", () => {
+          const rows = [...exerciseCard.querySelectorAll(".setRow")];
+          const sets = readWeightFillSets(exerciseCard);
+          getWeightFillTargets(sets, i).forEach(index => {
+            const input = rows[index].querySelector('input[data-field="weight"]');
+            input.value = weightInput.value;
+            input.dataset.edited = "true";
+          });
+          refreshWeightFillButtons(exerciseCard);
+          saveDraft(currentDay);
+        });
+        weightCell.append(weightInput, fillButton);
+        row.appendChild(weightCell);
         exerciseCard.appendChild(row);
       }
 
       container.appendChild(exerciseCard);
+      refreshWeightFillButtons(exerciseCard);
       exerciseCard.querySelectorAll(".setNumber").forEach((button, index) => {
         const endsAt = Number(draftSets?.[index]?.restEndsAt);
         if (button.dataset.done === "true" && endsAt > Date.now()) startRestTimer(button, 0, endsAt);
@@ -2464,6 +2485,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     container.dataset.renderedDay = currentDay;
     container.dataset.renderedTemplate = JSON.stringify(workouts[currentDay] || []);
     updateWorkoutCompletion();
+  }
+
+  function readWeightFillSets(card) {
+    return [...card.querySelectorAll(".setRow")].map(row => ({
+      weight: row.querySelector('input[data-field="weight"]').value,
+      editedWeight: row.querySelector('input[data-field="weight"]').dataset.edited === "true",
+      done: row.querySelector(".setNumber").dataset.done === "true"
+    }));
+  }
+
+  function refreshWeightFillButtons(card) {
+    if (!card) return;
+    const sets = readWeightFillSets(card);
+    card.querySelectorAll(".weightFillBtn").forEach((button, index) => {
+      const visible = getWeightFillTargets(sets, index).length > 0;
+      button.classList.toggle("hidden", !visible);
+      button.closest(".setWeightCell").classList.toggle("hasWeightFill", visible);
+      const label = `Use ${sets[index].weight} lb for untouched sets below`;
+      button.title = label;
+      button.setAttribute("aria-label", label);
+    });
   }
 
   function toggleSetDone({ button, day, restText }) {
@@ -2478,6 +2520,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       button.textContent = button.dataset.setNumber;
       button.classList.remove("timerActive", "timerComplete");
       row?.classList.remove("setDone");
+      refreshWeightFillButtons(row?.closest(".exerciseCard"));
       saveDraft(day);
       return;
     }
@@ -2486,6 +2529,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     button.setAttribute("aria-pressed", "true");
     row?.querySelectorAll("input").forEach(input => { input.dataset.edited = "true"; });
     row?.classList.add("setDone");
+    refreshWeightFillButtons(row?.closest(".exerciseCard"));
 
     const seconds = parseRestSeconds(restText);
 
@@ -3483,6 +3527,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       clearWhenMissing,
       preserveEdited: preserveEdited || !identityChanged
     });
+    refreshWeightFillButtons(card);
   }
 
   function updateRecommendationDisplay(card, recommendation) {
@@ -3543,6 +3588,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const weightInput = row.querySelector("input[data-field='weight']");
       const repsValue = previousSet?.reps || "";
       const weightValue = previousSet?.weight || "";
+      if (weightInput) weightInput.placeholder = previousSet?.weight != null ? `Last: ${previousSet.weight}` : "Weight";
 
       if (options.preserveEdited) {
         const prefill = getSetPrefill(previousSet, {

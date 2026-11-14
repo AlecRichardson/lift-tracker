@@ -2,6 +2,14 @@ export function workoutDraftKey(userId, planId, day) {
   return `draftWorkoutV5:${JSON.stringify([userId, planId, day])}`;
 }
 
+export function getWeightFillTargets(sets, sourceIndex) {
+  const source = sets[sourceIndex];
+  if (!source || !(source.editedWeight || source.done) || String(source.weight ?? "").trim() === "" ||
+    !Number.isFinite(Number(source.weight)) || Number(source.weight) < 0) return [];
+  return sets.flatMap((set, index) => index > sourceIndex && !set.done && !set.editedWeight &&
+    (String(set.weight ?? "").trim() === "" || Number(set.weight) !== Number(source.weight)) ? [index] : []);
+}
+
 export function isMatchingWorkoutDraft(draft, { userId, planId, day }) {
   return Boolean(userId && draft && draft.userId === userId &&
     draft.planId === planId && draft.day === day && typeof draft.gym === "string");
