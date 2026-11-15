@@ -9,6 +9,7 @@ import {
 } from "./history-context.mjs";
 import { applyRecommendationContext, getExerciseRecommendation } from "./recommendations.mjs";
 import { claimLegacyWorkoutDraft, getSetPrefill, getWeightFillTargets, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
+import { createPlanFile, createPlanTemplate, parsePlanFile, PLAN_FILE_LIMIT } from "./plan-files.mjs";
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
@@ -382,6 +383,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let builderDirty = false;
   let builderSavedNotice = false;
   let exerciseFormDirty = false;
+  let pendingPlanImport = null;
 
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
@@ -452,6 +454,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   setupBottomNav();
+  setupPlanFileControls();
   setupAccountButton();
   setupGymControls();
   setupTimerResumeHandlers();
@@ -1326,6 +1329,135 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      PLAN BUILDER
   ===================================================== */
+  function planFilesStatus(text) {
+    const status = document.getElementById("planFilesStatus");
+    if (status) status.textContent = text;
+  }
+
+  async function refreshPlanLibrary(selectedId = "") {
+    const button = document.getElementById("activatePlanBtn");
+    if (button) button.disabled = true;
+    try {
+      const snapshot = await getDocs(collection(db, "users", userId, "plans"));
+      const select = document.getElementById("savedPlanSelect");
+      if (!select) return;
+      const previousId = selectedId || select.value || activePlan.id;
+      select.replaceChildren();
+      snapshot.docs.forEach(record => {
+        const option = document.createElement("option");
+        option.value = record.id;
+        option.textContent = `${record.data().name || "Untitled Plan"}${record.id === activePlan.id ? " (Active)" : ""}`;
+        select.appendChild(option);
+      });
+      select.value = previousId;
+      if (!select.value) select.value = activePlan.id;
+      planFilesStatus("");
+    } catch (error) {
+      console.error(error);
+      planFilesStatus("Couldn't load saved plans. Close and reopen this section to try again.");
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function activateSavedPlan() {
+    const id = document.getElementById("savedPlanSelect")?.value;
+    if (!id || id === activePlan.id) return;
+    if ((builderDirty || exerciseFormDirty) && !confirm("Switch plans and discard your unsaved plan edits?")) return;
+    const button = document.getElementById("activatePlanBtn");
+    button.disabled = true;
+    try {
+      const record = await getDoc(doc(db, "users", userId, "plans", id));
+      if (!record.exists()) throw new Error("Plan unavailable");
+      const plan = parsePlanFile(JSON.stringify(record.data()));
+      if (currentDay && document.querySelector(".exerciseCard")) saveDraft(currentDay);
+      await setDoc(userSettingsDoc(), { activePlanId: id, updatedAt: new Date().toISOString() }, { merge: true });
+      stopAllRestTimers();
+      currentDay = "";
+      const container = document.getElementById("exerciseContainer");
+      container.replaceChildren();
+      delete container.dataset.renderedDay;
+      activePlan = { ...record.data(), ...plan, id };
+      workouts = plan.workouts;
+      workoutDays = plan.dayOrder;
+      initBuilderFromActivePlan(true);
+      await renderHome();
+      renderPlanPage();
+      showPage("planPage");
+      showBuilderMessage("Plan activated.", "success");
+    } catch (error) {
+      console.error(error);
+      planFilesStatus("Couldn't switch plans. Try again.");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function setupPlanFileControls() {
+    const dialog = document.getElementById("planImportDialog");
+    dialog.addEventListener("cancel", event => {
+      if (document.getElementById("confirmPlanImport").disabled) event.preventDefault();
+    });
+    document.getElementById("cancelPlanImport").addEventListener("click", () => dialog.close());
+    dialog.addEventListener("close", () => { pendingPlanImport = null; });
+    document.getElementById("planFileInput").addEventListener("change", async event => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      try {
+        if (file.size > PLAN_FILE_LIMIT) throw new Error("Choose a plan file smaller than 512 KB.");
+        pendingPlanImport = parsePlanFile(await file.text());
+        document.getElementById("planImportName").textContent = pendingPlanImport.name;
+        document.getElementById("planImportDays").innerHTML = pendingPlanImport.dayOrder.map(day => `
+          <details><summary>${escapeHtml(day)} / ${pendingPlanImport.workouts[day].length} exercises</summary>
+            <ol>${pendingPlanImport.workouts[day].map(exercise => `<li><strong>${escapeHtml(exercise.name)}</strong><span>${exercise.sets} sets / ${escapeHtml(exercise.target)}${exercise.rest ? ` / Rest ${escapeHtml(exercise.rest)}` : ""}${exercise.superset ? ` / Superset ${escapeHtml(exercise.superset)}` : ""}</span></li>`).join("")}</ol>
+          </details>`).join("");
+        document.getElementById("planImportError").textContent = "";
+        dialog.showModal();
+      } catch (error) {
+        pendingPlanImport = null;
+        planFilesStatus(error.message || "Couldn't read this plan file.");
+      }
+    });
+    document.getElementById("confirmPlanImport").addEventListener("click", async event => {
+      if (!pendingPlanImport) return;
+      const plan = pendingPlanImport;
+      const button = event.currentTarget;
+      button.disabled = true;
+      document.getElementById("cancelPlanImport").disabled = true;
+      try {
+        const now = new Date().toISOString();
+        const record = await addDoc(collection(db, "users", userId, "plans"), { ...plan, createdAt: now, updatedAt: now });
+        dialog.close();
+        await refreshPlanLibrary(record.id);
+        planFilesStatus("Plan imported.");
+      } catch (error) {
+        console.error(error);
+        document.getElementById("planImportError").textContent = "Couldn't import this plan. Try again.";
+      } finally {
+        button.disabled = false;
+        document.getElementById("cancelPlanImport").disabled = false;
+      }
+    });
+    document.getElementById("discardWorkout").addEventListener("click", async () => {
+      if (!currentDay || document.getElementById("saveWorkout").disabled) return;
+      if (!confirm("Discard this unfinished workout? Your saved workout history will not be changed.")) return;
+      try {
+        clearDraft();
+        stopAllRestTimers();
+        currentDay = "";
+        const container = document.getElementById("exerciseContainer");
+        container.replaceChildren();
+        delete container.dataset.renderedDay;
+        await renderHome();
+        showPage("homePage");
+      } catch (error) {
+        console.error(error);
+        showMessage("Couldn't discard this workout. Try again.", "error");
+      }
+    });
+  }
+
   function initBuilderFromActivePlan(force = false) {
     if (builderWorkouts && !force) return;
 
@@ -1339,6 +1471,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     editingExerciseIndex = null;
     builderDirty = false;
     builderSavedNotice = false;
+    exerciseFormDirty = false;
   }
 
   function markBuilderDirty() {
@@ -1368,6 +1501,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     planOverview.innerHTML = `
       <div class="builderGrid">
+        <section class="dashboardCard planFiles">
+          <details id="planFilesMenu">
+            <summary>Plans &amp; files</summary>
+            <label class="fieldLabel" for="savedPlanSelect">Saved plans</label>
+            <div class="planSwitchRow">
+              <select id="savedPlanSelect"><option value="${escapeAttribute(activePlan?.id || "")}">${escapeHtml(activePlan?.name || "Current Plan")} (Active)</option></select>
+              <button id="activatePlanBtn" type="button" class="secondaryBtn">Make Active</button>
+            </div>
+            <div class="planFileActions">
+              <button id="exportPlanBtn" type="button" class="secondaryBtn">Export Active Plan</button>
+              <button id="templatePlanBtn" type="button" class="secondaryBtn">Download Template</button>
+              <button id="importPlanBtn" type="button" class="secondaryBtn">Import Plan</button>
+            </div>
+            <p id="planFilesStatus" class="historySource" role="status"></p>
+          </details>
+        </section>
         <section class="dashboardCard">
           <h3>${escapeHtml(builderPlanName || "Workout plan")}</h3>
 
@@ -1551,6 +1700,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function attachPlanBuilderEvents() {
+    document.getElementById("planFilesMenu")?.addEventListener("toggle", event => {
+      if (event.currentTarget.open) refreshPlanLibrary();
+    });
+    document.getElementById("activatePlanBtn")?.addEventListener("click", () => activateSavedPlan());
+    document.getElementById("importPlanBtn")?.addEventListener("click", () => document.getElementById("planFileInput").click());
+    document.getElementById("templatePlanBtn")?.addEventListener("click", () => downloadJsonFile("lift-tracker-plan-template.json", createPlanTemplate()));
+    document.getElementById("exportPlanBtn")?.addEventListener("click", () => {
+      if (builderDirty || exerciseFormDirty) {
+        showBuilderMessage("Save Changes before exporting this plan.");
+        return;
+      }
+      downloadJsonFile(`lift-tracker-plan-${slugify(activePlan.name) || "plan"}.json`, createPlanFile(activePlan));
+    });
     const planNameInput = document.getElementById("builderPlanName");
     planNameInput?.addEventListener("input", () => {
       builderPlanName = planNameInput.value;

@@ -72,6 +72,7 @@
           <select id="gymSelect"></select>
         </label>
         <button id="addGymBtn" type="button" class="gymAddBtn" aria-label="Add gym" title="Add gym">+</button>
+        <button id="discardWorkout" type="button" class="gymAddBtn" aria-label="Discard unfinished workout" title="Discard unfinished workout">&times;</button>
       </div>
 
       <div id="exerciseContainer"></div>
@@ -117,6 +118,17 @@
     </section>
   </main>
 
+  <input id="planFileInput" type="file" accept=".json,application/json" hidden />
+  <dialog id="planImportDialog" class="accountDialog" aria-labelledby="planImportTitle">
+    <h3 id="planImportTitle">Import Plan</h3>
+    <p id="planImportName" class="planImportName"></p>
+    <div id="planImportDays" class="planImportDays"></div>
+    <p id="planImportError" class="builderStatus" role="alert"></p>
+    <div class="accountActions">
+      <button id="confirmPlanImport" type="button" class="primaryBtn">Save as New Plan</button>
+      <button id="cancelPlanImport" type="button" class="secondaryBtn">Cancel</button>
+    </div>
+  </dialog>
   <dialog id="accountDialog" class="accountDialog" aria-labelledby="accountDialogTitle">
     <div class="accountDialogHeader">
       <div><h3 id="accountDialogTitle">Account</h3><p id="accountName"></p></div>

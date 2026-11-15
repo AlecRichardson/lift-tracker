@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "lift-tracker-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v10`;
+const CACHE_NAME = `${CACHE_PREFIX}v11`;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "./app.js",
   "./history-context.mjs",
   "./workout-state.mjs",
+  "./plan-files.mjs",
   "./recommendations.mjs",
   "./firebase.js",
   "./workouts.js",

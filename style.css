@@ -100,7 +100,7 @@ small { color: var(--muted); }
 #bottomPlan { --nav-icon: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M5 5h2v2H5zm4 0h10v2H9zM5 11h2v2H5zm4 0h10v2H9zM5 17h2v2H5zm4 0h10v2H9z'/%3E%3C/svg%3E"); }
 
 #workoutPage { padding-bottom: calc(var(--bottom-nav-height) + var(--dock-height) + env(safe-area-inset-bottom) + 28px); }
-.workoutContextBar { display: grid; grid-template-columns: minmax(0,1fr) 44px; align-items: center; gap: 8px; margin-bottom: 16px; }
+.workoutContextBar { display: grid; grid-template-columns: minmax(0,1fr) 44px 44px; align-items: center; gap: 8px; margin-bottom: 16px; }
 .gymSelectorPill { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 44px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
 .gymSelectorPill > span { flex: 0 0 auto; white-space: nowrap; color: var(--muted); font-size: 13px; }
 .gymSelectorPill select { flex: 1 1 0; min-width: 0; width: 0; min-height: 42px; padding: 4px 18px 4px 0; background: transparent; border: 0; font-weight: 550; }
@@ -223,6 +223,16 @@ body.keyboardOpen .bottomNav, body.keyboardOpen .saveDock, body.keyboardOpen .bu
 .chartEmpty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 20px; color: var(--muted); font-size: 13px; }
 
 .builderGrid { display: grid; gap: 0; }
+.planFiles summary, .planImportDays summary { min-height: 44px; padding-block: 12px; cursor: pointer; font-size: 13px; }
+.planFiles .fieldLabel { margin-top: 10px; }
+.planSwitchRow { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; }
+.planFileActions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-block: 12px; }
+.planFileActions > :last-child { grid-column: 1/-1; }
+.planImportName { margin-block: 10px; font-size: 16px; font-weight: 600; }
+.planImportDays details { border-bottom: 1px solid var(--border); }
+.planImportDays ol { padding-left: 20px; margin-block: 8px 12px; }
+.planImportDays li { padding-block: 6px; font-size: 13px; }
+.planImportDays li span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
 .builderGrid .dashboardCard { margin: 0; padding-block: 18px; }
 .builderGrid > .dashboardCard:first-child { padding-top: 0; }
 .builderGrid .dashboardCard h3 { font-size: 15px; }

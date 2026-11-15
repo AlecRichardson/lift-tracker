@@ -32,8 +32,10 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 
 - UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
 - Keep desktop as a centered mobile preview and retain compact notes/session-only swaps.
-- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v10).
-- Browser validation now covers 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Physical iPhone, real auth/update flow, and download verification remain pending. 61 automated tests pass.
+- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v11).
+- Browser validation previously covered 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Browser access was unavailable for the new plan-file/library/discard workflow; verify these screens on iPhone. Physical iPhone, real auth/update flow, and download verification remain pending. 74 automated tests pass.
+- Plan > Plans & files exports the saved active regimen, downloads a standalone template, previews imports, and stores each import as a new plan. Make Active switches plans without overwriting old plans or completed history. See `PLAN-FORMAT.md`.
+- The close button beside Workout gym controls confirms before discarding only the current unfinished draft and stopping its timers.
 - Account and History exports include all saved workouts, without a count or date cutoff. Synthetic 1000-workout coverage verifies retained exercise/set data.
 - Weight-row down arrows copy a deliberately entered weight to untouched unfinished sets below. Preserve historical Last/placeholder values and manually edited weights; copied weights are session edits saved in drafts.
 - Investigate the reported phone startup hang on "Checking your workouts" if still occurring; investigation was interrupted to address the keyboard/save-dock jump.
