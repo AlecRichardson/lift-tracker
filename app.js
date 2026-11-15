@@ -2440,7 +2440,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     filterWrap.className = "historyFilters";
 
     const logDays = logs.map(log => log.d).filter(Boolean);
-    const filterOptions = ["All", ...new Set([...workoutDays, ...logDays])];
+    const filterOptions = ["All", ...new Set(logDays)];
+    if (!filterOptions.includes(historyFilter)) historyFilter = "All";
 
     filterOptions.forEach(day => {
       const btn = document.createElement("button");
@@ -2493,7 +2494,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const exerciseCount = Array.isArray(log.e) ? log.e.length : 0;
         const workingSets = countWorkingSets(log);
         const totalVolume = workoutVolume(log);
-        const gymText = log.gym ? `${log.gym} / ` : "";
+        const gymText = log.gym ? ` / ${log.gym}` : "";
 
         const header = document.createElement("button");
         header.type = "button";
@@ -2503,12 +2504,13 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="historyCardMain">
             <div class="historyWorkoutName">${escapeHtml(log.d || "Workout")}</div>
             <div class="historyCardMeta">
-              ${escapeHtml(formatCompactTime(log.t))} / ${escapeHtml(gymText)}${exerciseCount} ${exerciseCount === 1 ? "exercise" : "exercises"} / ${workingSets} ${workingSets === 1 ? "set" : "sets"}
+              <span>${escapeHtml(formatCompactTime(log.t))}${escapeHtml(gymText)}</span>
+              <span>${exerciseCount} ${exerciseCount === 1 ? "exercise" : "exercises"} / ${workingSets} ${workingSets === 1 ? "set" : "sets"}</span>
             </div>
           </div>
           <div class="historyCardSide">
             <div class="historyVolume">${formatLargeNumber(totalVolume)} lb</div>
-            <div class="historyChevron">▾</div>
+            <span class="historyChevron" aria-hidden="true"></span>
           </div>
         `;
 

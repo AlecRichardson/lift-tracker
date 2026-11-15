@@ -81,3 +81,11 @@ Screenshots contain synthetic data, not the live account.
 - Plan and History row swipes reveal Delete but never execute deletion directly. Confirmation, plan/history separation, and existing menu alternatives remain intact. Only one row stays revealed; right swipe or tapping the front closes it.
 - Plan back/forward swipes preserve drafts and picker selections. Screen edges, vertical movement, controls, active editing, dialogs, and row-delete gestures are guarded. A focused idle navigation button no longer blocks later page swipes.
 - Shell cache v15 includes the new row-gesture module. Automated checks: 140 passing tests, syntax checks, and clean whitespace checks. Browser access was unavailable for this follow-up; physical iPhone Safari/Home Screen gestures, visual alignment, and deployed update behavior remain pending. No new screenshots or live-account deletion tests were performed.
+
+## History Screenshot Follow-Up
+
+- User's iPhone screenshot showed excessive space around date groups, boxed filter controls, a tiny expansion indicator, and swipe translation clipping the workout title.
+- Reduced date/list spacing and row minimum height, replaced filter boxes with underlined tabs, and made Export All a quieter text action. The title and volume share one line; time/gym and exercise/set counts use the full width below it, wrapping when necessary.
+- Filters now reflect saved workout days rather than unrelated days in the active plan. A filter resets to All when its last workout is deleted.
+- Swipe reveal now narrows the front instead of translating it off-screen. Delete is an inset, rounded, muted-danger action, with the same confirmation behavior. Shared Plan row reveals benefit from the same title-preserving treatment.
+- Shell cache v16. All 144 tests and syntax/whitespace checks pass. Browser inventory again reported local browser access unavailable; no rendered/device verification or live data changes were performed.
