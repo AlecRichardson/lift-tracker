@@ -24,7 +24,7 @@ function worker({ cached = null, response = { ok: true, clone() { return this; }
     },
     caches: {
       open: async () => cache,
-      keys: async () => ["unrelated-cache", "lift-tracker-shell-v4", "lift-tracker-shell-v6", "lift-tracker-shell-v7", "lift-tracker-shell-v8", "lift-tracker-shell-v9", "lift-tracker-shell-v10", "lift-tracker-shell-v11"],
+      keys: async () => ["unrelated-cache", "lift-tracker-shell-v4", "lift-tracker-shell-v6", "lift-tracker-shell-v7", "lift-tracker-shell-v8", "lift-tracker-shell-v9", "lift-tracker-shell-v10", "lift-tracker-shell-v11", "lift-tracker-shell-v12"],
       delete: async key => { calls.deleted.push(key); }
     },
     fetch: async request => {
@@ -55,6 +55,7 @@ test("new workers precache all app modules and wait for explicit activation", as
   }
   assert.equal(app.calls.skipped, 0);
   assert.ok(app.calls.precached.includes("./plan-files.mjs"));
+  for (const path of ["./plan-builder.mjs", "./plan-builder-state.mjs", "./plan-builder.css"]) assert.ok(app.calls.precached.includes(path));
   app.handlers.message({ data: { type: "SKIP_WAITING" } });
   assert.equal(app.calls.skipped, 1);
 });
@@ -62,7 +63,7 @@ test("new workers precache all app modules and wait for explicit activation", as
 test("activation removes only obsolete Lift Tracker caches", async () => {
   const app = worker();
   await app.lifecycle("activate");
-  assert.deepEqual(app.calls.deleted, ["lift-tracker-shell-v4", "lift-tracker-shell-v6", "lift-tracker-shell-v7", "lift-tracker-shell-v8", "lift-tracker-shell-v9", "lift-tracker-shell-v10"]);
+  assert.deepEqual(app.calls.deleted, ["lift-tracker-shell-v4", "lift-tracker-shell-v6", "lift-tracker-shell-v7", "lift-tracker-shell-v8", "lift-tracker-shell-v9", "lift-tracker-shell-v10", "lift-tracker-shell-v11"]);
   assert.equal(app.calls.claimed, 1);
 });
 

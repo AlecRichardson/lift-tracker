@@ -9,7 +9,8 @@ import {
 } from "./history-context.mjs";
 import { applyRecommendationContext, getExerciseRecommendation } from "./recommendations.mjs";
 import { claimLegacyWorkoutDraft, getSetPrefill, getWeightFillTargets, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
-import { createPlanFile, createPlanTemplate, parsePlanFile, PLAN_FILE_LIMIT } from "./plan-files.mjs";
+import { parsePlanFile, PLAN_FILE_LIMIT } from "./plan-files.mjs";
+import { PlanBuilder } from "./plan-builder.mjs";
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
@@ -376,13 +377,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let historyFilter = "All";
   const activeRestTimers = new Map();
 
-  let builderPlanName = "";
-  let builderWorkouts = null;
-  let selectedBuilderDay = "";
-  let editingExerciseIndex = null;
+  let planBuilder = null;
   let builderDirty = false;
-  let builderSavedNotice = false;
-  let exerciseFormDirty = false;
   let pendingPlanImport = null;
 
   const pageTitle = document.getElementById("pageTitle");
@@ -470,7 +466,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("accountInstallHelp")?.setAttribute("hidden", "");
   });
   document.addEventListener("lift:before-update", event => {
-    if (builderDirty || exerciseFormDirty) {
+    if (builderDirty) {
       event.detail.reason = "Save your plan changes before updating.";
       event.preventDefault();
       return;
@@ -482,14 +478,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       event.preventDefault();
     }
   });
-  document.addEventListener("input", event => {
-    if (event.target.closest?.("#exerciseEditorCard")) {
-      exerciseFormDirty = true;
-      updateBuilderSaveButtons();
-    }
-  });
   window.addEventListener("beforeunload", event => {
-    if (!builderDirty && !exerciseFormDirty) return;
+    if (!builderDirty) return;
     event.preventDefault();
     event.returnValue = "";
   });
@@ -817,8 +807,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (pageId === "planPage") {
-      initBuilderFromActivePlan();
-      if (!exerciseFormDirty) renderPlanPage();
+      renderPlanPage();
       showPage("planPage");
     }
   }
@@ -964,8 +953,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (pageId === "planPage") {
-      pageTitle.textContent = "Plan Builder";
-      pageSubtitle.textContent = activePlan ? activePlan.name : "Create your plan";
+      pageTitle.textContent = "Plans";
+      pageSubtitle.textContent = activePlan ? `Active: ${activePlan.name}` : "Create your plan";
     }
 
     updateBottomNav();
@@ -1202,11 +1191,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
       </div>
       <div class="homeActions">
-        <button id="openPlanFromHome" type="button" class="secondaryBtn">Open Plan Builder</button>
+        <button id="openPlanFromHome" type="button" class="secondaryBtn">Edit Plan</button>
       </div>
     `;
 
     document.getElementById("openPlanFromHome")?.addEventListener("click", () => {
+      initBuilderFromActivePlan().open(activePlan.id);
       navigateToMainPage("planPage");
     });
   }
@@ -1330,67 +1320,30 @@ document.addEventListener("DOMContentLoaded", async () => {
      PLAN BUILDER
   ===================================================== */
   function planFilesStatus(text) {
-    const status = document.getElementById("planFilesStatus");
-    if (status) status.textContent = text;
+    initBuilderFromActivePlan().notify(text);
   }
 
   async function refreshPlanLibrary(selectedId = "") {
-    const button = document.getElementById("activatePlanBtn");
-    if (button) button.disabled = true;
-    try {
-      const snapshot = await getDocs(collection(db, "users", userId, "plans"));
-      const select = document.getElementById("savedPlanSelect");
-      if (!select) return;
-      const previousId = selectedId || select.value || activePlan.id;
-      select.replaceChildren();
-      snapshot.docs.forEach(record => {
-        const option = document.createElement("option");
-        option.value = record.id;
-        option.textContent = `${record.data().name || "Untitled Plan"}${record.id === activePlan.id ? " (Active)" : ""}`;
-        select.appendChild(option);
-      });
-      select.value = previousId;
-      if (!select.value) select.value = activePlan.id;
-      planFilesStatus("");
-    } catch (error) {
-      console.error(error);
-      planFilesStatus("Couldn't load saved plans. Close and reopen this section to try again.");
-    } finally {
-      if (button) button.disabled = false;
-    }
+    await initBuilderFromActivePlan().refresh(selectedId);
   }
 
-  async function activateSavedPlan() {
-    const id = document.getElementById("savedPlanSelect")?.value;
+  async function activateSavedPlan(id) {
     if (!id || id === activePlan.id) return;
-    if ((builderDirty || exerciseFormDirty) && !confirm("Switch plans and discard your unsaved plan edits?")) return;
-    const button = document.getElementById("activatePlanBtn");
-    button.disabled = true;
-    try {
-      const record = await getDoc(doc(db, "users", userId, "plans", id));
-      if (!record.exists()) throw new Error("Plan unavailable");
-      const plan = parsePlanFile(JSON.stringify(record.data()));
-      if (currentDay && document.querySelector(".exerciseCard")) saveDraft(currentDay);
-      await setDoc(userSettingsDoc(), { activePlanId: id, updatedAt: new Date().toISOString() }, { merge: true });
-      stopAllRestTimers();
-      currentDay = "";
-      const container = document.getElementById("exerciseContainer");
-      container.replaceChildren();
-      delete container.dataset.renderedDay;
-      activePlan = { ...record.data(), ...plan, id };
-      workouts = plan.workouts;
-      workoutDays = plan.dayOrder;
-      initBuilderFromActivePlan(true);
-      await renderHome();
-      renderPlanPage();
-      showPage("planPage");
-      showBuilderMessage("Plan activated.", "success");
-    } catch (error) {
-      console.error(error);
-      planFilesStatus("Couldn't switch plans. Try again.");
-    } finally {
-      button.disabled = false;
-    }
+    const record = await getDoc(doc(db, "users", userId, "plans", id));
+    if (!record.exists()) throw new Error("This plan is no longer available.");
+    const plan = parsePlanFile(JSON.stringify(record.data()));
+    if (currentDay && document.querySelector(".exerciseCard")) saveDraft(currentDay);
+    await setDoc(userSettingsDoc(), { activePlanId: id, updatedAt: new Date().toISOString() }, { merge: true });
+    stopAllRestTimers();
+    currentDay = "";
+    const container = document.getElementById("exerciseContainer");
+    container.replaceChildren();
+    delete container.dataset.renderedDay;
+    activePlan = { ...record.data(), ...plan, id };
+    workouts = plan.workouts;
+    workoutDays = plan.dayOrder;
+    if (currentPage === "homePage") await renderHome();
+    if (currentPage === "planPage") pageSubtitle.textContent = `Active: ${activePlan.name}`;
   }
 
   function setupPlanFileControls() {
@@ -1458,594 +1411,54 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  function initBuilderFromActivePlan(force = false) {
-    if (builderWorkouts && !force) return;
-
-    builderPlanName = activePlan?.name || "Current Plan";
-    const orderedDays = getOrderedWorkoutDays(activePlan?.workouts || workouts || {}, activePlan?.dayOrder || workoutDays);
-    builderWorkouts = orderWorkoutObject(
-      deepClone(activePlan?.workouts || workouts || {}),
-      orderedDays
-    );
-    selectedBuilderDay = orderedDays[0] || "";
-    editingExerciseIndex = null;
-    builderDirty = false;
-    builderSavedNotice = false;
-    exerciseFormDirty = false;
-  }
-
-  function markBuilderDirty() {
-    builderDirty = true;
-    builderSavedNotice = false;
+  function initBuilderFromActivePlan() {
+    if (planBuilder) return planBuilder;
+    planBuilder = new PlanBuilder({
+      root: document.getElementById("planOverview"),
+      userId,
+      getActivePlan: () => activePlan,
+      starterPlans: [{ workouts: defaultValidation.workouts }],
+      getPlans: async () => {
+        const snapshot = await getDocs(collection(db, "users", userId, "plans"));
+        return snapshot.docs.flatMap(record => {
+          const data = record.data();
+          const validation = validateWorkoutObject(data.workouts || {});
+          if (validation.errors.length) return [];
+          const dayOrder = getOrderedWorkoutDays(validation.workouts, data.dayOrder);
+          return [{ ...data, id: record.id, workouts: orderWorkoutObject(validation.workouts, dayOrder), dayOrder }];
+        });
+      },
+      getHistory: () => getLogs(),
+      savePlan: async plan => {
+        const normalized = parsePlanFile(JSON.stringify(plan));
+        if (plan.id === activePlan.id) {
+          if (currentDay && draftHasValues(getDraft())) {
+            const error = new Error("Finish or discard your current workout before saving changes to the active plan.");
+            error.code = "workout-in-progress";
+            throw error;
+          }
+          if (currentDay && document.querySelector(".exerciseCard")) saveDraft(currentDay);
+          await saveActivePlanToStorage(normalized.workouts, normalized.name, normalized.dayOrder);
+          if (currentPage === "homePage") await renderHome();
+          if (currentPage === "planPage") pageSubtitle.textContent = `Active: ${activePlan.name}`;
+          return activePlan;
+        }
+        const now = new Date().toISOString();
+        const saved = { ...normalized, createdAt: plan.createdAt || now, updatedAt: now };
+        await setDoc(doc(db, "users", userId, "plans", plan.id), saved);
+        return { ...saved, id: plan.id };
+      },
+      activatePlan: activateSavedPlan,
+      requestImport: () => document.getElementById("planFileInput").click(),
+      exportFile: downloadJsonFile,
+      onDirtyChange: dirty => { builderDirty = dirty; },
+      scrollTop: () => window.scrollTo({ top: 0, behavior: "instant" })
+    });
+    return planBuilder;
   }
 
   function renderPlanPage() {
-    initBuilderFromActivePlan();
-
-    const planOverview = document.getElementById("planOverview");
-    if (!planOverview) return;
-    exerciseFormDirty = false;
-
-    const builderDays = Object.keys(builderWorkouts || {});
-    const selectedExercises = selectedBuilderDay ? (builderWorkouts[selectedBuilderDay] || []) : [];
-    const editingExercise =
-      editingExerciseIndex !== null && selectedExercises[editingExerciseIndex]
-        ? selectedExercises[editingExerciseIndex]
-        : null;
-
-    const statusHtml = builderDirty
-      ? `<div class="builderStatus">Unsaved changes</div>`
-      : builderSavedNotice
-        ? `<div class="builderStatus saved">Plan saved</div>`
-        : "";
-
-    planOverview.innerHTML = `
-      <div class="builderGrid">
-        <section class="dashboardCard planFiles">
-          <details id="planFilesMenu">
-            <summary>Plans &amp; files</summary>
-            <label class="fieldLabel" for="savedPlanSelect">Saved plans</label>
-            <div class="planSwitchRow">
-              <select id="savedPlanSelect"><option value="${escapeAttribute(activePlan?.id || "")}">${escapeHtml(activePlan?.name || "Current Plan")} (Active)</option></select>
-              <button id="activatePlanBtn" type="button" class="secondaryBtn">Make Active</button>
-            </div>
-            <div class="planFileActions">
-              <button id="exportPlanBtn" type="button" class="secondaryBtn">Export Active Plan</button>
-              <button id="templatePlanBtn" type="button" class="secondaryBtn">Download Template</button>
-              <button id="importPlanBtn" type="button" class="secondaryBtn">Import Plan</button>
-            </div>
-            <p id="planFilesStatus" class="historySource" role="status"></p>
-          </details>
-        </section>
-        <section class="dashboardCard">
-          <h3>${escapeHtml(builderPlanName || "Workout plan")}</h3>
-
-          <div class="builderField">
-            <label for="builderPlanName">Plan name</label>
-            <input id="builderPlanName" class="builderInput" value="${escapeAttribute(builderPlanName)}" placeholder="Current Plan" />
-          </div>
-
-          ${statusHtml}
-          <div id="builderMessage" class="builderMessage hidden"></div>
-        </section>
-
-        <section class="dashboardCard builderSaveTop">
-          <button id="savePlanTopBtn" type="button" class="primaryBtn">Save Changes</button>
-        </section>
-
-        <section class="dashboardCard">
-          <h3>Workout days</h3>
-
-          <div id="builderDayChips" class="builderDayChips">
-            ${builderDays.map((day, index) => `
-              <div class="builderDayOrderItem ${day === selectedBuilderDay ? "active" : ""}">
-                <button
-                  type="button"
-                  class="builderDayChip ${day === selectedBuilderDay ? "active" : ""}"
-                  data-day="${escapeAttribute(day)}"
-                >
-                  <span>${index + 1}</span>
-                  ${escapeHtml(day)}
-                </button>
-                <div class="builderDayOrderActions">
-                  <button type="button" class="builderDayMoveBtn" data-action="day-up" data-day="${escapeAttribute(day)}" ${index === 0 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} up" title="Move day up">&#8593;</button>
-                  <button type="button" class="builderDayMoveBtn" data-action="day-down" data-day="${escapeAttribute(day)}" ${index === builderDays.length - 1 ? "disabled" : ""} aria-label="Move ${escapeAttribute(day)} down" title="Move day down">&#8595;</button>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-
-          <div class="builderRow">
-            <input id="newDayName" class="builderInput" placeholder="New day name, e.g. Pull A" />
-            <button id="addDayBtn" type="button" class="secondaryBtn">Add Day</button>
-          </div>
-        </section>
-
-        ${selectedBuilderDay ? `
-          <section class="dashboardCard">
-            <p class="eyebrow">Selected Day</p>
-            <h3>${escapeHtml(selectedBuilderDay)}</h3>
-            <details class="daySettings"><summary>Day settings</summary>
-            <div class="builderRow">
-              <input id="renameDayInput" class="builderInput" aria-label="Selected day name" value="${escapeAttribute(selectedBuilderDay)}" />
-              <button id="renameDayBtn" type="button" class="secondaryBtn">Rename Day</button>
-            </div>
-
-            <div class="homeActions">
-              <button id="deleteDayBtn" type="button" class="dangerBtn">Delete ${escapeHtml(selectedBuilderDay)}</button>
-            </div>
-            </details>
-          </section>
-
-          <section class="dashboardCard">
-            <p class="eyebrow">Exercises</p>
-            <h3>${selectedExercises.length} exercises</h3>
-
-            <div id="exerciseBuilderList" class="exerciseBuilderList">
-              ${selectedExercises.length ? selectedExercises.map((exercise, index) => `
-                <article class="builderExerciseCard">
-                  <div class="builderExerciseHeader">
-                    <div>
-                      <strong>${escapeHtml(exercise.name)}</strong>
-                      <p>
-                        ${Number(exercise.sets) || 0} sets / Target ${escapeHtml(exercise.target || "")}
-                        ${exercise.rest ? ` / Rest ${escapeHtml(exercise.rest)}` : ""}
-                        ${exercise.superset ? ` / Superset ${escapeHtml(exercise.superset)}` : ""}
-                        ${exercise.equipment ? ` / ${escapeHtml(exercise.equipment.replace(/_/g, " "))}` : ""}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="builderExerciseActions">
-                    <button type="button" class="builderMiniBtn" data-action="edit" data-index="${index}">Edit</button>
-                    <button type="button" class="builderMiniBtn" data-action="up" data-index="${index}" aria-label="Move ${escapeAttribute(exercise.name)} up" title="Move exercise up" ${index === 0 ? "disabled" : ""}>&#8593;</button>
-                    <button type="button" class="builderMiniBtn" data-action="down" data-index="${index}" aria-label="Move ${escapeAttribute(exercise.name)} down" title="Move exercise down" ${index === selectedExercises.length - 1 ? "disabled" : ""}>&#8595;</button>
-                    <button type="button" class="builderMiniBtn danger" data-action="delete" data-index="${index}">Delete</button>
-                  </div>
-                </article>
-              `).join("") : `
-                <div class="historyEmpty">
-                  <h4>No exercises yet.</h4>
-                  <p>Add your first exercise below.</p>
-                </div>
-              `}
-            </div>
-          </section>
-
-          <section id="exerciseEditorCard" class="dashboardCard">
-            <p class="eyebrow">${editingExercise ? "Edit Exercise" : "Add Exercise"}</p>
-            <h3>${editingExercise ? escapeHtml(editingExercise.name) : `New exercise for ${escapeHtml(selectedBuilderDay)}`}</h3>
-
-            <div class="builderField">
-              <label for="exerciseNameInput">Exercise name</label>
-              <input id="exerciseNameInput" class="builderInput" value="${escapeAttribute(editingExercise?.name || "")}" placeholder="Lat Pulldown" />
-            </div>
-
-            <div class="builderTwoCol">
-              <div class="builderField">
-                <label for="exerciseSetsInput">Sets</label>
-                <input id="exerciseSetsInput" class="builderInput" type="number" min="1" value="${escapeAttribute(editingExercise?.sets || 3)}" />
-              </div>
-
-              <div class="builderField">
-                <label for="exerciseTargetInput">Target reps</label>
-                <input id="exerciseTargetInput" class="builderInput" value="${escapeAttribute(editingExercise?.target || "")}" placeholder="8–10" />
-              </div>
-            </div>
-
-            <div class="builderTwoCol">
-              <div class="builderField">
-                <label for="exerciseRestInput">Rest</label>
-                <input id="exerciseRestInput" class="builderInput" value="${escapeAttribute(editingExercise?.rest || "")}" placeholder="60–90 sec" />
-              </div>
-
-              <div class="builderField">
-                <label for="exerciseSupersetInput">Superset</label>
-                <select id="exerciseSupersetInput" class="builderSelect">
-                  ${["", "A", "B", "C", "D", "E", "F"].map(value => `
-                    <option value="${value}" ${String(editingExercise?.superset || "") === value ? "selected" : ""}>
-                      ${value ? `Superset ${value}` : "None"}
-                    </option>
-                  `).join("")}
-                </select>
-              </div>
-            </div>
-
-            <div class="builderTwoCol">
-              <div class="builderField">
-                <label for="exerciseTypeInput">Type</label>
-                <select id="exerciseTypeInput" class="builderSelect">
-                  ${["", "compound", "accessory"].map(value => `
-                    <option value="${value}" ${String(editingExercise?.type || "") === value ? "selected" : ""}>
-                      ${value || "None"}
-                    </option>
-                  `).join("")}
-                </select>
-              </div>
-
-              <div class="builderField">
-                <label for="exerciseEquipmentInput">Equipment</label>
-                <input id="exerciseEquipmentInput" class="builderInput" value="${escapeAttribute(editingExercise?.equipment || "")}" placeholder="barbell, cable, machine..." />
-              </div>
-            </div>
-
-            <div class="builderField">
-              <label for="exerciseNoteInput">Note</label>
-              <textarea id="exerciseNoteInput" class="builderTextarea" placeholder="Optional note">${escapeHtml(editingExercise?.note || "")}</textarea>
-            </div>
-
-            <div class="builderRow">
-              <button id="saveExerciseBtn" type="button" class="primaryBtn">
-                ${editingExercise ? "Save Exercise" : "Add Exercise"}
-              </button>
-              <button id="cancelExerciseBtn" type="button" class="secondaryBtn">Cancel</button>
-            </div>
-          </section>
-        ` : `
-          <section class="dashboardCard">
-            <p class="eyebrow">No Day Selected</p>
-            <h3>Add a workout day</h3>
-            <p>Create a day like Push A, Pull A, Legs, Upper, or Lower.</p>
-          </section>
-        `}
-
-        <section class="dashboardCard builderSaveSimple">
-          <p id="builderDockStatus" class="builderDockStatus" aria-live="polite"></p>
-          <button id="savePlanBottomBtn" type="button" class="primaryBtn">Save Changes</button>
-        </section>
-      </div>
-    `;
-
-    attachPlanBuilderEvents();
-  }
-
-  function attachPlanBuilderEvents() {
-    document.getElementById("planFilesMenu")?.addEventListener("toggle", event => {
-      if (event.currentTarget.open) refreshPlanLibrary();
-    });
-    document.getElementById("activatePlanBtn")?.addEventListener("click", () => activateSavedPlan());
-    document.getElementById("importPlanBtn")?.addEventListener("click", () => document.getElementById("planFileInput").click());
-    document.getElementById("templatePlanBtn")?.addEventListener("click", () => downloadJsonFile("lift-tracker-plan-template.json", createPlanTemplate()));
-    document.getElementById("exportPlanBtn")?.addEventListener("click", () => {
-      if (builderDirty || exerciseFormDirty) {
-        showBuilderMessage("Save Changes before exporting this plan.");
-        return;
-      }
-      downloadJsonFile(`lift-tracker-plan-${slugify(activePlan.name) || "plan"}.json`, createPlanFile(activePlan));
-    });
-    const planNameInput = document.getElementById("builderPlanName");
-    planNameInput?.addEventListener("input", () => {
-      builderPlanName = planNameInput.value;
-      markBuilderDirty();
-      updateBuilderSaveButtons();
-    });
-
-    document.querySelectorAll(".builderDayChip").forEach(btn => {
-      btn.addEventListener("click", () => {
-        if (selectedBuilderDay === btn.dataset.day || !keepPendingExerciseEdit()) return;
-        selectedBuilderDay = btn.dataset.day || "";
-        editingExerciseIndex = null;
-        renderPlanPage();
-      });
-    });
-
-    document.querySelectorAll(".builderDayMoveBtn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        moveBuilderDay(btn.dataset.day || "", btn.dataset.action);
-      });
-    });
-
-    document.getElementById("addDayBtn")?.addEventListener("click", () => {
-      const input = document.getElementById("newDayName");
-      const name = input?.value.trim();
-
-      if (!name) {
-        showBuilderMessage("Enter a workout day name first.", "error");
-        return;
-      }
-
-      if (builderWorkouts[name]) {
-        showBuilderMessage("That workout day already exists.", "error");
-        return;
-      }
-
-      if (!keepPendingExerciseEdit()) return;
-      builderWorkouts[name] = [];
-      selectedBuilderDay = name;
-      editingExerciseIndex = null;
-      markBuilderDirty();
-      renderPlanPage();
-    });
-
-    document.getElementById("renameDayBtn")?.addEventListener("click", () => {
-      const input = document.getElementById("renameDayInput");
-      const nextName = input?.value.trim();
-
-      if (!selectedBuilderDay || !nextName) {
-        showBuilderMessage("Enter a valid day name.", "error");
-        return;
-      }
-
-      if (nextName !== selectedBuilderDay && builderWorkouts[nextName]) {
-        showBuilderMessage("That workout day already exists.", "error");
-        return;
-      }
-
-      if (!keepPendingExerciseEdit()) return;
-      const renamed = {};
-      Object.entries(builderWorkouts).forEach(([day, exercises]) => {
-        renamed[day === selectedBuilderDay ? nextName : day] = exercises;
-      });
-
-      builderWorkouts = renamed;
-      selectedBuilderDay = nextName;
-      editingExerciseIndex = null;
-      markBuilderDirty();
-      renderPlanPage();
-    });
-
-    document.getElementById("deleteDayBtn")?.addEventListener("click", () => {
-      if (!selectedBuilderDay) return;
-
-      const dayToDelete = selectedBuilderDay;
-      const ok = confirm(`Delete ${dayToDelete} and all exercises in it?`);
-      if (!ok) return;
-
-      const nextWorkouts = {};
-
-      Object.entries(builderWorkouts || {}).forEach(([day, exercises]) => {
-        if (day !== dayToDelete) {
-          nextWorkouts[day] = exercises;
-        }
-      });
-
-      builderWorkouts = nextWorkouts;
-      selectedBuilderDay = Object.keys(builderWorkouts)[0] || "";
-      editingExerciseIndex = null;
-      markBuilderDirty();
-      renderPlanPage();
-
-      setTimeout(() => {
-        showBuilderMessage(`${dayToDelete} removed. Tap Save Changes to keep this change.`, "success");
-      }, 0);
-    });
-
-    document.querySelectorAll(".builderMiniBtn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const action = btn.dataset.action;
-        const index = Number(btn.dataset.index);
-        handleBuilderExerciseAction(action, index);
-      });
-    });
-
-    document.getElementById("saveExerciseBtn")?.addEventListener("click", saveBuilderExercise);
-
-    document.getElementById("cancelExerciseBtn")?.addEventListener("click", () => {
-      editingExerciseIndex = null;
-      renderPlanPage();
-    });
-
-    document.getElementById("savePlanTopBtn")?.addEventListener("click", saveBuilderPlan);
-    document.getElementById("savePlanBottomBtn")?.addEventListener("click", saveBuilderPlan);
-
-    updateBuilderSaveButtons();
-  }
-
-  function updateBuilderSaveButtons() {
-    const text = "Save Changes";
-    const disabled = !builderDirty && !exerciseFormDirty;
-    const status = document.getElementById("builderDockStatus");
-    if (status) status.textContent = exerciseFormDirty ? "Exercise changes not saved" : builderDirty ? "Unsaved changes" : "All changes saved";
-
-    ["savePlanTopBtn", "savePlanBottomBtn"].forEach(id => {
-      const btn = document.getElementById(id);
-      if (!btn) return;
-      btn.textContent = text;
-      btn.disabled = disabled;
-    });
-  }
-
-  function moveBuilderDay(day, action) {
-    if (!keepPendingExerciseEdit()) return;
-    const days = Object.keys(builderWorkouts || {});
-    const index = days.indexOf(day);
-
-    if (index === -1) return;
-
-    const nextIndex = action === "day-up" ? index - 1 : index + 1;
-    if (nextIndex < 0 || nextIndex >= days.length) return;
-
-    [days[index], days[nextIndex]] = [days[nextIndex], days[index]];
-
-    const reordered = {};
-    days.forEach(dayName => {
-      reordered[dayName] = builderWorkouts[dayName];
-    });
-
-    builderWorkouts = reordered;
-    selectedBuilderDay = day;
-    editingExerciseIndex = null;
-    markBuilderDirty();
-    renderPlanPage();
-  }
-
-  function handleBuilderExerciseAction(action, index) {
-    if (!keepPendingExerciseEdit()) return;
-    const list = builderWorkouts[selectedBuilderDay] || [];
-
-    if (!Number.isInteger(index) || !list[index]) return;
-
-    if (action === "edit") {
-      editingExerciseIndex = index;
-      renderPlanPage();
-      requestAnimationFrame(() => {
-        document.getElementById("exerciseEditorCard")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start"
-        });
-        document.getElementById("exerciseNameInput")?.focus({ preventScroll: true });
-      });
-      return;
-    }
-
-    if (action === "up" && index > 0) {
-      [list[index - 1], list[index]] = [list[index], list[index - 1]];
-      editingExerciseIndex = null;
-      markBuilderDirty();
-      renderPlanPage();
-      return;
-    }
-
-    if (action === "down" && index < list.length - 1) {
-      [list[index + 1], list[index]] = [list[index], list[index + 1]];
-      editingExerciseIndex = null;
-      markBuilderDirty();
-      renderPlanPage();
-      return;
-    }
-
-    if (action === "delete") {
-      const ok = confirm(`Delete ${list[index].name}?`);
-      if (!ok) return;
-
-      list.splice(index, 1);
-      editingExerciseIndex = null;
-      markBuilderDirty();
-      renderPlanPage();
-    }
-  }
-
-  function keepPendingExerciseEdit() {
-    return !exerciseFormDirty || saveBuilderExercise({ render: false });
-  }
-
-  function saveBuilderExercise({ render = true } = {}) {
-    if (!selectedBuilderDay) return;
-
-    const name = document.getElementById("exerciseNameInput")?.value.trim() || "";
-    const sets = Number(document.getElementById("exerciseSetsInput")?.value) || 0;
-    const target = document.getElementById("exerciseTargetInput")?.value.trim() || "";
-    const rest = document.getElementById("exerciseRestInput")?.value.trim() || "";
-    const superset = document.getElementById("exerciseSupersetInput")?.value || "";
-    const type = document.getElementById("exerciseTypeInput")?.value || "";
-    const equipment = document.getElementById("exerciseEquipmentInput")?.value.trim() || "";
-    const note = document.getElementById("exerciseNoteInput")?.value.trim() || "";
-
-    if (!name) {
-      showBuilderMessage("Exercise name is required.", "error");
-      document.getElementById("exerciseNameInput")?.focus();
-      return;
-    }
-
-    if (!sets || sets < 1) {
-      showBuilderMessage("Sets must be at least 1.", "error");
-      document.getElementById("exerciseSetsInput")?.focus();
-      return;
-    }
-
-    if (!target) {
-      showBuilderMessage("Target reps are required.", "error");
-      document.getElementById("exerciseTargetInput")?.focus();
-      return;
-    }
-
-    const list = builderWorkouts[selectedBuilderDay] || [];
-    const existing = editingExerciseIndex !== null ? list[editingExerciseIndex] : null;
-
-    const exercise = {
-      id: existing?.id || createUniqueExerciseId(name, list),
-      name,
-      sets,
-      target,
-      rest,
-      type,
-      equipment,
-      note,
-      superset,
-      lastAlias: Array.isArray(existing?.lastAlias) ? existing.lastAlias : []
-    };
-
-    if (editingExerciseIndex !== null && list[editingExerciseIndex]) {
-      list[editingExerciseIndex] = exercise;
-    } else {
-      list.push(exercise);
-    }
-
-    builderWorkouts[selectedBuilderDay] = list;
-    editingExerciseIndex = render ? null : list.indexOf(exercise);
-    exerciseFormDirty = false;
-    markBuilderDirty();
-    if (render) renderPlanPage();
-    return true;
-  }
-
-  async function saveBuilderPlan() {
-    if (!keepPendingExerciseEdit()) return;
-    const topBtn = document.getElementById("savePlanTopBtn");
-    const bottomBtn = document.getElementById("savePlanBottomBtn");
-    const planName = (document.getElementById("builderPlanName")?.value || builderPlanName || "Current Plan").trim();
-
-    const validation = validateWorkoutObject(builderWorkouts || {});
-
-    if (validation.errors.length) {
-      showBuilderMessage(
-        `Fix these issues first:\n${validation.errors.map(error => `- ${error}`).join("\n")}`,
-        "error"
-      );
-      return;
-    }
-
-    try {
-      [topBtn, bottomBtn].forEach(btn => {
-        if (!btn) return;
-        btn.disabled = true;
-        btn.textContent = "Saving...";
-      });
-
-      await saveActivePlanToStorage(validation.workouts, planName, Object.keys(builderWorkouts || {}));
-
-      builderPlanName = activePlan.name;
-      builderWorkouts = deepClone(activePlan.workouts);
-      selectedBuilderDay = workoutDays[0] || "";
-      editingExerciseIndex = null;
-      builderDirty = false;
-      builderSavedNotice = true;
-
-      await renderHome();
-      renderPlanPage();
-
-      setTimeout(() => {
-        showBuilderMessage("Plan saved.", "success");
-      }, 0);
-    } catch (error) {
-      console.error(error);
-      showBuilderMessage("Couldn't save your plan. Check your connection and try again.", "error");
-    } finally {
-      updateBuilderSaveButtons();
-    }
-  }
-
-  function showBuilderMessage(messageText, type = "error") {
-    const message = document.getElementById("builderMessage");
-    if (!message) return;
-
-    message.textContent = messageText;
-    message.dataset.type = type;
-    message.classList.remove("hidden");
-  }
-
-  function createUniqueExerciseId(name, list) {
-    const base = slugify(name) || "exercise";
-    const existingIds = new Set((list || []).map(exercise => exercise.id));
-    let id = base;
-    let counter = 2;
-
-    while (existingIds.has(id)) {
-      id = `${base}_${counter}`;
-      counter++;
-    }
-
-    return id;
+    initBuilderFromActivePlan().show();
   }
 
   /* =====================================================

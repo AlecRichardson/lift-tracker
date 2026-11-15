@@ -1,0 +1,65 @@
+.pb { min-width: 0; }
+.pb-content { min-width: 0; }
+.pb-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.pb-title h3 { min-width: 0; font-size: 19px; }
+.pb-title > .secondaryBtn { width: auto; }
+.pb-primaryActions { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; margin-bottom: 16px; }
+.pb-planRow { display: grid; grid-template-columns: minmax(0,1fr) auto 12px; gap: 10px; align-items: center; width: 100%; min-height: 78px; padding: 14px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; text-align: left; }
+.pb-planRow > span { min-width: 0; }
+.pb strong { display: block; font-size: 14px; font-weight: 600; }
+.pb small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.pb-label { color: var(--success); font-size: 12px; }
+.pb-textAction, .pb-back { min-height: 44px; padding: 8px 0; background: transparent; border: 0; text-align: left; color: var(--accent); font-size: 13px; }
+.pb-textAction { margin-top: 12px; }
+.pb-back { display: block; max-width: 100%; margin-bottom: 12px; }
+.pb .builderField { margin-top: 0; font-size: 12px; color: var(--muted); }
+.pb-planStatus { display: flex; align-items: center; min-height: 56px; }
+.pb-planStatus > .secondaryBtn { width: auto; }
+.pb-sectionTitle { margin: 14px 0 6px; }
+.pb-dayRow { display: grid; grid-template-columns: 20px minmax(0,1fr) 44px 44px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); min-height: 76px; }
+.pb-order { font-size: 12px; text-align: center; color: var(--muted-2); }
+.pb-dayOpen, .pb-exerciseOpen { width: 100%; min-width: 0; padding: 12px 0; min-height: 60px; border: 0; background: transparent; text-align: left; }
+.pb-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 20px; }
+.pb-icon:hover, .pb-icon:focus-visible { background: var(--panel-2); color: var(--text); }
+.pb-addDay { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; margin-top: 16px; }
+.pb-addDay > button { width: auto; }
+.pb-exercise { min-width: 0; padding: 0 0 4px; border-bottom: 1px solid var(--border); scroll-margin-top: calc(var(--header-offset) + 12px); }
+.pb-exerciseRow { display: grid; grid-template-columns: minmax(0,1fr) repeat(3,44px); gap: 2px; align-items: center; }
+.pb-exerciseOpen small { font-size: 12px; }
+.pb-paired { border-left: 2px solid #8fdbad80; padding-left: 10px; }
+.pb-editor { display: grid; gap: 12px; padding: 4px 0 14px; scroll-margin-top: calc(var(--header-offset) + 12px); }
+.pb-prescription { display: grid; grid-template-columns: 65px minmax(0,1fr) minmax(0,1fr); gap: 8px; }
+.pb-prescription label, .pb-moreFields label, .pb-custom label, .pb-menu label { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: 12px; }
+.pb-prescription input, .pb-moreFields input { padding-inline: 9px; }
+.pb-more summary, .pb-custom summary { min-height: 44px; padding-block: 12px; color: var(--muted); font-size: 13px; cursor: pointer; }
+.pb-moreFields { display: grid; gap: 12px; padding-bottom: 8px; }
+.pb-rowActions { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; }
+.pb-danger { color: var(--danger) !important; }
+.pb-addExercises { margin-top: 16px; }
+.pb-menu { position: relative; flex: 0 0 44px; }
+.pb-menu summary { display: grid; place-items: center; width: 44px; height: 44px; list-style: none; cursor: pointer; font-size: 24px; color: var(--muted); }
+.pb-menu summary::-webkit-details-marker { display: none; }
+.pb-menu > div { position: absolute; right: 0; top: 48px; z-index: 35; width: min(280px,calc(100vw - 40px)); padding: 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--panel-2); box-shadow: 0 8px 20px #0005; }
+.pb-menu > div > button, .pb-menu form > button { display: block; width: 100%; padding: 10px; min-height: 44px; border: 0; border-radius: 4px; background: transparent; text-align: left; font-size: 13px; }
+.pb-menu form { display: grid; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.pb-menu button:hover { background: var(--panel-3); }
+.pb-pickerRow { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 12px 0; width: 100%; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; text-align: left; }
+.pb-pickerRow[aria-pressed="true"] { color: var(--accent-2); }
+.pb-pickerRow > span { min-width: 0; }
+.pb-check { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border: 1px solid var(--border-strong); border-radius: 50%; font-size: 18px; color: var(--muted); }
+.pb-pickerRow[aria-pressed="true"] .pb-check { border-color: var(--accent); background: #91bdff18; color: var(--accent-2); }
+.pb-catalogWarning { margin-top: 10px; }
+.pb-catalogWarning:empty { display: none; }
+.pb-custom form { display: grid; gap: 12px; }
+.pb-create { margin-top: 16px; }
+.pb-message { padding: 10px 12px; margin-bottom: 14px; border: 1px solid #8fdbad40; border-radius: 6px; background: #8fdbad08; color: var(--success); font-size: 13px; white-space: pre-wrap; scroll-margin-top: calc(var(--header-offset) + 12px); }
+.pb-message.pb-error { border-color: #ff929240; background: #ff929208; color: var(--danger); }
+.pb .pb-saveStatus { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.pb-save { min-height: var(--dock-height); }
+#planPage:has(#planOverview.pb-noDock) { padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 28px); }
+@media (max-width: 379px) {
+  .pb-exerciseRow { grid-template-columns: minmax(0,1fr) 44px; }
+  .pb-exerciseRow > [data-pb="exercise-up"], .pb-exerciseRow > [data-pb="exercise-down"] { grid-row: 2; }
+  .pb-exerciseRow > [data-pb="exercise-up"] { grid-column: 1; justify-self: end; }
+  .pb-exerciseRow > [data-pb="exercise-down"] { grid-column: 2; }
+}
