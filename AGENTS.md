@@ -47,6 +47,7 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 - Exercise notes during workout should stay compact because this is a niche feature.
 - Exercise swaps during workout are for the current session only and should not permanently change the workout plan.
 - Injury/reset-aware progression is on the back burner.
+- Future social/game idea: workout-powered friend raids, conquest, fictional loot, and strength-normalized competition. Summary and open questions are saved in `SOCIAL-RAIDS-CONCEPT.md`; revisit only when requested.
 
 ## UX Rules
 
