@@ -374,7 +374,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   let progressRenderVersion = 0;
   let historyFilter = "All";
   const activeRestTimers = new Map();
-  const EXPORT_WORKOUT_LIMIT = 30;
 
   let builderPlanName = "";
   let builderWorkouts = null;
@@ -2755,7 +2754,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!logs.length) {
       container.innerHTML = `
         <div class="historyToolbar">
-          <button id="exportWorkoutData" type="button" class="historyActionBtn">Export Last ${EXPORT_WORKOUT_LIMIT}</button>
+          <button id="exportWorkoutData" type="button" class="historyActionBtn">Export All</button>
         </div>
         <div class="historyEmpty">
           <h4>No saved workouts yet.</h4>
@@ -2770,7 +2769,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     toolbar.className = "historyToolbar";
     toolbar.innerHTML = `
       <span>${logs.length} saved workouts</span>
-      <button id="exportWorkoutData" type="button" class="historyActionBtn">Export Last ${EXPORT_WORKOUT_LIMIT}</button>
+      <button id="exportWorkoutData" type="button" class="historyActionBtn">Export All</button>
     `;
     container.appendChild(toolbar);
     setupHistoryExportButton();
@@ -2997,11 +2996,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       button.textContent = "Exporting...";
 
       const logs = await getLogs();
-      const exportData = buildWorkoutDataExport(logs, EXPORT_WORKOUT_LIMIT);
+      const exportData = buildWorkoutDataExport(logs);
       const dateStamp = new Date().toISOString().slice(0, 10);
       const namePart = slugify(displayName || "lifter") || "lifter";
 
-      downloadJsonFile(`lift-tracker-${namePart}-last-${EXPORT_WORKOUT_LIMIT}-${dateStamp}.json`, exportData);
+      downloadJsonFile(`lift-tracker-${namePart}-all-workouts-${dateStamp}.json`, exportData);
 
       button.textContent = "Exported";
       setTimeout(() => {
@@ -3018,9 +3017,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function buildWorkoutDataExport(logs, workoutLimit = EXPORT_WORKOUT_LIMIT) {
+  function buildWorkoutDataExport(logs) {
     const allChronologicalLogs = [...(logs || [])].sort((a, b) => new Date(a.t) - new Date(b.t));
-    const chronologicalLogs = allChronologicalLogs.slice(-workoutLimit);
+    const chronologicalLogs = allChronologicalLogs;
     const exerciseTimelines = buildExerciseTimelines(chronologicalLogs);
 
     return {
@@ -3028,7 +3027,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       exportedAt: new Date().toISOString(),
       app: "Lift Tracker",
       exportScope: {
-        workoutLimit,
+        workoutLimit: null,
+        range: "all",
         totalSavedWorkouts: allChronologicalLogs.length,
         includedWorkouts: chronologicalLogs.length,
         includesEveryExerciseInIncludedWorkouts: true
