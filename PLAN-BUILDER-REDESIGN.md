@@ -23,6 +23,7 @@ Home's Edit Plan action opens the active plan directly; the bottom Plans tab pre
 - Actual weights, completion flags, and session notes are not copied into new exercise prescriptions.
 - Saving active-plan changes is blocked while entered workout data is unfinished. The plan draft is retained; other plans can still be edited.
 - No saved workout records are rewritten, deleted, or migrated by the builder.
+- Import saves keep the preview dismissible, stage recovery before the write, and bound confirmation waits to 15 seconds. Same-ID retries are idempotent. Late completions cannot close a different preview, overwrite newer saved versions, or erase subsequent draft edits. Inactive-plan saves also release the UI if confirmation is delayed.
 
 ## Verification
 

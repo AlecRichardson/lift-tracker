@@ -6,6 +6,7 @@ Open **Plans**:
 - Open any plan, then its **Plan actions** menu to **Export Plan** or **Duplicate Plan**. Exports include the entire saved regimen and its day order. Save pending edits first.
 - **Download Plan Template** downloads an editable six-day example, independent of your existing plan. Its sample exercises are examples, not a personalized prescription.
 - **Import Plan** opens a file preview. Expand each day to inspect the exercises. **Save as New Plan** creates a separate saved plan; it never merges days, replaces the active plan, or imports workout history.
+- Import saving keeps **Close** available and first stores a recoverable draft. Closing does not cancel a save already requested. If confirmation takes over 15 seconds, retry uses the same plan ID rather than creating a duplicate. Later edits to the draft are not erased by a late confirmation.
 - Open a saved plan and choose **Make Active** to switch the dashboard and workout logging. The previous plan remains in the list. Unfinished workout drafts remain associated with their original plan, and other plan drafts are retained rather than discarded.
 
 ## Editing and Recovery

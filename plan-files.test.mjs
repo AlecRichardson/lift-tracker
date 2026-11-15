@@ -2,13 +2,22 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
-import { createPlanFile, createPlanTemplate, parsePlanFile } from "./plan-files.mjs";
+import { createPlanFile, createPlanTemplate, parsePlanFile, waitForPlanSave } from "./plan-files.mjs";
 import { getBestPreviousExerciseContext } from "./history-context.mjs";
 
 const fixture = vm.createContext({ window: {} });
 vm.runInContext(await readFile(new URL("./workouts.js", import.meta.url), "utf8"), fixture);
 const workouts = JSON.parse(JSON.stringify(fixture.window.workouts));
 const original = { name: "My Split", workouts, dayOrder: Object.keys(workouts).reverse() };
+
+test("unacknowledged writes release the waiting UI with pending status", async () => {
+  await assert.rejects(waitForPlanSave(new Promise(() => {}), 1), error => error.code === "plan-save-pending");
+});
+
+test("save confirmation and rejection propagate without waiting for the deadline", async () => {
+  assert.equal(await waitForPlanSave(Promise.resolve("saved"), 100), "saved");
+  await assert.rejects(waitForPlanSave(Promise.reject(new Error("Denied")), 100), /Denied/);
+});
 
 test("whole-plan round trip preserves ordered days, exercise identities, aliases, and details", () => {
   const before = JSON.stringify(original);

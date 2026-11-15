@@ -32,29 +32,102 @@ test("discard confirmation clears only current draft, stops timers, and returns 
   }
 });
 
-test("saving an import creates a separate plan and never writes active settings or workout history", async () => {
+function importFixture({ write = async () => {}, wait = write => write } = {}) {
   const callbacks = {};
   const elements = new Map();
-  const calls = [];
-  const plan = parsePlanFile(JSON.stringify(createPlanTemplate()));
+  const writes = [], staged = [], completed = [];
+  let sequence = 0;
   const element = id => {
-    if (!elements.has(id)) elements.set(id, { disabled: false,
+    if (!elements.has(id)) elements.set(id, { disabled: false, open: false,
       addEventListener: (event, callback) => { callbacks[`${id}:${event}`] = callback; },
-      close: () => callbacks["planImportDialog:close"]() });
+      close() { this.open = false; callbacks["planImportDialog:close"](); },
+      showModal() { this.open = true; }
+    });
     return elements.get(id);
   };
-  const context = vm.createContext({ document: { getElementById: element }, pendingPlanImport: plan,
-    db: {}, userId: "owner", collection: (_db, ...parts) => parts.join("/"),
-    addDoc: async (path, data) => { calls.push({ path, data }); return { id: "new-random-plan" }; },
-    refreshPlanLibrary: async id => calls.push({ selected: id }), planFilesStatus: () => {}, console });
+  const context = vm.createContext({
+    document: { getElementById: element }, pendingPlanImport: null, parsePlanFile, PLAN_FILE_LIMIT: 512 * 1024,
+    crypto: { randomUUID: () => `import-${++sequence}` }, escapeHtml: value => String(value),
+    db: {}, userId: "owner", doc: (_db, ...parts) => parts.join("/"),
+    setDoc: async (path, data) => { writes.push({ path, data }); return write(); },
+    waitForPlanSave: wait,
+    initBuilderFromActivePlan: () => ({
+      stageImport: plan => staged.push(plan), completeImport: plan => completed.push(plan)
+    }),
+    planFilesStatus() {}, console: { error() {} }
+  });
   vm.runInContext(handler, context);
   context.setupPlanFileControls();
-  await callbacks["confirmPlanImport:click"]({ currentTarget: element("confirmPlanImport") });
-  assert.equal(calls[0].path, "users/owner/plans");
-  assert.equal(calls[0].data.name, "New Plan");
-  assert.equal(calls[1].selected, "new-random-plan");
-  assert.equal(context.pendingPlanImport, null);
-  assert.equal(element("confirmPlanImport").disabled, false);
+  return { callbacks, element, context, writes, staged, completed,
+    async choose(plan = createPlanTemplate()) {
+      await callbacks["planFileInput:change"]({ target: { files: [{ size: 1000, text: async () => JSON.stringify(plan) }], value: "file" } });
+    },
+    save() { return callbacks["confirmPlanImport:click"]({ currentTarget: element("confirmPlanImport") }); }
+  };
+}
+
+test("saving an import stages recovery first and writes only its own plan document", async () => {
+  const f = importFixture();
+  await f.choose(); await f.save();
+  assert.equal(f.writes[0].path, "users/owner/plans/import-1");
+  assert.equal(f.writes[0].data.name, "New Plan");
+  assert.equal(f.staged[0].id, "import-1");
+  assert.equal(f.completed[0].id, "import-1");
+  assert.equal(f.context.pendingPlanImport, null);
+  assert.equal(f.element("planImportDialog").open, false);
+});
+
+test("Close remains available while saving; late completion does not reopen the modal", async () => {
+  let finish;
+  const f = importFixture({ write: () => new Promise(resolve => { finish = resolve; }) });
+  await f.choose();
+  const saving = f.save();
+  assert.equal(f.element("confirmPlanImport").textContent, "Saving...");
+  assert.equal(f.element("confirmPlanImport").disabled, true);
+  assert.equal(f.element("cancelPlanImport").disabled, false);
+  assert.equal(f.element("cancelPlanImport").textContent, "Close");
+  f.callbacks["cancelPlanImport:click"]();
+  assert.equal(f.element("planImportDialog").open, false);
+  finish(); await saving;
+  assert.equal(f.element("planImportDialog").open, false);
+  assert.equal(f.completed.length, 1);
+});
+
+test("delayed confirmation offers a retry using the same plan ID, not a duplicate", async () => {
+  const f = importFixture({ wait: async () => { const error = new Error("Delayed"); error.code = "plan-save-pending"; throw error; } });
+  await f.choose(); await f.save();
+  assert.equal(f.element("confirmPlanImport").disabled, false);
+  assert.equal(f.element("confirmPlanImport").textContent, "Retry Save");
+  assert.match(f.element("planImportError").textContent, /draft is kept/);
+  await f.save();
+  assert.equal(f.writes.length, 2);
+  assert.equal(f.writes[0].path, f.writes[1].path);
+  assert.equal(f.element("cancelPlanImport").disabled, false);
+});
+
+test("late save from a closed preview cannot close a different import preview", async () => {
+  let finish;
+  const f = importFixture({ write: () => new Promise(resolve => { finish = resolve; }) });
+  await f.choose();
+  const saving = f.save();
+  f.callbacks["cancelPlanImport:click"]();
+  const second = createPlanTemplate(); second.name = "Second Import";
+  await f.choose(second);
+  finish(); await saving;
+  assert.equal(f.element("planImportDialog").open, true);
+  assert.equal(f.element("planImportName").textContent, "Second Import");
+  assert.equal(f.context.pendingPlanImport.name, "Second Import");
+  assert.equal(f.element("confirmPlanImport").disabled, false);
+});
+
+test("rejected save keeps the preview open and allows closing or retrying", async () => {
+  const f = importFixture({ write: async () => { throw new Error("Network failed"); } });
+  await f.choose(); await f.save();
+  assert.equal(f.element("planImportDialog").open, true);
+  assert.equal(f.element("confirmPlanImport").disabled, false);
+  assert.equal(f.element("cancelPlanImport").disabled, false);
+  assert.equal(f.completed.length, 0);
+  assert.match(f.element("planImportError").textContent, /draft is kept/);
 });
 
 const activateHandler = source.slice(source.indexOf("  async function activateSavedPlan(id)"), source.indexOf("  function setupPlanFileControls()"));
@@ -112,7 +185,7 @@ test("builder save adapter writes inactive plans to their own document without a
   const start = source.indexOf("      savePlan: async plan => {");
   const end = source.indexOf("      activatePlan: activateSavedPlan,", start);
   const writes = [];
-  const context = vm.createContext({ parsePlanFile, activePlan: { id: "active" }, db: {}, userId: "owner",
+  const context = vm.createContext({ parsePlanFile, waitForPlanSave: write => write, activePlan: { id: "active" }, db: {}, userId: "owner",
     doc: (_db, ...parts) => parts.join("/"), setDoc: async (path, data) => writes.push({ path, data }) });
   vm.runInContext(`globalThis.adapter = { ${source.slice(start, end)} };`, context);
   const saved = await context.adapter.savePlan({ ...createPlanTemplate(), id: "inactive" });

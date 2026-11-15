@@ -9,7 +9,7 @@ import {
 } from "./history-context.mjs";
 import { applyRecommendationContext, getExerciseRecommendation } from "./recommendations.mjs";
 import { claimLegacyWorkoutDraft, getSetPrefill, getWeightFillTargets, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
-import { parsePlanFile, PLAN_FILE_LIMIT } from "./plan-files.mjs";
+import { parsePlanFile, PLAN_FILE_LIMIT, waitForPlanSave } from "./plan-files.mjs";
 import { PlanBuilder } from "./plan-builder.mjs";
 import {
   GoogleAuthProvider,
@@ -1323,10 +1323,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     initBuilderFromActivePlan().notify(text);
   }
 
-  async function refreshPlanLibrary(selectedId = "") {
-    await initBuilderFromActivePlan().refresh(selectedId);
-  }
-
   async function activateSavedPlan(id) {
     if (!id || id === activePlan.id) return;
     const record = await getDoc(doc(db, "users", userId, "plans", id));
@@ -1348,11 +1344,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function setupPlanFileControls() {
     const dialog = document.getElementById("planImportDialog");
-    dialog.addEventListener("cancel", event => {
-      if (document.getElementById("confirmPlanImport").disabled) event.preventDefault();
-    });
+    let importRequest = null;
     document.getElementById("cancelPlanImport").addEventListener("click", () => dialog.close());
-    dialog.addEventListener("close", () => { pendingPlanImport = null; });
+    dialog.addEventListener("close", () => {
+      pendingPlanImport = null;
+      importRequest = null;
+      const button = document.getElementById("confirmPlanImport");
+      button.disabled = false;
+      button.textContent = "Save as New Plan";
+      document.getElementById("cancelPlanImport").textContent = "Cancel";
+    });
     document.getElementById("planFileInput").addEventListener("change", async event => {
       const file = event.target.files?.[0];
       event.target.value = "";
@@ -1360,6 +1361,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       try {
         if (file.size > PLAN_FILE_LIMIT) throw new Error("Choose a plan file smaller than 512 KB.");
         pendingPlanImport = parsePlanFile(await file.text());
+        importRequest = { id: crypto.randomUUID(), plan: pendingPlanImport, saving: false, createdAt: new Date().toISOString() };
         document.getElementById("planImportName").textContent = pendingPlanImport.name;
         document.getElementById("planImportDays").innerHTML = pendingPlanImport.dayOrder.map(day => `
           <details><summary>${escapeHtml(day)} / ${pendingPlanImport.workouts[day].length} exercises</summary>
@@ -1369,27 +1371,44 @@ document.addEventListener("DOMContentLoaded", async () => {
         dialog.showModal();
       } catch (error) {
         pendingPlanImport = null;
+        importRequest = null;
         planFilesStatus(error.message || "Couldn't read this plan file.");
       }
     });
     document.getElementById("confirmPlanImport").addEventListener("click", async event => {
-      if (!pendingPlanImport) return;
-      const plan = pendingPlanImport;
+      const request = importRequest;
+      if (!request || request.saving) return;
+      request.saving = true;
       const button = event.currentTarget;
       button.disabled = true;
-      document.getElementById("cancelPlanImport").disabled = true;
+      button.textContent = "Saving...";
+      document.getElementById("cancelPlanImport").textContent = "Close";
       try {
         const now = new Date().toISOString();
-        const record = await addDoc(collection(db, "users", userId, "plans"), { ...plan, createdAt: now, updatedAt: now });
-        dialog.close();
-        await refreshPlanLibrary(record.id);
-        planFilesStatus("Plan imported.");
+        const saved = { ...request.plan, id: request.id, createdAt: request.createdAt, updatedAt: now };
+        const builder = initBuilderFromActivePlan();
+        builder.stageImport(saved);
+        document.getElementById("planImportError").textContent = "Saving. You can close this window; your draft will be kept.";
+        const { id, ...payload } = saved;
+        await waitForPlanSave(setDoc(doc(db, "users", userId, "plans", id), payload));
+        builder.completeImport(saved);
+        if (importRequest === request) {
+          dialog.close();
+          planFilesStatus("Plan imported.");
+        }
       } catch (error) {
         console.error(error);
-        document.getElementById("planImportError").textContent = "Couldn't import this plan. Try again.";
+        const message = error.code === "plan-save-pending"
+          ? "Saving is taking longer than expected. Your draft is kept in Plans. You can close this window and retry."
+          : "Couldn't save this plan. Your draft is kept in Plans. Check your connection and try again.";
+        if (importRequest === request) document.getElementById("planImportError").textContent = message;
+        else planFilesStatus(message);
       } finally {
-        button.disabled = false;
-        document.getElementById("cancelPlanImport").disabled = false;
+        request.saving = false;
+        if (importRequest === request) {
+          button.disabled = false;
+          button.textContent = "Retry Save";
+        }
       }
     });
     document.getElementById("discardWorkout").addEventListener("click", async () => {
@@ -1445,7 +1464,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const now = new Date().toISOString();
         const saved = { ...normalized, createdAt: plan.createdAt || now, updatedAt: now };
-        await setDoc(doc(db, "users", userId, "plans", plan.id), saved);
+        await waitForPlanSave(setDoc(doc(db, "users", userId, "plans", plan.id), saved));
         return { ...saved, id: plan.id };
       },
       activatePlan: activateSavedPlan,

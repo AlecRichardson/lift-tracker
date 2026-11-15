@@ -1,6 +1,19 @@
 import { exerciseSlug } from "./history-context.mjs";
 
 export const PLAN_FILE_LIMIT = 512 * 1024;
+
+export async function waitForPlanSave(write, timeoutMs = 15000) {
+  let timer;
+  try {
+    return await Promise.race([write, new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error("Plan save confirmation is delayed.");
+        error.code = "plan-save-pending";
+        reject(error);
+      }, timeoutMs);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 const plain = value => value && typeof value === "object" && !Array.isArray(value);
 const safeKey = value => !["__proto__", "prototype", "constructor"].includes(value);
 

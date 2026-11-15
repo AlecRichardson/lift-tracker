@@ -8,7 +8,7 @@ export function planDraft(plan) {
   const workouts = clonePlan(plan.workouts || {});
   const days = Object.keys(workouts);
   const order = [...new Set([...(plan.dayOrder || []).filter(day => days.includes(day)), ...days])];
-  return { id: plan.id, name: plan.name || "New Plan", workouts, dayOrder: order, createdAt: plan.createdAt || "" };
+  return { id: plan.id, name: plan.name || "New Plan", workouts, dayOrder: order, createdAt: plan.createdAt || "", updatedAt: plan.updatedAt || "" };
 }
 
 export function addPlanDay(plan, name, copyFrom = "") {

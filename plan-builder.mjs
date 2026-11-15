@@ -46,6 +46,23 @@ export class PlanBuilder {
   get plan() { return this.drafts.get(this.id) || this.plans.get(this.id); }
   get list() { return this.plan?.workouts[this.day] || []; }
   get dirty() { return this.drafts.has(this.id); }
+
+  stageImport(plan) {
+    if (!this.drafts.has(plan.id)) this.drafts.set(plan.id, planDraft(plan));
+    this.persist();
+    this.open(plan.id);
+  }
+
+  completeImport(plan) {
+    if ((this.plans.get(plan.id)?.updatedAt || "") > (plan.updatedAt || "")) return;
+    this.plans.set(plan.id, planDraft(plan));
+    const draft = this.drafts.get(plan.id);
+    const unchanged = draft && JSON.stringify(createPlanFile(draft)) === JSON.stringify(createPlanFile(plan));
+    if (unchanged) this.drafts.delete(plan.id);
+    this.persist();
+    if (this.id === plan.id && unchanged) this.render();
+    else this.updateStatus();
+  }
   reportDirty() { this.options.onDirtyChange?.(this.drafts.size > 0); }
 
   persist() {
@@ -453,7 +470,9 @@ export class PlanBuilder {
       this.message = "Plan saved.";
       this.error = false;
     } catch (error) {
-      this.message = error.code === "workout-in-progress" ? "Finish or discard your current workout before saving changes to the active plan. Your plan draft has been kept." : "Couldn't save your plan. Your draft is still available.";
+      this.message = error.code === "workout-in-progress" ? "Finish or discard your current workout before saving changes to the active plan. Your plan draft has been kept."
+        : error.code === "plan-save-pending" ? "Saving is taking longer than expected. Your draft is kept. Check your connection before retrying."
+        : "Couldn't save your plan. Your draft is still available.";
       this.error = true;
     } finally {
       this.busy = false;

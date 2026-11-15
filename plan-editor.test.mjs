@@ -195,3 +195,41 @@ test("renaming remembers the original name once, not intermediate keystrokes", (
   assert.deepEqual(builder.plan.workouts["Push A"][0].lastAlias, ["Barbell Bench Press", "Bench Press"]);
   assert.equal(builder.plan.workouts["Push A"][0].id, "bench");
 });
+
+test("import staging keeps a recoverable draft before any cloud acknowledgement", () => {
+  const { builder, storage, saved } = fixture();
+  builder.stageImport({ ...structuredClone(base), id: "imported", name: "Imported" });
+  assert.equal(builder.dirty, true);
+  assert.equal(builder.id, "imported");
+  assert.equal(saved.length, 0);
+  assert.equal(fixture({ storage }).builder.drafts.get("imported").name, "Imported");
+  assert.equal(builder.options.getActivePlan().id, base.id);
+});
+
+test("confirmed import clears an unchanged draft and retains its saved plan", () => {
+  const { builder } = fixture();
+  const plan = { ...structuredClone(base), id: "imported", name: "Imported", updatedAt: "2026-11-15T12:00:00Z" };
+  builder.stageImport(plan);
+  builder.completeImport(plan);
+  assert.equal(builder.dirty, false);
+  assert.equal(builder.plans.get("imported").name, "Imported");
+});
+
+test("late import confirmation never erases subsequent draft edits", () => {
+  const { builder, storage } = fixture();
+  const plan = { ...structuredClone(base), id: "imported", name: "Imported", updatedAt: "2026-11-15T12:00:00Z" };
+  builder.stageImport(plan);
+  editName(builder, "Edited after closing preview");
+  builder.completeImport(plan);
+  assert.equal(builder.dirty, true);
+  assert.equal(builder.plan.workouts["Push A"][0].name, "Edited after closing preview");
+  assert.equal(fixture({ storage }).builder.drafts.get("imported").workouts["Push A"][0].name, "Edited after closing preview");
+});
+
+test("older import acknowledgement cannot roll back a newer successful save", () => {
+  const { builder } = fixture();
+  const plan = { ...structuredClone(base), id: "imported", name: "Imported", updatedAt: "2026-11-15T12:00:00Z" };
+  builder.plans.set(plan.id, { ...plan, name: "Newer saved name", updatedAt: "2026-11-15T13:00:00Z" });
+  builder.completeImport(plan);
+  assert.equal(builder.plans.get(plan.id).name, "Newer saved name");
+});
