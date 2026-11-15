@@ -21,6 +21,8 @@ export class PlanBuilder {
     this.deletedIds = new Set(options.getDeletedPlanIds?.() || []);
     this.catalog = [];
     this.view = "library";
+    this.forwardRoutes = [];
+    this.newName = "";
     this.id = "";
     this.day = "";
     this.edit = -1;
@@ -135,6 +137,7 @@ export class PlanBuilder {
   open(id) {
     if (!this.plans.has(id) && !this.drafts.has(id)) return;
     this.id = id;
+    this.forwardRoutes = [];
     this.day = this.plan.dayOrder[0] || "";
     this.edit = -1;
     this.view = "overview";
@@ -151,6 +154,27 @@ export class PlanBuilder {
   }
 
   scrollTop() { this.options.scrollTop?.(); }
+
+  swipe(direction) {
+    if (this.busy) return true;
+    if (direction > 0) {
+      const route = this.forwardRoutes.pop();
+      if (!route) return this.view !== "library";
+      if (route.id && !this.plans.has(route.id) && !this.drafts.has(route.id)) return true;
+      if (["day", "picker"].includes(route.view) && !((this.drafts.get(route.id) || this.plans.get(route.id))?.workouts[route.day])) return true;
+      Object.assign(this, { view: route.view, id: route.id, day: route.day, edit: route.edit, query: route.query, replaceIndex: route.replaceIndex });
+      this.selected = new Set(route.selected.map(ex => this.catalog.findIndex(entry => entry.id === ex.id && entry.name === ex.name && entry.equipment === ex.equipment)).filter(i => i >= 0));
+    } else {
+      const parent = { overview: "library", new: "library", day: "overview", picker: "day" }[this.view];
+      if (!parent) return false;
+      this.forwardRoutes.push({ view: this.view, id: this.id, day: this.day, edit: this.edit, query: this.query,
+        replaceIndex: this.replaceIndex, selected: [...this.selected].map(i => this.catalog[i]).filter(Boolean) });
+      this.view = parent;
+    }
+    this.render();
+    this.scrollTop();
+    return true;
+  }
 
   back(action, label) {
     return `<button type="button" class="pb-back" data-pb="${action}">&#8592; ${esc(label)}</button>`;
@@ -171,7 +195,7 @@ export class PlanBuilder {
         const plan = this.drafts.get(id) || this.plans.get(id);
         const count = Object.values(plan.workouts).reduce((sum, list) => sum + list.length, 0);
         const status = [id === activeId ? "Active" : this.plans.has(id) ? "Saved" : "", this.drafts.has(id) ? "Draft" : ""].filter(Boolean).join(" / ");
-        return `<button type="button" class="pb-planRow" data-pb="open" data-id="${esc(id)}"><span><strong>${esc(plan.name || "Unnamed Plan")}</strong><small>${plan.dayOrder.length} days / ${count} exercises</small></span><span class="pb-label">${status}</span><span aria-hidden="true">&#8250;</span></button>`;
+        return `<div class="swipeRow"><button type="button" class="pb-planRow swipeFront" data-pb="open" data-id="${esc(id)}"><span><strong>${esc(plan.name || "Unnamed Plan")}</strong><small>${plan.dayOrder.length} days / ${count} exercises</small></span><span class="pb-label">${status}</span><span aria-hidden="true">&#8250;</span></button><button type="button" class="swipeDelete" data-pb="delete-plan" data-id="${esc(id)}" aria-label="Delete ${esc(plan.name)}" hidden disabled>Delete</button></div>`;
       }).join("") || '<p class="historyEmpty">No plans yet.</p>'}</div>
       <button type="button" class="pb-textAction" data-pb="template">Download Plan Template</button>`;
   }
@@ -182,8 +206,8 @@ export class PlanBuilder {
       <button type="button" data-pb="duplicate-plan">Duplicate Plan</button><button type="button" data-pb="export">Export Plan</button>
       <button type="button" class="pb-danger" data-pb="delete-plan">Delete Plan</button>
       ${this.dirty ? '<button type="button" class="pb-danger" data-pb="discard-plan">Discard Unsaved Changes</button>' : ""}`)}</div>
-      <label class="builderField"><span>Plan name</span><input data-plan-field="name" maxlength="120" value="${esc(plan.name)}" /></label>
-      <div class="pb-planStatus">${this.id === this.options.getActivePlan().id ? '<span class="pb-label">Active plan</span>' : '<button type="button" class="secondaryBtn" data-pb="activate">Make Active</button>'}</div>
+      <div class="pb-planHeading"><label class="builderField"><span>Plan name</span><input data-plan-field="name" maxlength="120" value="${esc(plan.name)}" /></label>
+      <div class="pb-planStatus">${this.id === this.options.getActivePlan().id ? '<span class="pb-label">Active plan</span>' : '<button type="button" class="secondaryBtn" data-pb="activate">Make Active</button>'}</div></div>
       <h3 class="pb-sectionTitle">Workout days</h3>
       <div>${plan.dayOrder.map((day, index) => `<div class="pb-dayRow"><span class="pb-order">${index + 1}</span><button type="button" class="pb-dayOpen" data-pb="day" data-day="${esc(day)}"><strong>${esc(day)}</strong><small>${plan.workouts[day].length} exercises / ${plan.workouts[day].reduce((sum, ex) => sum + (Number(ex.sets) || 0), 0)} sets</small></button>
         ${iconButton("day-up", `Move ${day} up`, "&#8593;", `data-day="${esc(day)}" ${index === 0 ? "disabled" : ""}`)}
@@ -237,7 +261,7 @@ export class PlanBuilder {
   render() {
     const editing = ["overview", "day"].includes(this.view);
     const body = this.view === "library" ? this.library() : this.view === "overview" ? this.overview() : this.view === "day" ? this.dayView() : this.view === "picker" ? this.picker() :
-      `${this.back("library", "Plans")}<h3>New Plan</h3><form data-pb-form="create"><label class="builderField"><span>Plan name</span><input id="pb-new-name" placeholder="My new split" maxlength="120" required /></label><button type="submit" class="primaryBtn pb-create">Create Plan</button></form>`;
+      `${this.back("library", "Plans")}<h3>New Plan</h3><form data-pb-form="create"><label class="builderField"><span>Plan name</span><input id="pb-new-name" value="${esc(this.newName)}" placeholder="My new split" maxlength="120" required /></label><button type="submit" class="primaryBtn pb-create">Create Plan</button></form>`;
     this.root.innerHTML = `<div class="builderGrid pb"><div class="pb-message hidden" role="status"></div><div class="pb-content">${body}</div>
       ${editing ? this.footer() : this.view === "picker" ? '<section class="builderSaveSimple pb-save"><button type="button" class="primaryBtn" data-pb="add-selected"></button></section>' : ""}</div>`;
     this.root.classList.toggle("pb-noDock", !editing && this.view !== "picker");
@@ -278,6 +302,7 @@ export class PlanBuilder {
   input(event) {
     if (this.busy) return;
     const input = event.target;
+    if (input.id === "pb-new-name") { this.newName = input.value; return; }
     if (input.id === "pb-search") { this.query = input.value; this.renderResults(); return; }
     if (input.dataset.planField === "name") {
       this.touch().name = input.value;
@@ -319,6 +344,9 @@ export class PlanBuilder {
     if (this.busy) return;
     const value = id => this.root.querySelector(`#${id}`)?.value || "";
     try {
+      if ((action === "library" && ["overview", "new"].includes(this.view)) ||
+        (action === "overview" && this.view === "day") || (action === "day-back" && this.view === "picker")) { this.swipe(-1); return; }
+      this.forwardRoutes = [];
       if (action === "save") return await this.save();
       if (action === "activate") {
         if (this.dirty) return this.notify("Save Changes before activating this plan.", true);
@@ -331,12 +359,14 @@ export class PlanBuilder {
       }
       if (action === "refresh") return await this.refresh();
       if (action === "delete-plan") {
-        const id = this.id;
+        const id = data.id || this.id;
+        const plan = this.drafts.get(id) || this.plans.get(id);
+        if (!plan) return;
         const isActive = id === this.options.getActivePlan().id;
         const alternatives = [...this.plans.values()].filter(plan => plan.id !== id).sort((a, b) => a.name.localeCompare(b.name));
         const next = isActive ? alternatives.find(plan => { try { parsePlanFile(JSON.stringify(plan)); return true; } catch { return false; } }) : null;
         const warning = isActive ? next ? ` ${next.name} will become active.` : " No plan will be active until you create or choose another one." : "";
-        const message = `Delete ${this.plan.name}?${warning}${this.dirty ? " Unsaved edits to this plan will also be removed." : ""} Saved workouts and exercise history will be kept.`;
+        const message = `Delete ${plan.name}?${warning}${this.drafts.has(id) ? " Unsaved edits to this plan will also be removed." : ""} Saved workouts and exercise history will be kept.`;
         if (!(this.options.confirm ? this.options.confirm(message) : confirm(message))) return;
         this.busy = true;
         this.root.inert = true;

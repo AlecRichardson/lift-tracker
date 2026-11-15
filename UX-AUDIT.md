@@ -72,3 +72,12 @@ Saved locally under `C:/Users/16362/.codex/visualizations/2026/05/14/019e27b3-e8
 - `home-desktop.jpg`
 
 Screenshots contain synthetic data, not the live account.
+
+## Gesture and Density Follow-Up
+
+- Plan details now align the plan-name input and Make Active action in one row. Active plans show their status in that same position.
+- Note, Swap, and Tip use quieter text actions without box borders; cable setup uses an underline for the selected mode. All retain at least 44px touch targets.
+- History uses flat, separated rows aligned with Plans, retaining expandable sets, copy, filters, and the existing Delete action.
+- Plan and History row swipes reveal Delete but never execute deletion directly. Confirmation, plan/history separation, and existing menu alternatives remain intact. Only one row stays revealed; right swipe or tapping the front closes it.
+- Plan back/forward swipes preserve drafts and picker selections. Screen edges, vertical movement, controls, active editing, dialogs, and row-delete gestures are guarded. A focused idle navigation button no longer blocks later page swipes.
+- Shell cache v15 includes the new row-gesture module. Automated checks: 140 passing tests, syntax checks, and clean whitespace checks. Browser access was unavailable for this follow-up; physical iPhone Safari/Home Screen gestures, visual alignment, and deployed update behavior remain pending. No new screenshots or live-account deletion tests were performed.

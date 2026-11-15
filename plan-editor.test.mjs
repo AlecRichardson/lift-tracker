@@ -34,6 +34,94 @@ function fixture({ storage = new Map(), failSave = false, userId = "owner", acce
 
 const editName = (builder, value) => builder.input({ target: { dataset: { exField: "name", index: "0" }, value, closest: () => null } });
 
+test("plan swipes navigate back and forward without undoing exercise edits", async () => {
+  const { builder } = fixture();
+  await builder.act("day", { day: "Push A" });
+  editName(builder, "Edited Bench");
+  builder.edit = 0;
+  assert.equal(builder.swipe(-1), true);
+  assert.equal(builder.view, "overview");
+  assert.equal(builder.swipe(-1), true);
+  assert.equal(builder.view, "library");
+  assert.equal(builder.swipe(1), true);
+  assert.equal(builder.view, "overview");
+  assert.equal(builder.swipe(1), true);
+  assert.equal(builder.view, "day");
+  assert.equal(builder.edit, 0);
+  assert.equal(builder.list[0].name, "Edited Bench");
+  assert.equal(builder.dirty, true);
+});
+
+test("back buttons share swipe forward history, while fresh navigation clears it", async () => {
+  const { builder } = fixture();
+  await builder.act("day", { day: "Push A" });
+  await builder.act("overview");
+  assert.equal(builder.swipe(1), true);
+  assert.equal(builder.view, "day");
+  await builder.act("overview");
+  await builder.act("picker");
+  assert.equal(builder.forwardRoutes.length, 0);
+});
+
+test("picker forward restores selections by identity even after catalog reorder", async () => {
+  const { builder } = fixture();
+  await builder.act("day", { day: "Push A" });
+  await builder.act("picker");
+  builder.selected.add(0);
+  const selected = builder.catalog[0];
+  builder.query = "bench";
+  builder.swipe(-1);
+  builder.catalog.reverse();
+  builder.swipe(1);
+  assert.equal(builder.view, "picker");
+  assert.equal(builder.query, "bench");
+  assert.equal(builder.catalog[[...builder.selected][0]], selected);
+});
+
+test("library gestures can fall back to main navigation, but nested forward and busy gestures stay local", async () => {
+  const { builder } = fixture();
+  assert.equal(builder.swipe(1), true);
+  assert.equal(builder.view, "overview");
+  await builder.act("library");
+  builder.forwardRoutes = [];
+  assert.equal(builder.swipe(-1), false);
+  assert.equal(builder.swipe(1), false);
+  builder.busy = true;
+  assert.equal(builder.swipe(-1), true);
+  assert.equal(builder.view, "library");
+});
+
+test("forward navigation cannot reopen a day removed from an unsaved draft", async () => {
+  const { builder } = fixture();
+  await builder.act("day", { day: "Push A" });
+  builder.swipe(-1);
+  delete builder.touch().workouts["Push A"];
+  builder.swipe(1);
+  assert.equal(builder.view, "overview");
+});
+
+test("library deletion targets the swiped plan without opening it", async () => {
+  const { builder, deleted, root } = fixture();
+  builder.plans.set("old", { ...structuredClone(base), id: "old", name: "Old Split" });
+  await builder.act("library");
+  assert.match(root.innerHTML, /class="swipeDelete"[^>]*hidden disabled/);
+  await builder.act("delete-plan", { id: "old" });
+  assert.deepEqual(deleted, ["old"]);
+  assert.equal(builder.plans.has(base.id), true);
+  assert.equal(builder.view, "library");
+});
+
+test("cancelling row deletion leaves the library and other plan unchanged", async () => {
+  const { builder, deleted, prompts } = fixture({ accepted: false });
+  builder.plans.set("old", { ...structuredClone(base), id: "old", name: "Old Split" });
+  await builder.act("library");
+  await builder.act("delete-plan", { id: "old" });
+  assert.match(prompts[0], /Delete Old Split/);
+  assert.deepEqual(deleted, []);
+  assert.equal(builder.id, base.id);
+  assert.equal(builder.view, "library");
+});
+
 test("exercise name edits immediately update the draft without changing ID or aliases", () => {
   const { builder, root } = fixture();
   editName(builder, "Bench Press Renamed");

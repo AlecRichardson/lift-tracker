@@ -11,6 +11,7 @@ import { applyRecommendationContext, getExerciseRecommendation } from "./recomme
 import { claimLegacyWorkoutDraft, getSetPrefill, getWeightFillTargets, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
 import { parsePlanFile, PLAN_FILE_LIMIT, waitForPlanSave } from "./plan-files.mjs";
 import { PlanBuilder } from "./plan-builder.mjs";
+import { setupSwipeRows } from "./swipe-rows.mjs";
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
@@ -452,6 +453,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   setupBottomNav();
+  setupSwipeRows(document.querySelector(".appShell"));
   setupPlanFileControls();
   setupAccountButton();
   setupGymControls();
@@ -863,7 +865,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function shouldIgnoreSwipeTarget(target) {
     return Boolean(target?.closest?.(
-      "button, input, textarea, select, a, canvas, .bottomNav, .saveDock, .noteEditor, .swapEditor, .pulleyToggle, [contenteditable='true']"
+      "button, input, textarea, select, summary, a, canvas, .swipeRow, .bottomNav, .saveDock, .builderSaveSimple, .noteEditor, .swapEditor, .pulleyToggle, [contenteditable='true']"
     ));
   }
 
@@ -873,7 +875,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    if (shouldIgnoreSwipeTarget(document.activeElement)) {
+    if (document.activeElement?.matches?.("input, textarea, select, [contenteditable='true']") || document.querySelector("dialog[open]")) {
       swipeStart = null;
       return;
     }
@@ -889,6 +891,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (absX < SWIPE_MIN_DISTANCE || absX < absY * SWIPE_DOMINANCE_RATIO) {
       return;
     }
+
+    if (currentPage === "planPage" && planBuilder?.swipe(deltaX > 0 ? -1 : 1)) return;
 
     const currentIndex = MAIN_PAGE_ORDER.indexOf(currentPage);
     if (currentIndex === -1) return;
@@ -2493,7 +2497,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const header = document.createElement("button");
         header.type = "button";
-        header.className = "historyCardHeader";
+        header.className = "historyCardHeader swipeFront";
         header.setAttribute("aria-expanded", "false");
         header.innerHTML = `
           <div class="historyCardMain">
@@ -2608,15 +2612,33 @@ document.addEventListener("DOMContentLoaded", async () => {
         deleteBtn.className = "historyActionBtn danger";
         deleteBtn.textContent = "Delete";
 
-        deleteBtn.addEventListener("click", async event => {
+        const deleteLog = async event => {
           event.stopPropagation();
 
           const ok = confirm(`Delete ${log.d} from ${formatTimestamp(log.t)}?`);
           if (!ok) return;
 
-          await deleteDoc(doc(db, "users", userId, "workouts", log.id));
-          renderHistory();
-        });
+          deleteBtn.disabled = true;
+          revealDelete.disabled = true;
+          try {
+            await deleteDoc(doc(db, "users", userId, "workouts", log.id));
+            await renderHistory();
+          } catch (error) {
+            console.error(error);
+            showMessage("Couldn't delete this workout. Try again.", "error");
+            deleteBtn.disabled = false;
+            revealDelete.disabled = false;
+          }
+        };
+        deleteBtn.addEventListener("click", deleteLog);
+        const revealDelete = document.createElement("button");
+        revealDelete.type = "button";
+        revealDelete.className = "swipeDelete";
+        revealDelete.textContent = "Delete";
+        revealDelete.setAttribute("aria-label", `Delete ${log.d || "workout"} from ${formatTimestamp(log.t)}`);
+        revealDelete.hidden = true;
+        revealDelete.disabled = true;
+        revealDelete.addEventListener("click", deleteLog);
 
         actions.appendChild(copyBtn);
         actions.appendChild(deleteBtn);
@@ -2628,7 +2650,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           header.setAttribute("aria-expanded", String(card.classList.contains("open")));
         });
 
-        card.appendChild(header);
+        const swipeRow = document.createElement("div");
+        swipeRow.className = "swipeRow";
+        swipeRow.append(header, revealDelete);
+        card.appendChild(swipeRow);
         card.appendChild(details);
         group.appendChild(card);
       });
