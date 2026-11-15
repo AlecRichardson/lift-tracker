@@ -7,21 +7,29 @@ const base = { id: "active-plan", name: "Current Split", dayOrder: ["Push A"], w
     equipment: "barbell", type: "compound", superset: "", note: "", lastAlias: ["Barbell Bench Press"] }]
 } };
 
-function fixture({ storage = new Map(), failSave = false, userId = "owner" } = {}) {
+function fixture({ storage = new Map(), failSave = false, userId = "owner", accepted = true, failDelete = false } = {}) {
   const fields = new Map();
   const root = { innerHTML: "", classList: { toggle() {} }, addEventListener() {},
     querySelector: selector => fields.get(selector) || null, querySelectorAll: () => [] };
   let active = structuredClone(base);
   const saved = [];
+  const deleted = [];
+  const prompts = [];
   const builder = new PlanBuilder({ root, userId,
     storage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
     getActivePlan: () => active, starterPlans: [base], getPlans: async () => [active], getHistory: async () => [],
     savePlan: async plan => { if (failSave) throw new Error("Offline"); saved.push(structuredClone(plan)); return plan; },
     activatePlan: async id => { active = { ...builder.plans.get(id), id }; },
+    confirm: message => { prompts.push(message); return accepted; },
+    deletePlan: async (id, nextId) => {
+      if (failDelete) throw new Error("Offline");
+      deleted.push(id);
+      if (active.id === id) active = nextId ? structuredClone(builder.plans.get(nextId)) : { id: "", name: "No active plan", workouts: {}, dayOrder: [] };
+    },
     scrollTop() {}, exportFile() {}, requestImport() {}
   });
   builder.open(base.id);
-  return { builder, root, fields, storage, saved };
+  return { builder, root, fields, storage, saved, deleted, prompts };
 }
 
 const editName = (builder, value) => builder.input({ target: { dataset: { exField: "name", index: "0" }, value, closest: () => null } });
@@ -232,4 +240,76 @@ test("older import acknowledgement cannot roll back a newer successful save", ()
   builder.plans.set(plan.id, { ...plan, name: "Newer saved name", updatedAt: "2026-11-15T13:00:00Z" });
   builder.completeImport(plan);
   assert.equal(builder.plans.get(plan.id).name, "Newer saved name");
+});
+
+test("deleting an inactive plan keeps the active plan and removes only that draft", async () => {
+  const { builder, deleted } = fixture();
+  builder.plans.set("old", { ...structuredClone(base), id: "old", name: "Old Plan" });
+  editName(builder, "Keep active draft");
+  builder.open("old");
+  editName(builder, "Discard old draft");
+  await builder.act("delete-plan");
+  assert.deepEqual(deleted, ["old"]);
+  assert.equal(builder.plans.has("old"), false);
+  assert.equal(builder.drafts.has("old"), false);
+  assert.equal(builder.drafts.has(base.id), true);
+  assert.equal(builder.options.getActivePlan().id, base.id);
+});
+
+test("active-plan deletion names and activates an existing replacement after confirmation", async () => {
+  const { builder, prompts } = fixture();
+  builder.plans.set("next", { ...structuredClone(base), id: "next", name: "Next Split" });
+  await builder.act("delete-plan");
+  assert.match(prompts[0], /Next Split will become active/);
+  assert.equal(builder.options.getActivePlan().id, "next");
+  assert.equal(builder.view, "library");
+});
+
+test("last-plan deletion allows an empty library and explains that history is retained", async () => {
+  const { builder, prompts } = fixture();
+  await builder.act("delete-plan");
+  assert.match(prompts[0], /No plan will be active/);
+  assert.match(prompts[0], /exercise history will be kept/);
+  assert.equal(builder.plans.size, 0);
+  assert.equal(builder.options.getActivePlan().id, "");
+  assert.equal(builder.view, "library");
+});
+
+test("declining deletion performs no writes and keeps the draft", async () => {
+  const { builder, deleted } = fixture({ accepted: false });
+  editName(builder, "Keep me");
+  await builder.act("delete-plan");
+  assert.deepEqual(deleted, []);
+  assert.equal(builder.plan.workouts["Push A"][0].name, "Keep me");
+});
+
+test("failed deletion retains the saved plan and draft and releases controls", async () => {
+  const { builder, root } = fixture({ failDelete: true });
+  editName(builder, "Still here");
+  await builder.act("delete-plan");
+  assert.equal(builder.plans.has(base.id), true);
+  assert.equal(builder.dirty, true);
+  assert.equal(builder.busy, false);
+  assert.equal(root.inert, false);
+});
+
+test("late import completion cannot resurrect a deleted plan", async () => {
+  const { builder } = fixture();
+  const imported = { ...structuredClone(base), id: "import", createdAt: "2026-11-15" };
+  builder.stageImport(imported);
+  await builder.act("delete-plan");
+  builder.completeImport(imported);
+  assert.equal(builder.plans.has(imported.id), false);
+  assert.equal(builder.drafts.has(imported.id), false);
+});
+
+test("empty-account builder does not synthesize a saved plan", () => {
+  const { builder } = fixture();
+  const root = { innerHTML: "", classList: { toggle() {} }, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] };
+  const empty = new PlanBuilder({ ...builder.options, root,
+    getActivePlan: () => ({ id: "", name: "No active plan", dayOrder: [], workouts: {} }) });
+  empty.render();
+  assert.equal(empty.plans.size, 0);
+  assert.match(root.innerHTML, /New Plan/);
+  assert.match(root.innerHTML, /Import Plan/);
 });

@@ -44,6 +44,7 @@ export const getDocs=async ref=>({docs:Object.keys(records).filter(p=>p.startsWi
 export const setDoc=async(ref,data,options)=>{records[ref.path]=options?.merge?{...records[ref.path],...data}:data;persist();};
 export const addDoc=async(ref,data)=>{const id=crypto.randomUUID();const result={id,path:ref.path+'/'+id};records[result.path]=data;persist();return result;};
 export const deleteDoc=async ref=>{delete records[ref.path];persist();};
+export const runTransaction=async(_db,callback)=>{const changes=[];const result=await callback({get:async ref=>snapshot(ref.path),delete:ref=>changes.push(()=>{delete records[ref.path];}),set:(ref,data,options)=>changes.push(()=>{records[ref.path]=options?.merge?{...records[ref.path],...data}:data;})});changes.forEach(change=>change());persist();return result;};
 `;
 const types = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript", ".css":"text/css", ".png":"image/png", ".json":"application/json" };
 http.createServer(async (request, response) => {

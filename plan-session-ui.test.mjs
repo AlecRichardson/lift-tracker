@@ -136,7 +136,7 @@ function activation({ fail = false, dirty = false, accepted = true } = {}) {
   const container = { dataset: { renderedDay: "Push A" }, replaceChildren: () => calls.push("clear-screen") };
   const elements = { savedPlanSelect: { value: "new-plan" }, activatePlanBtn: {}, exerciseContainer: container };
   const context = vm.createContext({
-    document: { getElementById: id => elements[id], querySelector: () => true },
+    document: { getElementById: id => elements[id], querySelector: () => true }, waitForPlanSave: write => write,
     activePlan: { id: "old-plan" }, builderDirty: dirty, currentDay: "Push A", currentPage: "homePage",
     confirm: () => accepted, db: {}, userId: "owner", workouts: {}, workoutDays: [], parsePlanFile,
     doc: (_db, ...parts) => parts.join("/"), getDoc: async path => {
@@ -156,7 +156,7 @@ test("activation changes only the active pointer and checkpoints the old plan's 
   await context.activateSavedPlan("new-plan");
   assert.equal(context.activePlan.id, "new-plan");
   assert.equal(context.workoutDays.length, 6);
-  assert.equal(calls[1], "checkpoint-Push A");
+  assert.equal(calls.includes("checkpoint-Push A"), true);
   const writes = calls.filter(call => typeof call === "object");
   assert.equal(writes.length, 1);
   assert.equal(writes[0].path, "users/owner/settings/app");

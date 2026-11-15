@@ -32,8 +32,9 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 
 - UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
 - Keep desktop as a centered mobile preview and retain compact notes/session-only swaps.
-- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v13).
-- Browser validation previously covered 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Browser access was unavailable for the plan-builder redesign; verify its screens on iPhone. Physical iPhone, real auth/update flow, and download verification remain pending. 109 automated tests pass.
+- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v14).
+- Browser validation previously covered 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Browser access was unavailable for the plan-builder redesign; verify its screens on iPhone. Physical iPhone, real auth/update flow, and download verification remain pending. 124 automated tests pass.
+- Plan actions include confirmed Delete Plan. Active deletion names an available replacement in the prompt, or warns that no plan will remain active. Zero plans are supported and are not reseeded on reload. Plan deletion never deletes completed workout history. A persistent deletion marker prevents delayed imports/writes from resurrecting deleted plans.
 - Import saves stage a recoverable draft first, keep Close available, and stop waiting after 15 seconds without claiming that a pending write was cancelled. Retries use the same plan ID. Late acknowledgements must not clear newer edits or close another preview.
 - Plans supports manual creation, day duplication, searchable multi-exercise selection, inline name/prescription edits, named supersets, per-account device drafts, and one Save Changes action. Rename preserves history identity; Replace Exercise changes it. Social/game functionality is not part of this redesign.
 - Plans exports saved regimens through each plan's actions menu, downloads a standalone template, previews imports, and stores each import as a new plan. Make Active switches plans without overwriting old plans or completed history. Saving an inactive plan never activates it. See `PLAN-FORMAT.md`.

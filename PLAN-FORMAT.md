@@ -8,6 +8,7 @@ Open **Plans**:
 - **Import Plan** opens a file preview. Expand each day to inspect the exercises. **Save as New Plan** creates a separate saved plan; it never merges days, replaces the active plan, or imports workout history.
 - Import saving keeps **Close** available and first stores a recoverable draft. Closing does not cancel a save already requested. If confirmation takes over 15 seconds, retry uses the same plan ID rather than creating a duplicate. Later edits to the draft are not erased by a late confirmation.
 - Open a saved plan and choose **Make Active** to switch the dashboard and workout logging. The previous plan remains in the list. Unfinished workout drafts remain associated with their original plan, and other plan drafts are retained rather than discarded.
+- **Delete Plan** is in the plan's actions menu and asks for confirmation. If deleting the active plan, the prompt names a saved replacement when available, or warns that no plan will remain active. Deleting the last plan is allowed. Completed workouts and exercise history are never deleted, and an empty library stays empty after reload. Finish or discard a current workout before deleting its active plan.
 
 ## Editing and Recovery
 

@@ -16,7 +16,9 @@ export class PlanBuilder {
     catch { this.storage = { getItem: () => null, setItem: () => { throw new Error("Unavailable"); }, removeItem: () => {} }; this.storageError = true; }
     this.key = `planBuilderDraftsV1:${options.userId}`;
     this.drafts = new Map();
-    this.plans = new Map([[options.getActivePlan().id, planDraft(options.getActivePlan())]]);
+    const active = options.getActivePlan();
+    this.plans = new Map(active?.id ? [[active.id, planDraft(active)]] : []);
+    this.deletedIds = new Set(options.getDeletedPlanIds?.() || []);
     this.catalog = [];
     this.view = "library";
     this.id = "";
@@ -30,7 +32,7 @@ export class PlanBuilder {
     this.busy = false;
     this.loading = false;
     this.catalogWarning = "";
-    try { restorePlanDrafts(this.storage.getItem(this.key)).forEach(plan => this.drafts.set(plan.id, plan)); }
+    try { restorePlanDrafts(this.storage.getItem(this.key)).forEach(plan => { if (!this.deletedIds.has(plan.id)) this.drafts.set(plan.id, plan); }); }
     catch { this.storageError = true; }
     this.reportDirty();
     this.root.addEventListener("click", event => this.click(event));
@@ -54,6 +56,7 @@ export class PlanBuilder {
   }
 
   completeImport(plan) {
+    if (this.deletedIds.has(plan.id)) return;
     if ((this.plans.get(plan.id)?.updatedAt || "") > (plan.updatedAt || "")) return;
     this.plans.set(plan.id, planDraft(plan));
     const draft = this.drafts.get(plan.id);
@@ -93,9 +96,12 @@ export class PlanBuilder {
     this.updateStatus();
     try {
       const plans = await this.options.getPlans();
-      this.plans = new Map(plans.map(plan => [plan.id, planDraft(plan)]));
+      (this.options.getDeletedPlanIds?.() || []).forEach(id => this.deletedIds.add(id));
+      this.deletedIds.forEach(id => this.drafts.delete(id));
+      this.plans = new Map(plans.filter(plan => !this.deletedIds.has(plan.id)).map(plan => [plan.id, planDraft(plan)]));
       const active = this.options.getActivePlan();
-      if (!this.plans.has(active.id)) this.plans.set(active.id, planDraft(active));
+      if (active.id && !this.deletedIds.has(active.id) && !this.plans.has(active.id)) this.plans.set(active.id, planDraft(active));
+      this.persist();
       this.setCatalog(buildExerciseCatalog([...this.drafts.values(), ...this.plans.values(), ...(this.options.starterPlans || [])]));
       this.message = "";
       if (openId) this.open(openId);
@@ -166,7 +172,7 @@ export class PlanBuilder {
         const count = Object.values(plan.workouts).reduce((sum, list) => sum + list.length, 0);
         const status = [id === activeId ? "Active" : this.plans.has(id) ? "Saved" : "", this.drafts.has(id) ? "Draft" : ""].filter(Boolean).join(" / ");
         return `<button type="button" class="pb-planRow" data-pb="open" data-id="${esc(id)}"><span><strong>${esc(plan.name || "Unnamed Plan")}</strong><small>${plan.dayOrder.length} days / ${count} exercises</small></span><span class="pb-label">${status}</span><span aria-hidden="true">&#8250;</span></button>`;
-      }).join("")}</div>
+      }).join("") || '<p class="historyEmpty">No plans yet.</p>'}</div>
       <button type="button" class="pb-textAction" data-pb="template">Download Plan Template</button>`;
   }
 
@@ -174,6 +180,7 @@ export class PlanBuilder {
     const plan = this.plan;
     return `${this.back("library", "Plans")}<div class="pb-title"><h3>Plan details</h3>${this.menu("planMenu", "Plan actions", `
       <button type="button" data-pb="duplicate-plan">Duplicate Plan</button><button type="button" data-pb="export">Export Plan</button>
+      <button type="button" class="pb-danger" data-pb="delete-plan">Delete Plan</button>
       ${this.dirty ? '<button type="button" class="pb-danger" data-pb="discard-plan">Discard Unsaved Changes</button>' : ""}`)}</div>
       <label class="builderField"><span>Plan name</span><input data-plan-field="name" maxlength="120" value="${esc(plan.name)}" /></label>
       <div class="pb-planStatus">${this.id === this.options.getActivePlan().id ? '<span class="pb-label">Active plan</span>' : '<button type="button" class="secondaryBtn" data-pb="activate">Make Active</button>'}</div>
@@ -323,6 +330,32 @@ export class PlanBuilder {
         return;
       }
       if (action === "refresh") return await this.refresh();
+      if (action === "delete-plan") {
+        const id = this.id;
+        const isActive = id === this.options.getActivePlan().id;
+        const alternatives = [...this.plans.values()].filter(plan => plan.id !== id).sort((a, b) => a.name.localeCompare(b.name));
+        const next = isActive ? alternatives.find(plan => { try { parsePlanFile(JSON.stringify(plan)); return true; } catch { return false; } }) : null;
+        const warning = isActive ? next ? ` ${next.name} will become active.` : " No plan will be active until you create or choose another one." : "";
+        const message = `Delete ${this.plan.name}?${warning}${this.dirty ? " Unsaved edits to this plan will also be removed." : ""} Saved workouts and exercise history will be kept.`;
+        if (!(this.options.confirm ? this.options.confirm(message) : confirm(message))) return;
+        this.busy = true;
+        this.root.inert = true;
+        try {
+          await this.options.deletePlan(id, next?.id || "");
+          this.deletedIds.add(id);
+          this.plans.delete(id);
+          this.drafts.delete(id);
+          this.persist();
+          this.id = ""; this.day = ""; this.edit = -1; this.view = "library";
+          this.message = "Plan deleted. Workout history kept.";
+          this.error = false;
+          this.render();
+          this.scrollTop();
+        } catch (error) {
+          this.notify(error.code === "plan-save-pending" ? "Delete confirmation is delayed. Reopen the app after reconnecting to check whether it completed." : "Couldn't delete this plan. Finish any current workout, check your connection, and try again.", true);
+        } finally { this.busy = false; this.root.inert = false; this.updateStatus(); }
+        return;
+      }
       if (action === "open") return this.open(data.id);
       if (action === "import") return this.options.requestImport();
       if (action === "template") return this.options.exportFile("lift-tracker-plan-template.json", createPlanTemplate());

@@ -29,6 +29,7 @@ import {
   query,
   orderBy,
   getDoc,
+  runTransaction,
   setDoc
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
@@ -364,6 +365,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const defaultValidation = validateWorkoutObject(window.workouts || {});
   let activePlan = null;
+  let deletedPlanIds = [];
   let workouts = {};
   let workoutDays = [];
   let gymOptions = [];
@@ -445,7 +447,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     workoutDays = activePlan.dayOrder;
   }
 
-  if (!workoutDays.length) {
+  if (!workoutDays.length && activePlan.id) {
     showMessage("No workouts found. Go to Plan and add a workout day.", "error");
   }
 
@@ -490,10 +492,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      PLAN LOADING
   ===================================================== */
+  function emptyActivePlan() {
+    return { id: "", name: "No active plan", workouts: {}, dayOrder: [] };
+  }
+
   async function loadOrCreateActivePlan(defaultWorkouts) {
     const settingsRef = userSettingsDoc();
     const settingsSnap = await getDoc(settingsRef);
     const activePlanId = settingsSnap.exists() ? settingsSnap.data().activePlanId : "";
+    const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+    deletedPlanIds = Array.isArray(settings.deletedPlanIds) ? settings.deletedPlanIds : [];
+    if (deletedPlanIds.includes(activePlanId) || (!activePlanId && settings.planLibraryInitialized)) return emptyActivePlan();
 
     if (activePlanId) {
       const activePlanRef = doc(db, "users", userId, "plans", activePlanId);
@@ -516,6 +525,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
+    if (settings.planLibraryInitialized) return emptyActivePlan();
+
     const now = new Date().toISOString();
     const seedPlanId = "current_plan";
     const seedPlanRef = doc(db, "users", userId, "plans", seedPlanId);
@@ -530,6 +541,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await setDoc(settingsRef, {
       activePlanId: seedPlanId,
+      planLibraryInitialized: true,
       updatedAt: now
     }, { merge: true });
 
@@ -544,6 +556,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function applyAccountPlanUpdates(currentPlan, defaultWorkouts) {
+    if (!currentPlan?.id) return currentPlan;
     const targetEmail = "alecwrichardson@gmail.com";
     const templateId = "clean_final_split_2026_07_01";
     const accountEmail = String(userEmail || auth.currentUser?.email || "").toLowerCase();
@@ -934,7 +947,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (pageId === "homePage") {
       pageTitle.textContent = "Lift Tracker";
-      pageSubtitle.textContent = activePlan ? `Active plan: ${activePlan.name}` : "Home";
+      pageSubtitle.textContent = activePlan?.id ? `Active plan: ${activePlan.name}` : "No active plan";
     }
 
     if (pageId === "workoutPage") {
@@ -954,7 +967,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (pageId === "planPage") {
       pageTitle.textContent = "Plans";
-      pageSubtitle.textContent = activePlan ? `Active: ${activePlan.name}` : "Create your plan";
+      pageSubtitle.textContent = activePlan?.id ? `Active: ${activePlan.name}` : "No active plan";
     }
 
     updateBottomNav();
@@ -1113,10 +1126,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else {
       todayCard.innerHTML = `
         <p class="eyebrow">Today's Workout</p>
-        <h3>No workouts yet</h3>
-        <p>Go to Plan and add your first workout day.</p>
+        <h3>${activePlan.id ? "No workouts yet" : "No active plan"}</h3>
+        <div class="homeActions"><button id="choosePlanFromHome" type="button" class="primaryBtn">Open Plans</button></div>
       `;
     }
+
+    document.getElementById("choosePlanFromHome")?.addEventListener("click", () => navigateToMainPage("planPage"));
 
     allWorkoutsGrid.innerHTML = "";
 
@@ -1191,12 +1206,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
       </div>
       <div class="homeActions">
-        <button id="openPlanFromHome" type="button" class="secondaryBtn">Edit Plan</button>
+        <button id="openPlanFromHome" type="button" class="secondaryBtn">${activePlan.id ? "Edit Plan" : "Open Plans"}</button>
       </div>
     `;
 
     document.getElementById("openPlanFromHome")?.addEventListener("click", () => {
-      initBuilderFromActivePlan().open(activePlan.id);
+      if (activePlan.id) initBuilderFromActivePlan().open(activePlan.id);
       navigateToMainPage("planPage");
     });
   }
@@ -1327,6 +1342,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!id || id === activePlan.id) return;
     const record = await getDoc(doc(db, "users", userId, "plans", id));
     if (!record.exists()) throw new Error("This plan is no longer available.");
+    const settings = await waitForPlanSave(getDoc(userSettingsDoc()));
+    if (settings.exists() && (settings.data().deletedPlanIds || []).includes(id)) throw new Error("This plan was deleted. Refresh your plans.");
     const plan = parsePlanFile(JSON.stringify(record.data()));
     if (currentDay && document.querySelector(".exerciseCard")) saveDraft(currentDay);
     await setDoc(userSettingsDoc(), { activePlanId: id, updatedAt: new Date().toISOString() }, { merge: true });
@@ -1340,6 +1357,48 @@ document.addEventListener("DOMContentLoaded", async () => {
     workoutDays = plan.dayOrder;
     if (currentPage === "homePage") await renderHome();
     if (currentPage === "planPage") pageSubtitle.textContent = `Active: ${activePlan.name}`;
+  }
+
+  async function deleteSavedPlan(id, nextId = "") {
+    if (!id || id.includes("/")) throw new Error("Choose a valid plan.");
+    if (id === activePlan.id && currentDay) throw new Error("Finish or discard your current workout before deleting its plan.");
+    const expectedActiveId = activePlan.id;
+    const result = await waitForPlanSave(runTransaction(db, async transaction => {
+      const settingsRef = userSettingsDoc();
+      const snapshot = await transaction.get(settingsRef);
+      const settings = snapshot.exists() ? snapshot.data() : {};
+      const activeId = settings.activePlanId || "";
+      const deleted = Array.isArray(settings.deletedPlanIds) ? settings.deletedPlanIds : [];
+      if (activeId !== expectedActiveId && !deleted.includes(id)) throw new Error("The active plan changed. Reopen the app before deleting this plan.");
+      let replacement = null;
+      if (activeId === id || (deleted.includes(id) && activeId !== expectedActiveId)) {
+        const replacementId = activeId === id ? nextId : activeId;
+        if (replacementId) {
+          if (replacementId === id || replacementId.includes("/") || deleted.includes(replacementId)) throw new Error("Refresh your plans and try again.");
+          const record = await transaction.get(doc(db, "users", userId, "plans", replacementId));
+          if (!record.exists()) throw new Error("The replacement plan is no longer available. Refresh and try again.");
+          replacement = { ...record.data(), ...parsePlanFile(JSON.stringify(record.data())), id: replacementId };
+        } else replacement = emptyActivePlan();
+      }
+      const removed = [...new Set([...deleted, id])];
+      transaction.delete(doc(db, "users", userId, "plans", id));
+      transaction.set(settingsRef, { deletedPlanIds: removed, planLibraryInitialized: true,
+        ...(replacement ? { activePlanId: replacement.id } : {}), updatedAt: new Date().toISOString() }, { merge: true });
+      return { replacement, removed };
+    }));
+    deletedPlanIds = result.removed;
+    if (result.replacement) {
+      stopAllRestTimers();
+      activePlan = result.replacement;
+      workouts = activePlan.workouts;
+      workoutDays = activePlan.dayOrder;
+      currentDay = "";
+      const container = document.getElementById("exerciseContainer");
+      container.replaceChildren();
+      delete container.dataset.renderedDay;
+      if (currentPage === "homePage") await renderHome();
+      if (currentPage === "planPage") pageSubtitle.textContent = activePlan.id ? `Active: ${activePlan.name}` : "No active plan";
+    }
   }
 
   function setupPlanFileControls() {
@@ -1436,10 +1495,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       root: document.getElementById("planOverview"),
       userId,
       getActivePlan: () => activePlan,
+      getDeletedPlanIds: () => deletedPlanIds,
       starterPlans: [{ workouts: defaultValidation.workouts }],
       getPlans: async () => {
         const snapshot = await getDocs(collection(db, "users", userId, "plans"));
+        const settings = await getDoc(userSettingsDoc());
+        deletedPlanIds = settings.exists() && Array.isArray(settings.data().deletedPlanIds) ? settings.data().deletedPlanIds : [];
         return snapshot.docs.flatMap(record => {
+          if (deletedPlanIds.includes(record.id)) return [];
           const data = record.data();
           const validation = validateWorkoutObject(data.workouts || {});
           if (validation.errors.length) return [];
@@ -1468,6 +1531,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return { ...saved, id: plan.id };
       },
       activatePlan: activateSavedPlan,
+      deletePlan: deleteSavedPlan,
       requestImport: () => document.getElementById("planFileInput").click(),
       exportFile: downloadJsonFile,
       onDirtyChange: dirty => { builderDirty = dirty; },
