@@ -65,7 +65,16 @@ These are suggested design constraints, not additional user requirements:
 7. What is the smallest satisfying social feature: a private friends group, one challenge type, and a simple attack/defense loop?
 8. How much communication is needed initially, and how are unwanted interactions handled?
 
-## Where to Resume
+## Additional Brainstorming — November 16, 2026
+
+- Keep exploring mechanics before choosing a game style. The first pass should stay very simple; no implementation direction has been selected.
+- Possible inspirations include Diablo-style random gear and stat rolls, roguelike runs, idle dungeon adventures, and Clash of Clans-style competitive friend raids. Workout results could earn power, rewards, attack opportunities, or equipment upgrades; the mapping is undecided.
+- An optional idle adventure could run during a workout, offering occasional interactions between sets: collecting loot, inspecting or sorting items, or making a small choice. Whether attention should affect rewards is undecided; do not treat it as a settled requirement.
+- The user already built **Embervault — Dungeon Idle** through Codex on their Texas computer. Its public repository is https://github.com/AlecRichardson/dungeon-idle and its published game is https://alecrichardson.github.io/dungeon-idle/ (page responded successfully when checked this session).
+- Its README describes a Mage automatically traversing dungeon floors, random equipment, inventory/stash management, two equipment loadouts, and a Bling Gnome action for selling ground loot. This is a reference for the idle combat and loot interactions, not evidence that workout integration or friend raids already exist.
+- **The user explicitly said we may or may not use this prototype.** Remember it as an optional reference only. Do not assume a decision to reuse, integrate, or modify its code. The original prototype conversation has not been recovered or read in this session.
+
+## Next Discussion
 
 First choose one coherent game loop and work through an example between two friends with very different strength levels. Then sketch the workout-to-reward-to-raid experience before deciding on scoring formulas, visual themes, or implementation.
 
