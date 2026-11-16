@@ -74,6 +74,15 @@ These are suggested design constraints, not additional user requirements:
 - Its README describes a Mage automatically traversing dungeon floors, random equipment, inventory/stash management, two equipment loadouts, and a Bling Gnome action for selling ground loot. This is a reference for the idle combat and loot interactions, not evidence that workout integration or friend raids already exist.
 - **The user explicitly said we may or may not use this prototype.** Remember it as an optional reference only. Do not assume a decision to reuse, integrate, or modify its code. The original prototype conversation has not been recovered or read in this session.
 
+### More ideas from the user
+
+- Each completed set could trigger a loot drop or a chance at one; guaranteed versus random drops is undecided.
+- After a workout, the earned items/rewards could build a caravan used to attack another player.
+- Workout drops could also build defenses.
+- Defenses might "slowly trickle the longer between your workouts." The intended meaning is unresolved: do not assume this means defense decay, resource production, or a particular timing rule.
+- Rare fictional items worth stealing are a major attraction. The desired feeling is looting and destroying buddies in PvP, showing off workouts, and bragging about victories and spoils.
+- These remain brainstorming possibilities, not selected mechanics. The user reiterated that the first pass should remain simple.
+
 ## Next Discussion
 
 First choose one coherent game loop and work through an example between two friends with very different strength levels. Then sketch the workout-to-reward-to-raid experience before deciding on scoring formulas, visual themes, or implementation.
