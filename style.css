@@ -189,8 +189,10 @@ body.keyboardOpen .bottomNav, body.keyboardOpen .saveDock, body.keyboardOpen .bu
 .historyDateGroup { display: grid; gap: 0; margin-top: 12px; }
 .historyDateHeading { margin: 0; color: var(--muted-2); font-size: 11px; font-weight: 500; }
 .historyCard { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; overflow: hidden; }
-.historyCard.open { border-color: var(--border-strong); }
+.historyCard.open { margin-block: 8px; border: 1px solid #48658a; border-left: 3px solid var(--accent); border-radius: var(--radius); background: #151c25; }
 .historyCardHeader { display: grid; grid-template-columns: minmax(0,1fr) auto; align-content: center; align-items: center; column-gap: 10px; row-gap: 4px; width: 100%; min-height: 64px; padding: 10px 0; border: 0; background: var(--bg); text-align: left; }
+.historyCard.open .historyCardHeader { padding-inline: 12px; background: #203047; }
+.historyCard.open .historyWorkoutName { color: var(--accent-2); }
 .historyCardMain { display: contents; }
 .historyWorkoutName { grid-column: 1; grid-row: 1; min-width: 0; font-size: 15px; font-weight: 650; }
 .historyCardMeta { grid-column: 1/-1; grid-row: 2; display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
@@ -198,8 +200,9 @@ body.keyboardOpen .bottomNav, body.keyboardOpen .saveDock, body.keyboardOpen .bu
 .historyCardSide { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 10px; text-align: right; }
 .historyVolume { color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
 .historyChevron { flex: 0 0 6px; width: 6px; height: 6px; margin-right: 2px; border-right: 1.5px solid var(--muted-2); border-bottom: 1.5px solid var(--muted-2); transform: rotate(45deg); }
-.historyCard.open .historyChevron { transform: rotate(225deg); }
+.historyCard.open .historyChevron { border-color: var(--accent); transform: rotate(225deg); }
 .historyCardDetails { padding: 0 0 12px; }
+.historyCard.open .historyCardDetails { padding-inline: 12px; }
 .historyDetailsTop { display: flex; flex-wrap: wrap; gap: 12px 24px; padding-block: 12px; border-block: 1px solid var(--border); }
 .historyDetailsTop > div { min-width: 0; }
 .historyDetailsTop strong { display: block; color: var(--muted-2); font-size: 10px; font-weight: 500; }
