@@ -19,7 +19,9 @@ Status: Phase 1 scope with confirmed mechanics and recommended starting defaults
 
 Complete sets → save workout → receive items → start a job, apply a shield, or raid a friend → collect production or stolen gold → upgrade production.
 
-All names are placeholders. Production theme remains open. No dungeon or caravan is required for this proposal.
+The user selected a bodybuilding drug-lord theme: one fictional pharmaceutical lab covers peptides, steroids, and other PED-themed products. Defense is themed as lawyers, which the user liked. Phase 1 uses one generic batch and one production action; product names do not add recipes or distinct production systems. No dungeon or caravan is required.
+
+Terminology mapping: Supplies → Lab Supplies; Shield/defense → Lawyers; Job → Batch; Gold → Cash. The mechanical descriptions below retain their original generic labels where useful. Proposed production/collection button wording is Produce Batch and Collect & Sell; collection converts the remaining finished goods into protected cash in one action. Raid Ticket remains a placeholder until naming is discussed. Pre-workout, apparel, storefronts, social-media content drops, and additional businesses remain later brainstorming ideas, not Phase 1 systems.
 
 ## Items and workout rewards
 
@@ -106,8 +108,12 @@ Four hours later the level-1 production job holds 20 gold. Mike sees that Alex h
 
 - One Base screen, three item types, one job slot, three defense levels, one production upgrade path, direct friend raids, and a small results list/ranking complete this first-pass specification.
 - Job duration/output, reward ceiling/distribution, defense and ticket prices, theft percentage, upgrade prices, and raid cooldown are adjustable defaults. They do not require adding more mechanics to run the first trial.
-- Use neutral labels (Supplies, Shield, Raid Ticket, Job, Gold) until a theme is chosen. Theme is not a blocker for Phase 1.
+- Use the pharmaceutical-lab/lawyers theme above. Exact artwork and screen layout remain open and should be discussed with the user before UI implementation.
 - First trial success: friends can each complete the loop and understand why a target costs more to raid, what was stolen, and how to rebuild. Observe whether ready goods actually remain available long enough to create raid opportunities; finished-output-only may produce too few targets and should be tested before expanding the game.
 - Deferred: live workout drops/idle dungeon, classes, caravans, gear, trading, rare collectibles, failed raids, partial defense destruction, multiple businesses, public matchmaking, and seasons.
 
 This completes the planning gaps with explicit defaults while distinguishing confirmed user mechanics from recommended tuning. Building and deploying remain separate, unrequested work.
+
+## Next: screen and interaction brainstorming
+
+The user explicitly wants to discuss their own expectations for how the screens look and interact. Do this before treating the earlier one-Base-screen proposal as an approved layout. Walk through workout save → loot reveal → lab/base → produce/defend → select a friend → raid result, including returning Home. Explore the user's visual and interaction preferences rather than choosing a finished design for them. No mockup or UI implementation has been requested yet.

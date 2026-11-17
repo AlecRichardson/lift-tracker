@@ -102,6 +102,8 @@ These are suggested design constraints, not additional user requirements:
 
 ## Next Discussion
 
+The user selected a fictional pharmaceutical lab as the umbrella production theme (peptides, steroids, other PED-themed products) and liked lawyers as the defense theme. Keep one generic batch/process for Phase 1. Pre-workout, apparel, storefronts, and social-media content processes were also mentioned as possible later ideas. Next, brainstorm the user's expectations for screen appearance and interactions before implementation; the earlier single-Base-screen suggestion is not an approved visual design.
+
 Phase 1 scope and starting defaults: see `GAME-PHASE-1.md`. It distinguishes the user's confirmed mechanics from assistant-selected tuning numbers; it is not implementation approval.
 
 Latest voice-session decisions supersede earlier shield ideas: only finished uncollected production is raidable; defense stacks to a cap with exponentially increasing costs; defense only increases the required raid tickets, while theft percentage stays fixed; attacks paid in full succeed and consume all applied defense. Failed raids and partial defense destruction are deferred to a possible Phase 2. The user asked the assistant to fill remaining gaps using simple defaults rather than keep asking about every tuning detail.
