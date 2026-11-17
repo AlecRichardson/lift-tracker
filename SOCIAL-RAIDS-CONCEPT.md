@@ -83,8 +83,6 @@ These are suggested design constraints, not additional user requirements:
 - Rare fictional items worth stealing are a major attraction. The desired feeling is looting and destroying buddies in PvP, showing off workouts, and bragging about victories and spoils.
 - These remain brainstorming possibilities, not selected mechanics. The user reiterated that the first pass should remain simple.
 
-## Next Discussion
-
 ### Current direction — November 17, 2026
 
 - The user proposed borrowing the gameplay loop of "Rob Run," as they described it: acquire items during a workout, bring them back to a base after the workout, then spend them on upgrades or start timed production jobs.
@@ -93,6 +91,17 @@ These are suggested design constraints, not additional user requirements:
 - This is the latest candidate loop and should lead the next discussion; caravans, a full gear RPG, and Embervault reuse remain optional earlier ideas. Keep the first pass simple. No implementation has been requested.
 - The referenced game's mechanics have not been independently researched in this update; the description above records the user's explanation.
 
-First choose one coherent game loop and work through an example between two friends with very different strength levels. Then sketch the workout-to-reward-to-raid experience before deciding on scoring formulas, visual themes, or implementation.
+### First-pass scope clarified by the user
+
+- Keep the first pass extremely simple: one action/item per thing, with minimal interaction. The exact item types and quantities remain undecided.
+- Marking workout sets completed should contribute to item drops. Immediate drops versus awarding them on save was considered; **awarding/collecting loot after saving the workout is the current preference**, not a finalized drop formula.
+- After saving, show the earned loot and let the player use it to start production, apply defense, or attack another player.
+- Keep production, defense, and attacking to simple individual actions initially. Do not infer a need for equipment management, caravan configuration, skill trees, or an interactive battle system.
+- Saving the same workout again must not duplicate loot. Reward eligibility for unchecked prefilled sets remains undecided; preserve existing workout-save semantics.
+- This clarifies the candidate scope only; implementation has not been requested.
+
+## Next Discussion
+
+Work through a concrete saved-workout-to-loot example and the three simple uses: start production, apply defense, and attack. Decide the smallest item set and raid outcome rules before adding mechanics or choosing a visual theme.
 
 The idea is parked for later. Do not start building it or add it to the current plan-builder redesign without a new request.
