@@ -102,8 +102,10 @@ These are suggested design constraints, not additional user requirements:
 
 ## Next Discussion
 
-Phase 1 gap-filling proposal: see `GAME-PHASE-1.md`. It distinguishes the user's stated direction from proposed rules and tuning numbers; it is not implementation approval.
+Phase 1 scope and starting defaults: see `GAME-PHASE-1.md`. It distinguishes the user's confirmed mechanics from assistant-selected tuning numbers; it is not implementation approval.
 
-Work through a concrete saved-workout-to-loot example and the three simple uses: start production, apply defense, and attack. Decide the smallest item set and raid outcome rules before adding mechanics or choosing a visual theme.
+Latest voice-session decisions supersede earlier shield ideas: only finished uncollected production is raidable; defense stacks to a cap with exponentially increasing costs; defense only increases the required raid tickets, while theft percentage stays fixed; attacks paid in full succeed and consume all applied defense. Failed raids and partial defense destruction are deferred to a possible Phase 2. The user asked the assistant to fill remaining gaps using simple defaults rather than keep asking about every tuning detail.
+
+Review or tune the complete Phase 1 specification when needed. The loop and raid rules are now described; no further mechanics or visual theme are needed to finish planning.
 
 The idea is parked for later. Do not start building it or add it to the current plan-builder redesign without a new request.

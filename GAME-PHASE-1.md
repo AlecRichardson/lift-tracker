@@ -1,6 +1,6 @@
 # Workout Raids — Phase 1 Proposal
 
-Status: discussion draft, November 17, 2026. The user requested filling planning gaps, not implementation. Rules and numbers below are assistant proposals unless explicitly identified as user direction. Nothing here authorizes building or deploying the game.
+Status: Phase 1 scope with confirmed mechanics and recommended starting defaults. The user asked the assistant to fill remaining planning gaps and keep the first pass simple. Values labeled defaults are assistant-selected tuning values, not individually approved user choices. No game implementation or deployment has been requested.
 
 ## Confirmed direction from the user
 
@@ -9,6 +9,11 @@ Status: discussion draft, November 17, 2026. The user requested filling planning
 - Loot supports starting timed production, applying defense, and attacking another player.
 - Production represents invested resources that friends can raid. Desirable loot, rivalry, showing off workouts, and PvP spoils are the appeal.
 - The existing Embervault prototype is optional inspiration, not a selected dependency.
+- Only finished, uncollected production can be stolen; running jobs are safe.
+- Defense stacks to a cap with exponentially increasing construction costs.
+- Defense raises the number of Raid Tickets needed; it does not also reduce the percentage stolen. This supersedes the earlier reduced-theft proposal.
+- An attacker who can pay the displayed ticket cost succeeds. A successful raid consumes all applied defense, requiring the defender to rebuild it; unused inventory shields remain safe.
+- Failed raids and partially destroying defenses are possible Phase 2 mechanics, not Phase 1 requirements.
 
 ## Proposed complete loop
 
@@ -23,11 +28,11 @@ Three stackable item types, each with one use:
 | Item | Action | Proposed effect |
 | --- | --- | --- |
 | Supplies | Start Job | Spend one to start the single production slot |
-| Shield | Apply Defense | Spend one to block the next raid; only one can be active |
-| Raid Ticket | Attack | Spend one to resolve one raid against a chosen friend |
+| Shield | Build Defense | Spend the displayed number to add the next defense level |
+| Raid Ticket | Attack | Spend the displayed cost for the target's defense level |
 
 - Only sets explicitly marked complete and containing a valid recorded effort qualify. Unchecked prefilled sets do not earn game rewards; existing workout-save/history/volume behavior stays intact.
-- Proposed first experiment: each eligible set grants one item, up to 12 rewarded sets per account per calendar day in one fixed game timezone. Additional workouts share the same allowance. This is a tunable reward ceiling, not a workout recommendation.
+- Starting default: each eligible set grants one item, up to 12 rewarded sets per account per calendar day in America/Chicago, using the reward claim time. Additional workouts share the same allowance. Offline saves claim against the day they reconnect; they do not backfill missed allowances. This is a tunable reward ceiling, not a workout recommendation.
 - To make the first rewarded workout useful, the first three rewarded sets each day give Supplies, Shield, and Raid Ticket in that order. Remaining rewarded sets roll 60% Supplies, 20% Shield, 20% Raid Ticket. A workout with fewer sets still earns its corresponding rewards; no minimum workout length is required.
 - Sets never receive extra power for heavier weights, longer sessions, personal records, or more total volume. The ceiling limits, but does not eliminate, advantages from training frequency. This is a friend-group prototype, not a fully normalized competitive system.
 - Past workouts and imports are not eligible. A reward is issued once for a newly saved eligible workout. Edits, deletion, retries, and a different device do not reroll or reissue that workout's loot. Deleting workout history remains available and never restores the daily allowance.
@@ -40,28 +45,37 @@ Three stackable item types, each with one use:
 - Gold is the only currency. Collect moves the remaining output into a protected bank and frees the slot. Banked gold, unused items, and permanent upgrades cannot be stolen in this proposal.
 - Only finished, uncollected output can be raided. Inputs and unfinished jobs are safe. Opponents see whether a target has output, its current amount, and its defenses/protection before committing a raid.
 - A ready job remains until collected; no spoilage or obligation to return on time. Rest days do not decay upgrades or defenses.
-- Optional rarity within the same action: a 10% chance when starting a job creates a visibly rare batch with double output. Its appearance is visible to friends. This is a candidate way to preserve desirable targets without adding another inventory system; a unique stealable collectible is deferred.
+- Keep one standard batch in Phase 1. Rare batches, rare equipment, and unique stealable collectibles are deferred; the initial trial tests the production-and-raid loop first.
 
-## One defense and one attack rule
+## Stacked defense and one attack rule
 
-- Apply Defense activates a shield indefinitely until hit. Applying another while shielded is disabled and consumes nothing.
-- A valid attack costs one Raid Ticket. An active shield blocks the attack and is consumed; the attacker gains nothing. This deliberate outcome is visible before attacking, so friends can decide whether stripping a shield is worthwhile.
-- Without a shield, an attack steals 25% of the current ready output, rounded up. There are no combat stats, random win rolls, troop selection, or repair screens. The stolen gold goes directly into the attacker's protected bank.
-- A resolved raid, including a blocked raid, gives the defender eight hours of protection from everyone. A second simultaneous attack cannot spend a ticket or take loot after protection begins.
+- Default cap: three defense levels. Each Build Defense tap adds one level at the displayed cost. Defense persists across jobs and collection until a successful raid consumes all of it; it never expires just because the player rests.
+
+| Defense level | Shields to reach this level from the previous level | Total shields invested | Tickets needed to raid |
+| --- | --- | --- | --- |
+| 0 | 0 | 0 | 1 |
+| 1 | 1 | 1 | 2 |
+| 2 | 2 | 3 | 4 |
+| 3 | 4 | 7 | 8 |
+
+- These are starting costs for testing. Build Defense is disabled at the cap or without the required inventory; an invalid tap consumes nothing. Shields are workout drops, not gold purchases, in this default economy.
+- A valid attack spends the required Raid Tickets, succeeds immediately, and clears all applied defense. Insufficient tickets mean Attack is unavailable, not a failed raid. There is no way to pay fewer tickets to attempt a risky attack.
+- Every successful attack steals 25% of the current ready output, rounded up, regardless of defense level. The stolen gold goes directly into the attacker's protected bank. There are no combat stats, random win rolls, troop selection, or repair screens.
+- Default anti-pile-on rule: a successful raid gives the defender one hour of protection from everyone, shown as a timer. This temporary cooldown is separate from purchased defense. It replaces the earlier eight-hour proposal and can be tuned after testing. A second simultaneous attack cannot spend tickets or take loot after protection begins.
 - Empty, unfinished, protected, self, or non-friend targets cannot be attacked; no ticket is spent for a rejected/stale target. A final check determines eligibility before consuming anything.
-- Reports show attacker/defender, time, shield result, and actual gold transferred. Only a real transfer counts as a win or gold stolen; stripping a shield is reported separately.
-- There is no destruction/repair or rare item theft in this initial proposal. This consciously narrows the user's larger PvP fantasy and needs discussion before the scope is treated as accepted.
+- Reports show attacker/defender, time, tickets spent, defense levels destroyed, and actual gold transferred. Only real transfers count toward stolen-gold totals.
+- Permanent base destruction, repairs, rare item theft, and failed raid attempts stay outside this first trial.
 
 ## One permanent upgrade
 
 - Upgrade spends 50 banked gold to increase base job output by 5, up to level 5. Cost stays fixed for this first experiment; no branching choices.
-- Job output, including any rare multiplier, is fixed at job start. Upgrading affects the next job, not an existing timer or ready batch.
+- Job output is fixed at job start. Upgrading affects the next job, not an existing timer or ready batch.
 - Upgrades are never lost in raids. No additional spending systems are included yet; the finite upgrade cap is sufficient for a short friend-group trial, not a permanent economy.
 
 ## Friends and showing off
 
 - Start with a private, mutually accepted friend group. An invitation code can create a pending request; the recipient accepts before either player can raid or view shared activity.
-- Only players who opt into the game appear as targets. Leaving disables both attacking and being attacked and removes the player from target lists. Existing game state is retained; rejoining uses the later of any existing protection expiry or eight hours from rejoining, and prevents attacks in either direction during that interval. This simple rule needs validation against toggle abuse before broader play.
+- Only players who opt into the game appear as targets. Leaving disables both attacking and being attacked and removes the player from target lists. Existing game state is retained. If the player later rejoins, preserve existing raid protection, defense, inventories, and production but grant no new rewards or protection merely for rejoining. Repeated opting out or removing friends to evade raids is a known limitation of the private friend-group trial; broader competitive abuse prevention is deferred rather than adding participation timers to Phase 1.
 - Shared information: display name, game base level, production availability, shield/protection, actual stolen-gold total, and a latest-workout summary with date and completed-set count. Do not expose exercise details, notes, body metrics, or weights by default.
 - Keep a short raid activity list and an all-time friends ranking by actual gold stolen. No public matchmaking, chat, push notifications, seasons, or separate social feed in Phase 1.
 - Solo players can produce and upgrade; PvP becomes available when a friend joins.
@@ -75,9 +89,9 @@ Three stackable item types, each with one use:
 
 ## Example
 
-Alex saves a workout containing 12 eligible completed sets and receives 12 items, including at least one of each type under the proposed daily starter sequence. Alex spends one Supplies to start a job, and one Shield to protect it.
+Alex saves a workout containing 12 eligible completed sets and receives 12 items, including at least one of each type under the daily starter sequence. Alex spends one Supplies to start a job, then spends one Shield and two more Shields to build level-2 defense.
 
-Four hours later the normal level-1 job holds 20 gold. Mike spends a Raid Ticket and breaks the shield, receiving no gold. Alex gets eight hours of protection. If Alex leaves the job uncollected past protection, a later unblocked raid takes 5 gold from the 20 remaining; Alex can still bank the remaining 15. Alternatively, Alex can collect all 20 before another valid raid. Neither workout record is affected.
+Four hours later the level-1 production job holds 20 gold. Mike sees that Alex has level-2 defense and that Attack costs four tickets. Mike spends four tickets, steals five gold, and clears all applied defense. Alex has 15 gold left to collect, gets one hour of protection, and can rebuild defense with unused inventory Shields. Neither workout record is affected.
 
 ## Verification needed before any first release
 
@@ -85,13 +99,15 @@ Four hours later the normal level-1 job holds 20 gold. Mike spends a Raid Ticket
 - Retries, edits, imported history, deleted workouts, multiple devices, and day boundaries cannot duplicate rewards or reroll items.
 - Production inputs, bank balances, tickets, shields, gold transfers, protection, and upgrades are checked by the shared game service rather than trusted from a player's screen. Concurrent collect/raid/upgrade actions cannot duplicate or lose resources.
 - Timers survive closing/reopening and use authoritative time; a phone clock change cannot accelerate production.
-- Rejected raids consume nothing; resolved raids consistently consume one ticket and at most one shield. Friend removal and game opt-out prevent later raids.
+- Rejected raids consume nothing; successful raids spend exactly the displayed defense-dependent ticket cost, clear applied defense only, transfer the correct gold, and start protection together. Stale prices must refresh without silently charging more or spending against an empty/collected job. Friend removal and completed game withdrawal prevent later raids.
 - iPhone checks cover loot summary on Home, timer restoration, single-action controls, and clear empty/offline/protected states. Existing History, Progress, Plan Builder, logging, and existing account data remain intact.
 
-## Decisions to settle first
+## Trial scope and defaults
 
-1. Is raiding finished output enough, or must ongoing production also be vulnerable?
-2. Does a shield that blocks one attack feel useful/fun, versus reducing theft while still rewarding the attacker?
-3. Is a rare double-value batch enough for Phase 1, or is a rare collectible that changes owners essential to the appeal?
+- One Base screen, three item types, one job slot, three defense levels, one production upgrade path, direct friend raids, and a small results list/ranking complete this first-pass specification.
+- Job duration/output, reward ceiling/distribution, defense and ticket prices, theft percentage, upgrade prices, and raid cooldown are adjustable defaults. They do not require adding more mechanics to run the first trial.
+- Use neutral labels (Supplies, Shield, Raid Ticket, Job, Gold) until a theme is chosen. Theme is not a blocker for Phase 1.
+- First trial success: friends can each complete the loop and understand why a target costs more to raid, what was stolen, and how to rebuild. Observe whether ready goods actually remain available long enough to create raid opportunities; finished-output-only may produce too few targets and should be tested before expanding the game.
+- Deferred: live workout drops/idle dungeon, classes, caravans, gear, trading, rare collectibles, failed raids, partial defense destruction, multiple businesses, public matchmaking, and seasons.
 
-All numerical values, reward rules, privacy defaults, and the proposed simplified combat/economy are starting hypotheses for discussion. Do not treat this document as accepted implementation requirements until the user selects the rules.
+This completes the planning gaps with explicit defaults while distinguishing confirmed user mechanics from recommended tuning. Building and deploying remain separate, unrequested work.
