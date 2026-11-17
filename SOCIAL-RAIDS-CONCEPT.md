@@ -102,6 +102,8 @@ These are suggested design constraints, not additional user requirements:
 
 ## Next Discussion
 
+Latest visual decisions: game overview with a business list → tap Pharmaceutical Lab → enter an animated, interactive room. The user accepted an angled top-down cutaway perspective for portrait iPhone. The scene should include tappable equipment (such as the mixing tank to start a batch), a supplies rack, decorative props, and subtle ambient movement. All management of that business happens inside its scene. Embervault's rendering technology is an optional reference. This replaces the earlier one-Base-screen suggestion; see `GAME-PHASE-1.md` for the detailed visual notes.
+
 The user selected a fictional pharmaceutical lab as the umbrella production theme (peptides, steroids, other PED-themed products) and liked lawyers as the defense theme. Keep one generic batch/process for Phase 1. Pre-workout, apparel, storefronts, and social-media content processes were also mentioned as possible later ideas. Next, brainstorm the user's expectations for screen appearance and interactions before implementation; the earlier single-Base-screen suggestion is not an approved visual design.
 
 Phase 1 scope and starting defaults: see `GAME-PHASE-1.md`. It distinguishes the user's confirmed mechanics from assistant-selected tuning numbers; it is not implementation approval.

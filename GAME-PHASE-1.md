@@ -85,7 +85,7 @@ Three stackable item types, each with one use:
 ## App flow
 
 - Saving a workout still returns Home. If opted in, Home can show the new loot summary with a single Open Base action. Reward calculation delays must not hold the save screen open.
-- One optional Base screen contains item counts, the production slot, bank/upgrade button, and friend targets/raid results. Game actions each resolve with a short result; selecting a raid target is the only required choice before attacking.
+- A game overview shows overall status and a list of businesses, initially just the pharmaceutical lab. Tapping that entry opens a dedicated lab scene. Manage that business inside its scene rather than putting all production controls on the overview. Friend targets and raid results remain accessible from the game overview; their exact presentation is still open.
 - Production and raiding require a connection for shared state. Workout logging and drafts keep their existing behavior.
 - No game UI or interruptions between sets in Phase 1; the idle-during-workout idea stays available for a later phase.
 
@@ -106,14 +106,21 @@ Four hours later the level-1 production job holds 20 gold. Mike sees that Alex h
 
 ## Trial scope and defaults
 
-- One Base screen, three item types, one job slot, three defense levels, one production upgrade path, direct friend raids, and a small results list/ranking complete this first-pass specification.
+- A game overview plus one interactive lab scene, three item types, one job slot, three defense levels, one production upgrade path, direct friend raids, and a small results list/ranking complete this first-pass specification. The user-selected overview/scene structure supersedes the earlier single-screen proposal.
 - Job duration/output, reward ceiling/distribution, defense and ticket prices, theft percentage, upgrade prices, and raid cooldown are adjustable defaults. They do not require adding more mechanics to run the first trial.
-- Use the pharmaceutical-lab/lawyers theme above. Exact artwork and screen layout remain open and should be discussed with the user before UI implementation.
+- Use the pharmaceutical-lab/lawyers theme and approved cutaway perspective below. Exact artwork and positions of controls remain open.
 - First trial success: friends can each complete the loop and understand why a target costs more to raid, what was stolen, and how to rebuild. Observe whether ready goods actually remain available long enough to create raid opportunities; finished-output-only may produce too few targets and should be tested before expanding the game.
 - Deferred: live workout drops/idle dungeon, classes, caravans, gear, trading, rare collectibles, failed raids, partial defense destruction, multiple businesses, public matchmaking, and seasons.
 
 This completes the planning gaps with explicit defaults while distinguishing confirmed user mechanics from recommended tuning. Building and deploying remain separate, unrequested work.
 
-## Next: screen and interaction brainstorming
+## Confirmed visual direction
 
-The user explicitly wants to discuss their own expectations for how the screens look and interact. Do this before treating the earlier one-Base-screen proposal as an approved layout. Walk through workout save → loot reveal → lab/base → produce/defend → select a friend → raid result, including returning Home. Explore the user's visual and interaction preferences rather than choosing a finished design for them. No mockup or UI implementation has been requested yet.
+- The user described a game overview listing their businesses, initially one pharmaceutical lab. Entering the lab opens a scene that feels like stepping into that room, with all management of the lab available there.
+- **Approved camera direction: an angled, top-down cutaway room**, like looking into a building with the roof removed. The user accepted this recommendation for portrait iPhone use.
+- The user's scene examples include a large mixing/chemical tank on the left, a supply rack, and other room props. Some objects are interactive and others are scenery. Example action: tap the tank to add supplies and start the generic batch; this remains a game action, not a recipe system.
+- Add subtle ambient animation such as rising vapor, bubbling contents, or small moving elements. The room should feel alive without requiring constant interaction or adding new production mechanics.
+- Important objects need clear, generously sized touch targets and readable state in portrait. Exact positions, final art style, and artwork have not been selected. Respect reduced-motion preferences.
+- Explore the rendering approach used by Embervault (Phaser/procedural scene rendering) as a candidate, not an approved requirement to import that game or its systems. The user is interested in the same technology and visual approach.
+- Future businesses could follow the same overview-to-scene pattern, but only the pharmaceutical lab belongs in Phase 1.
+- Continue the screen walkthrough with loot reveal, defense/lawyer presentation, selecting a friend, and raid results. No finished artwork or full game implementation has been requested by the acceptance of the camera direction.
