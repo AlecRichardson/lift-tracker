@@ -174,11 +174,14 @@ small { color: var(--muted); }
 body.keyboardOpen .bottomNav, body.keyboardOpen .saveDock, body.keyboardOpen .builderGrid .builderSaveSimple { visibility: hidden; pointer-events: none; }
 .setRow input { scroll-margin-block: calc(var(--header-offset) + 16px) calc(var(--dock-height) + 24px); }
 
-.swipeRow { position: relative; overflow: hidden; min-width: 0; }
-.swipeFront { position: relative; z-index: 1; width: 100%; transition: width 160ms ease; }
-.swipeOpen > .swipeFront { width: calc(100% - 76px); }
-.swipeDelete { position: absolute; inset: 6px 0 6px auto; width: 68px; min-height: 44px; padding: 8px; border: 1px solid #ff929233; border-radius: 6px; background: #ff929217; color: var(--danger); font-size: 12px; font-weight: 600; }
-@media (prefers-reduced-motion: reduce) { .swipeFront { transition: none; } }
+.swipeRow { position: relative; overflow: hidden; min-width: 0; --swipe-rest: 0px; }
+.swipeFront { position: relative; z-index: 1; width: 100%; transform: translateX(var(--swipe-offset, var(--swipe-rest))); transition: transform 180ms ease-out; }
+.swipeOpen { --swipe-rest: -84px; }
+.swipeDragging > .swipeFront { transition: none; }
+.swipeDelete { position: absolute; inset: 0 0 0 auto; width: 84px; min-height: 44px; padding: 8px; border: 0; border-radius: 0; background: #a32f3b; color: #fff; font-size: 12px; font-weight: 650; visibility: hidden; pointer-events: none; transition: visibility 0s 180ms; }
+.swipeOpen > .swipeDelete, .swipeDragging > .swipeDelete { visibility: visible; transition: none; }
+.swipeOpen > .swipeDelete { pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { .swipeFront, .swipeDelete { transition: none; } }
 #historyList { display: grid; gap: 0; }
 .historyToolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: 4px; }
 .historyToolbar > span { color: var(--muted); font-size: 12px; }

@@ -32,7 +32,7 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 
 - UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
 - Keep desktop as a centered mobile preview and retain compact notes/session-only swaps.
-- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v17).
+- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v18).
 - Browser validation previously covered 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Browser access was unavailable for the plan-builder redesign, gesture polish, and History density follow-up; verify these screens on iPhone. Physical iPhone, real auth/update flow, and download verification remain pending. 144 automated tests pass.
 - Plans supports guarded swipe-right back navigation through picker/day/plan/library and swipe-left forward after going back; draft edits and picker selections are preserved. Plan and History rows reveal confirmed Delete on a left swipe and close on a right swipe or tap. Row gestures must not also navigate pages. Existing back/menu/delete controls remain available without gestures.
 - Plan actions include confirmed Delete Plan. Active deletion names an available replacement in the prompt, or warns that no plan will remain active. Zero plans are supported and are not reseeded on reload. Plan deletion never deletes completed workout history. A persistent deletion marker prevents delayed imports/writes from resurrecting deleted plans.

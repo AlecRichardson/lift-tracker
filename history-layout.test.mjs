@@ -34,9 +34,9 @@ test("History row separates title, volume and full-width metadata without losing
   assert.match(css, /\.historyCardMeta \{[^}]*grid-column: 1\/-1/);
 });
 
-test("revealed Delete narrows the front instead of moving the workout name off-screen", () => {
-  assert.match(css, /\.swipeOpen > \.swipeFront \{ width: calc\(100% - 76px\); \}/);
-  assert.doesNotMatch(css, /\.swipeOpen > \.swipeFront \{[^}]*translateX/);
+test("revealed Delete slides a stable-width front without squeezing or rewrapping its contents", () => {
+  assert.match(css, /\.swipeFront \{[^}]*width: 100%;[^}]*transform: translateX/);
+  assert.doesNotMatch(css, /transition: width/);
   assert.match(css, /\.swipeDelete \{[^}]*min-height: 44px/);
   assert.match(css, /\.historyFilterChip \{[^}]*min-height: 44px/);
 });

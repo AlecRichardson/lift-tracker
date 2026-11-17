@@ -89,3 +89,10 @@ Screenshots contain synthetic data, not the live account.
 - Filters now reflect saved workout days rather than unrelated days in the active plan. A filter resets to All when its last workout is deleted.
 - Swipe reveal now narrows the front instead of translating it off-screen. Delete is an inset, rounded, muted-danger action, with the same confirmation behavior. Shared Plan row reveals benefit from the same title-preserving treatment.
 - Shell cache v16. All 144 tests and syntax/whitespace checks pass. Browser inventory again reported local browser access unavailable; no rendered/device verification or live data changes were performed.
+
+## Swipe Reveal Follow-Up
+
+- Replaced the narrowing row with a fixed-width, finger-following slide in History and Plans. Contents now keep their layout as the front slides left under the row's clipping edge; the Delete action fills the revealed area in solid red.
+- Horizontal drags lock direction after a small threshold, clamp at the action width, and snap open or closed on release. Vertical scrolling never turns into a swipe later in the gesture. Cancellation and additional touches restore the prior state.
+- Delete stays disabled during dragging and after closing. Right swipe, front tap, outside tap, and Escape close the action; deletion still requires confirmation. Reduced-motion settings disable settling transitions.
+- Shell cache v18. All 146 tests, module syntax, and whitespace checks pass. Browser inventory returned no available browser, so rendered and physical iPhone Safari/Home Screen verification remain pending. No saved workout data was changed.
