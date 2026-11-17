@@ -21,6 +21,7 @@
   <link rel="apple-touch-icon" href="icon-180.png" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="plan-builder.css" />
+  <link rel="stylesheet" href="game.css" />
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -117,6 +118,9 @@
     <section id="planPage" class="page hidden">
       <div id="planOverview"></div>
     </section>
+    <section id="gamePage" class="page game-page hidden" aria-label="Game preview">
+      <div id="gamePreviewRoot"><p>Opening the game preview…</p></div>
+    </section>
   </main>
 
   <input id="planFileInput" type="file" accept=".json,application/json" hidden />
@@ -162,6 +166,10 @@
     <button id="bottomPlan" type="button" class="bottomNavBtn" data-page="planPage">
       <span>⚙</span>
       Plans
+    </button>
+    <button id="bottomGame" type="button" class="bottomNavBtn" data-page="gamePage">
+      <span aria-hidden="true">◇</span>
+      Game
     </button>
   </nav>
 

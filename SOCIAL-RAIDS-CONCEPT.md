@@ -1,6 +1,6 @@
 # Workout-Powered Social Raids
 
-Status: future idea, saved for discussion. Not an implementation plan or a commitment to particular rules.
+Status: original brainstorming plus subsequent Phase 1 decisions. The user has now requested an isolated demo preview; see `GAME-PHASE-1.md` and `GAME-TESTING.md`. Shared multiplayer and real workout rewards are not live.
 
 ## Core Idea
 
@@ -102,6 +102,8 @@ These are suggested design constraints, not additional user requirements:
 
 ## Next Discussion
 
+Latest implementation request: Game at the end of the bottom tray (may move later), drops announced by toast after workout save, and a test page for workout-to-loot/lab/raid trials. The user explicitly chose built-in demo players. Implemented as `game-test.html` and the in-app practice preview, using two device-only profiles and isolated sample workouts. Production workouts, accounts and balances remain separate; see `GAME-TESTING.md` for the test loop and limits.
+
 Selected art direction: option A (Industrial Realism), borrowing C's supply-box and banknote-stack designs but adapting both to A's amber/charcoal colors and understated industrial icon finish. The user rejected simply pasting C's colored icons into A. The latest correction is `docs/game-mockups/phase-1-selected-a-v2.png`, awaiting review. Preserve A's room and sans-serif UI. Lawyers at the entrance were accepted. Raid navigation is overview → Raids list → target detail with defense/estimated loot range → attack → result; see Phase 1 notes for remaining estimate details. This is design work, not game implementation.
 
 Latest visual decisions: game overview with a business list → tap Pharmaceutical Lab → enter an animated, interactive room. The user accepted an angled top-down cutaway perspective for portrait iPhone. The scene should include tappable equipment (such as the mixing tank to start a batch), a supplies rack, decorative props, and subtle ambient movement. All management of that business happens inside its scene. Embervault's rendering technology is an optional reference. This replaces the earlier one-Base-screen suggestion; see `GAME-PHASE-1.md` for the detailed visual notes.
@@ -114,4 +116,4 @@ Latest voice-session decisions supersede earlier shield ideas: only finished unc
 
 Review or tune the complete Phase 1 specification when needed. The loop and raid rules are now described; no further mechanics or visual theme are needed to finish planning.
 
-The idea is parked for later. Do not start building it or add it to the current plan-builder redesign without a new request.
+The earlier instruction to park the idea was superseded by the user's explicit demo-preview request. Keep the game work separate from Plan Builder and existing account/workout data. Real multiplayer integration still needs its own implementation work.

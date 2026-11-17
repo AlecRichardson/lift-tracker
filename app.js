@@ -771,7 +771,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* =====================================================
      NAVIGATION
   ===================================================== */
-  const MAIN_PAGE_ORDER = ["homePage", "workoutPage", "historyPage", "planPage"];
+  const MAIN_PAGE_ORDER = ["homePage", "workoutPage", "historyPage", "planPage", "gamePage"];
   const SWIPE_MIN_DISTANCE = 70;
   const SWIPE_DOMINANCE_RATIO = 1.5;
   const SWIPE_EDGE_GUARD = 20;
@@ -793,6 +793,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("bottomPlan")?.addEventListener("click", async () => {
       await navigateToMainPage("planPage");
+    });
+
+    document.getElementById("bottomGame")?.addEventListener("click", async () => {
+      await navigateToMainPage("gamePage");
     });
 
     setupSwipeNavigation();
@@ -824,6 +828,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (pageId === "planPage") {
       renderPlanPage();
       showPage("planPage");
+    }
+
+    if (pageId === "gamePage") {
+      showPage("gamePage");
+      const root = document.getElementById("gamePreviewRoot");
+      try {
+        const { mountGamePreview } = await import("./game-ui.mjs");
+        mountGamePreview(root);
+      } catch (error) {
+        console.error(error);
+        root.textContent = "The game preview couldn’t open. Check your connection and tap Game to retry.";
+      }
     }
   }
 
@@ -865,7 +881,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function shouldIgnoreSwipeTarget(target) {
     return Boolean(target?.closest?.(
-      "button, input, textarea, select, summary, a, canvas, .swipeRow, .bottomNav, .saveDock, .builderSaveSimple, .noteEditor, .swapEditor, .pulleyToggle, [contenteditable='true']"
+      "button, input, textarea, select, summary, a, canvas, .swipeRow, .bottomNav, .saveDock, .builderSaveSimple, .noteEditor, .swapEditor, .pulleyToggle, .game-preview, [contenteditable='true']"
     ));
   }
 
@@ -972,6 +988,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (pageId === "planPage") {
       pageTitle.textContent = "Plans";
       pageSubtitle.textContent = activePlan?.id ? `Active: ${activePlan.name}` : "No active plan";
+    }
+
+    if (pageId === "gamePage") {
+      pageTitle.textContent = "Game";
+      pageSubtitle.textContent = "Practice preview · sample workouts only";
     }
 
     updateBottomNav();

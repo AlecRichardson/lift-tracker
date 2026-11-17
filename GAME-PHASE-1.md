@@ -1,6 +1,6 @@
 # Workout Raids — Phase 1 Proposal
 
-Status: Phase 1 scope with confirmed mechanics and recommended starting defaults. The user asked the assistant to fill remaining planning gaps and keep the first pass simple. Values labeled defaults are assistant-selected tuning values, not individually approved user choices. No game implementation or deployment has been requested.
+Status: Phase 1 scope with confirmed mechanics and recommended starting defaults. The user subsequently requested the trailing Game navigation button, drop toasts, and a test page, selecting built-in demo players. An isolated practice preview is now implemented; see `GAME-TESTING.md`. Production workout rewards, shared game balances, and real multiplayer remain unimplemented. Values labeled defaults are assistant-selected tuning values, not individually approved user choices.
 
 ## Confirmed direction from the user
 
@@ -84,7 +84,8 @@ Three stackable item types, each with one use:
 
 ## App flow
 
-- Saving a workout still returns Home. If opted in, Home can show the new loot summary with a single Open Base action. Reward calculation delays must not hold the save screen open.
+- Game sits at the end of the main bottom navigation tray for now; the user may move it later.
+- The user requested a toast announcing received drops after saving a workout. Real workout saves still return Home. In the isolated test page, saving a sample workout returns the game overview and shows this toast; actual-account rewards are not connected yet. Reward calculation must not hold a real save screen open.
 - A game overview shows overall status and a list of businesses, initially just the pharmaceutical lab. Tapping that entry opens a dedicated lab scene. Manage that business inside its scene rather than putting all production controls on the overview. Friend targets and raid results remain accessible from the game overview; their exact presentation is still open.
 - Production and raiding require a connection for shared state. Workout logging and drafts keep their existing behavior.
 - No game UI or interruptions between sets in Phase 1; the idle-during-workout idea stays available for a later phase.
@@ -112,7 +113,7 @@ Four hours later the level-1 production job holds 20 gold. Mike sees that Alex h
 - First trial success: friends can each complete the loop and understand why a target costs more to raid, what was stolen, and how to rebuild. Observe whether ready goods actually remain available long enough to create raid opportunities; finished-output-only may produce too few targets and should be tested before expanding the game.
 - Deferred: live workout drops/idle dungeon, classes, caravans, gear, trading, rare collectibles, failed raids, partial defense destruction, multiple businesses, public matchmaking, and seasons.
 
-This completes the planning gaps with explicit defaults while distinguishing confirmed user mechanics from recommended tuning. Building and deploying remain separate, unrequested work.
+The practice preview exercises this loop using two demo players on one device. Completing the production multiplayer service and connecting real workout rewards remain separate work; the preview must never claim those are live.
 
 ## Confirmed visual direction
 
@@ -125,5 +126,5 @@ This completes the planning gaps with explicit defaults while distinguishing con
 - The user liked lawyers positioned at the entrance, showing defense level and offering reinforcement when tapped.
 - Explore the rendering approach used by Embervault (Phaser/procedural scene rendering) as a candidate, not an approved requirement to import that game or its systems. The user is interested in the same technology and visual approach.
 - Future businesses could follow the same overview-to-scene pattern, but only the pharmaceutical lab belongs in Phase 1.
-- Confirmed raid navigation: game overview → Raids overview listing targets → selected friend's detail with defense and estimated loot range → activate raid. Exact ticket cost, unavailable states, and a result showing actual loot/defense destroyed/tickets left are recommended supporting details. A loot range is a scouting estimate, not a change to the fixed 25% theft rule. Estimate bounds still need definition; do not present a random reward roll as approved.
-- Continue detailed screen planning with loot reveal and friend invitations as needed. Selecting and editing a static visual reference does not request full game implementation.
+- Confirmed raid navigation: game overview → Raids overview listing targets → selected friend's detail with defense and estimated loot range → activate raid. The preview implements ticket costs, unavailable states, and results showing actual loot/defense destroyed/tickets left. Its provisional scouting estimate brackets the actual 25% payout in a coarse $5 band (for example $1–$5 or $6–$10); it is not a random payout roll.
+- The user authorized the isolated demo preview after selecting the visual direction. Real friend invitations and account-to-account play still need the shared service; the built-in players do not create real authentication accounts.
