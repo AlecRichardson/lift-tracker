@@ -32,8 +32,8 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 
 - UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
 - Keep desktop as a centered mobile preview and retain compact notes/session-only swaps.
-- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v19).
-- Browser validation previously covered 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Browser access was unavailable for the plan-builder redesign, gesture polish, and History density follow-up; verify these screens on iPhone. Physical iPhone, real auth/update flow, and download verification remain pending. 166 automated tests pass, including the isolated game preview checks.
+- Bump the service-worker shell cache version whenever bundled HTML/CSS/JS changes (current version: v20).
+- Browser validation previously covered 440x956, 375x812, and 1280x900 layouts with isolated synthetic data. Browser access was unavailable for the plan-builder redesign, gesture polish, and History density follow-up; verify these screens on iPhone. Physical iPhone, real auth/update flow, and download verification remain pending. 147 automated tests pass.
 - Plans supports guarded swipe-right back navigation through picker/day/plan/library and swipe-left forward after going back; draft edits and picker selections are preserved. Plan and History rows reveal confirmed Delete on a left swipe and close on a right swipe or tap. Row gestures must not also navigate pages. Existing back/menu/delete controls remain available without gestures.
 - Plan actions include confirmed Delete Plan. Active deletion names an available replacement in the prompt, or warns that no plan will remain active. Zero plans are supported and are not reseeded on reload. Plan deletion never deletes completed workout history. A persistent deletion marker prevents delayed imports/writes from resurrecting deleted plans.
 - Import saves stage a recoverable draft first, keep Close available, and stop waiting after 15 seconds without claiming that a pending write was cancelled. Retries use the same plan ID. Late acknowledgements must not clear newer edits or close another preview.
@@ -51,8 +51,7 @@ Session plan and verified local backup details: `UX-OVERHAUL-PLAN.md`. Browser a
 - Exercise notes during workout should stay compact because this is a niche feature.
 - Exercise swaps during workout are for the current session only and should not permanently change the workout plan.
 - Injury/reset-aware progression is on the back burner.
-- Future social/game idea: workout-powered friend raids, conquest, fictional loot, and strength-normalized competition. Summary and open questions are saved in `SOCIAL-RAIDS-CONCEPT.md`; revisit only when requested.
-- Game now has an isolated practice preview: trailing Game nav button, plus `game-test.html` with built-in Alex/Mike demo players. Sample workout saves award drop toasts; production, lawyers, raids, and practice time controls use only `lift-tracker:game-practice:v1`. Real workout rewards, live friend accounts, and shared multiplayer are not connected. See `GAME-TESTING.md` and `GAME-PHASE-1.md`. Never connect demo balances to real accounts or weaken existing account rules.
+- The game experiment was removed from main at the user's request. Its complete code, test page, artwork, mockups, and planning notes are preserved on the pushed branch `archive/game-preview-2026-11-19` at commit `b72e7e8`. Revisit only when explicitly requested. Workout/account data and existing browser practice saves were not deleted.
 
 ## UX Rules
 
