@@ -8,7 +8,7 @@ import {
   normalizeExerciseName
 } from "./history-context.mjs";
 import { applyRecommendationContext, getExerciseRecommendation } from "./recommendations.mjs";
-import { claimLegacyWorkoutDraft, getSetPrefill, getWeightFillTargets, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
+import { claimLegacyWorkoutDraft, getSessionExercises, getSetPrefill, getWeightFillTargets, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
 import { parsePlanFile, PLAN_FILE_LIMIT, waitForPlanSave } from "./plan-files.mjs";
 import { PlanBuilder } from "./plan-builder.mjs";
 import { setupSwipeRows } from "./swipe-rows.mjs";
@@ -700,7 +700,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderGymSelector();
     // Refresh in place: rebuilding cards would discard active rest timers and focus.
     document.querySelectorAll("#exerciseContainer .exerciseCard").forEach(card => {
-      const exercise = workouts[currentDay]?.[Number(card.dataset.plannedIndex)];
+      const exercise = card.dataset.sessionTemplate ? JSON.parse(card.dataset.sessionTemplate) : workouts[currentDay]?.[Number(card.dataset.plannedIndex)];
       if (!exercise) return;
       applySwapSelection({
         card, exercise, logs: workoutHistoryLogs,
@@ -957,6 +957,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (pageId === "workoutPage") {
       pageTitle.textContent = currentDay || "Workout";
       pageSubtitle.textContent = currentDay ? workoutSummaryText(currentDay) : "No workout selected";
+      if (hasRenderedWorkout(currentDay)) updateWorkoutCompletion();
     }
 
     if (pageId === "progressPage") {
@@ -1582,6 +1583,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
       exercises[exerciseInstanceKey] = {
+        ...(card.dataset.sessionTemplate ? { sessionTemplate: JSON.parse(card.dataset.sessionTemplate) } : {}),
         pulley: card.dataset.pulley || "",
         pulleyEdited: card.dataset.pulleyEdited === "true",
         note,
@@ -1611,6 +1613,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const done = rows.filter(button => button.dataset.done === "true").length;
     const summary = document.getElementById("workoutCompletion");
     if (summary) summary.textContent = rows.length ? `${done} of ${rows.length} sets completed` : "";
+    if (currentDay && currentPage === "workoutPage") {
+      const count = document.querySelectorAll("#exerciseContainer .exerciseCard").length;
+      pageSubtitle.textContent = `${count} exercises / ${rows.length} sets`;
+    }
   }
 
   function getDraft() {
@@ -1657,7 +1663,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     return Object.values(draft.exercises).some(entry => {
       const sets = Array.isArray(entry) ? entry : entry?.sets || [];
-      return String(entry?.note || "").trim() ||
+      return Boolean(entry?.sessionTemplate) || String(entry?.note || "").trim() ||
         Boolean(entry?.pulleyEdited) ||
         Boolean(entry?.actualName && entry.actualName !== entry?.plannedName) ||
         sets.some(set => set.editedReps || set.editedWeight || set.done);
@@ -1746,7 +1752,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let currentSuperset = "";
 
-    template.forEach((exercise, index) => {
+    function renderSessionExercise(exercise, index) {
       if (!exercise.superset) {
         currentSuperset = "";
       }
@@ -1763,10 +1769,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       const exerciseKey = getExerciseKey(exercise);
-      const exerciseInstanceKey = `${exerciseKey}__${index}`;
+      const exerciseInstanceKey = exercise.sessionKey || `${exerciseKey}__${index}`;
       const swapListId = `swapOptions-${exerciseInstanceKey}`;
       const swapSuggestions = getSwapSuggestions(logs, exercise);
-      const draftEntry = useDraft ? (draft.exercises?.[exerciseInstanceKey] || draft.exercises?.[exerciseKey]) : null;
+      const draftEntry = useDraft ? (draft.exercises?.[exerciseInstanceKey] || (!exercise.sessionKey && draft.exercises?.[exerciseKey])) : null;
       const draftSets = Array.isArray(draftEntry) ? draftEntry : draftEntry?.sets || null;
       const draftNote = !Array.isArray(draftEntry) ? draftEntry?.note || "" : "";
       const draftActualName = !Array.isArray(draftEntry) ? draftEntry?.actualName || "" : "";
@@ -1815,6 +1821,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       exerciseCard.dataset.plannedIndex = String(index);
       exerciseCard.dataset.pulley = startingPulley;
       exerciseCard.dataset.pulleyEdited = String(Boolean(draftEntry?.pulleyEdited));
+      if (exercise.sessionKey) exerciseCard.dataset.sessionTemplate = JSON.stringify(exercise);
 
       const lastSummary = escapeHtml(formatGlobalLast(historyContext));
 
@@ -1831,6 +1838,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="exerciseMeta">
               <span class="pill target">Target ${escapeHtml(exercise.target)}</span>
               <span class="pill">${exercise.sets} sets</span>
+              ${exercise.sessionKey ? '<span class="pill">This workout only</span>' : ""}
               ${exercise.superset ? `<span class="pill supersetPill">Superset ${escapeHtml(exercise.superset)}</span>` : ""}
               ${exercise.rest ? `<span class="pill">Rest ${escapeHtml(exercise.rest)}</span>` : ""}
               ${exercise.type ? `<span class="pill">${escapeHtml(exercise.type)}</span>` : ""}
@@ -2136,13 +2144,57 @@ document.addEventListener("DOMContentLoaded", async () => {
         exerciseCard.appendChild(row);
       }
 
-      container.appendChild(exerciseCard);
+      if (exercise.sessionKey) {
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "secondaryBtn removeSessionExercise";
+        removeButton.textContent = "Remove Exercise";
+        removeButton.addEventListener("click", () => {
+          if (!confirm(`Remove ${exerciseCard.dataset.exerciseName} and its sets from this workout?`)) return;
+          exerciseCard.querySelectorAll(".setNumber").forEach(button => stopRestTimer(button));
+          exerciseCard.remove();
+          saveDraft(currentDay);
+        });
+        exerciseCard.appendChild(removeButton);
+      }
+      container.insertBefore(exerciseCard, container.querySelector(".sessionExerciseAdder"));
       refreshWeightFillButtons(exerciseCard);
       exerciseCard.querySelectorAll(".setNumber").forEach((button, index) => {
         const endsAt = Number(draftSets?.[index]?.restEndsAt);
         if (button.dataset.done === "true" && endsAt > Date.now()) startRestTimer(button, 0, endsAt);
       });
+    }
+    template.forEach(renderSessionExercise);
+    if (useDraft) getSessionExercises(draft).forEach(exercise => renderSessionExercise(exercise, -1));
+    const adder = document.createElement("details");
+    adder.className = "exercise sessionExerciseAdder";
+    adder.innerHTML = `
+      <summary>Add Exercise</summary>
+      <p class="lastHint">Saved with this workout. Your plan stays the same.</p>
+      <form class="sessionExerciseForm">
+        <label>Exercise name<input name="exerciseName" required maxlength="120" placeholder="e.g. Shrugs" autocomplete="off"></label>
+        <label>Sets<input name="sets" type="number" inputmode="numeric" min="1" max="20" step="1" value="3" required></label>
+        <button type="submit" class="primaryBtn">Add Exercise</button>
+      </form>`;
+    adder.querySelector("form").addEventListener("submit", event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const nameInput = form.elements.exerciseName;
+      const name = titleCaseExerciseName(nameInput.value.trim());
+      if (!name) { nameInput.focus(); return; }
+      const sets = Number(form.elements.sets.value);
+      if (!Number.isInteger(sets) || sets < 1 || sets > 20) return;
+      const exercise = { id: exerciseSlug(name), name, sets, target: "Any reps", rest: "",
+        sessionKey: `extra-${crypto.randomUUID()}` };
+      renderSessionExercise(exercise, -1);
+      saveDraft(currentDay);
+      form.reset();
+      adder.open = false;
+      const card = adder.previousElementSibling;
+      card?.scrollIntoView({ block: "start", behavior: "smooth" });
+      card?.querySelector("input[data-field='reps']")?.focus({ preventScroll: true });
     });
+    container.appendChild(adder);
     container.dataset.renderedDay = currentDay;
     container.dataset.renderedTemplate = JSON.stringify(workouts[currentDay] || []);
     updateWorkoutCompletion();
@@ -2339,6 +2391,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
       exercises.push({
+        sessionOnly: Boolean(card.dataset.sessionTemplate),
         id: isSwapped ? exerciseSlug(exerciseName) : exerciseKey,
         n: exerciseName,
         swapped: isSwapped,

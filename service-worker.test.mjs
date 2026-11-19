@@ -24,7 +24,7 @@ function worker({ cached = null, response = { ok: true, clone() { return this; }
     },
     caches: {
       open: async () => cache,
-      keys: async () => ["unrelated-cache", ...[4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(version => `lift-tracker-shell-v${version}`)],
+      keys: async () => ["unrelated-cache", ...[4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(version => `lift-tracker-shell-v${version}`)],
       delete: async key => { calls.deleted.push(key); }
     },
     fetch: async request => {
@@ -63,7 +63,7 @@ test("new workers precache all app modules and wait for explicit activation", as
 test("activation removes only obsolete Lift Tracker caches", async () => {
   const app = worker();
   await app.lifecycle("activate");
-  assert.deepEqual(app.calls.deleted, [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(version => `lift-tracker-shell-v${version}`));
+  assert.deepEqual(app.calls.deleted, [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(version => `lift-tracker-shell-v${version}`));
   assert.equal(app.calls.claimed, 1);
 });
 

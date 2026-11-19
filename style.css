@@ -293,6 +293,11 @@ body.keyboardOpen .bottomNav, body.keyboardOpen .saveDock, body.keyboardOpen .bu
 .updateActions { display: flex; gap: 4px; }
 .appUpdatePrompt button { min-height: 44px; padding: 8px; border: 0; border-radius: 5px; color: var(--accent-2); background: #91bdff0f; font-size: 12px; }
 .appUpdatePrompt button:last-child { color: var(--muted); background: transparent; }
+.sessionExerciseAdder summary { min-height: 44px; padding-block: 12px; cursor: pointer; font-weight: 600; }
+.sessionExerciseForm { display: grid; gap: 12px; }
+.sessionExerciseForm label { display: grid; gap: 6px; color: var(--muted); }
+.sessionExerciseForm input { width: 100%; min-height: 44px; font-size: 16px; }
+.removeSessionExercise { margin-top: 16px; }
 .accountDialog { width: min(calc(100% - 32px),400px); max-height: calc(100dvh - 48px); overflow-y: auto; padding: 20px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--panel); color: var(--text); }
 .accountDialog::backdrop { background: #0009; backdrop-filter: blur(4px); }
 .accountDialogHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }

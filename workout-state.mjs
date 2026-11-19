@@ -2,6 +2,17 @@ export function workoutDraftKey(userId, planId, day) {
   return `draftWorkoutV5:${JSON.stringify([userId, planId, day])}`;
 }
 
+// Extra exercises belong only to the session draft, never to the saved plan.
+export function getSessionExercises(draft) {
+  return Object.entries(draft?.exercises || {}).flatMap(([sessionKey, entry]) => {
+    const exercise = entry?.sessionTemplate;
+    if (!exercise || typeof exercise.name !== "string" || !exercise.name.trim() ||
+      !Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 20) return [];
+    return [{ name: exercise.name, id: exercise.id, sets: exercise.sets,
+      target: "Any reps", rest: "", sessionKey }];
+  });
+}
+
 export function getWeightFillTargets(sets, sourceIndex) {
   const source = sets[sourceIndex];
   if (!source || !(source.editedWeight || source.done) || String(source.weight ?? "").trim() === "" ||

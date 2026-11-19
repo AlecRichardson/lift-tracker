@@ -1,6 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { claimLegacyWorkoutDraft, getSetPrefill, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
+import { claimLegacyWorkoutDraft, getSessionExercises, getSetPrefill, isMatchingWorkoutDraft, workoutDraftKey } from "./workout-state.mjs";
+
+test("session additions restore independently with stable identities and entered sets", () => {
+  const draft = { exercises: {
+    planned: { sets: [{ reps: "12" }] },
+    "extra-a": { sessionTemplate: { id: "shrugs", name: "Shrugs", sets: 3 },
+      sets: [{ reps: "15", weight: "60", done: true, restEndsAt: 12345 }] },
+    "extra-b": { sessionTemplate: { id: "shrugs", name: "Shrugs", sets: 2 }, sets: [] }
+  } };
+  const before = JSON.stringify(draft);
+  const restored = getSessionExercises(JSON.parse(before));
+  assert.deepEqual(restored.map(exercise => [exercise.name, exercise.sets, exercise.sessionKey]),
+    [["Shrugs", 3, "extra-a"], ["Shrugs", 2, "extra-b"]]);
+  assert.equal(getSetPrefill(null, draft.exercises[restored[0].sessionKey].sets[0]).weight, "60");
+  delete draft.exercises["extra-a"];
+  assert.equal(getSessionExercises(draft)[0].sessionKey, "extra-b");
+  assert.deepEqual(getSessionExercises(null), []);
+  assert.equal(JSON.stringify(JSON.parse(before)), before);
+});
+
+test("invalid extra exercise drafts are ignored without changing existing entries", () => {
+  const draft = { exercises: Object.fromEntries([0, -1, 21, 1.5, "3"].map((sets, index) =>
+    [index, { sessionTemplate: { name: "Shrugs", sets } }])) };
+  draft.exercises.blank = { sessionTemplate: { name: " ", sets: 3 } };
+  const before = JSON.stringify(draft);
+  assert.deepEqual(getSessionExercises(draft), []);
+  assert.equal(JSON.stringify(draft), before);
+});
 
 test("changing gym refreshes untouched prefill but preserves typed fields", () => {
   const next = getSetPrefill({ reps: 12, weight: 70 }, {
