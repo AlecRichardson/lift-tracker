@@ -11,9 +11,9 @@ The **Lift Health Companion** Site exposes read-only workout tools to its genera
 3. Install/connect **Lift Health Companion** in ChatGPT Plugins → Personal → Created by you, then select it in a Health-project chat.
 4. Copy the page's review instructions into the Health project's instructions. These point to the existing **Daily Tracker** conversation and define date windows, completeness checks, estimates, and correction handling. This task has no supported tool to edit project instructions directly.
 
-If Google reports an unauthorized domain, the project owner must deliberately authorize the exact hostname `lift-health-companion.tenaciouscanopy3.chatgpt.site` in the existing project's authentication settings. The project is `lift-tracker-8674a`. This task has not changed authorized domains, account permissions, or database rules. Do not use wildcard domains.
+On November 22, 2026, Google sign-in rejected the companion with an unauthorized-domain error. The exact hostname `lift-health-companion.tenaciouscanopy3.chatgpt.site` was added to the existing project's approved sign-in domains using the existing signed-in administrator connection. A read-back verified the addition and preservation of all existing domains. The project is `lift-tracker-8674a`. Account permissions and database rules were not changed. Do not use wildcard domains.
 
-Deployment and schema provisioning were verified. Nine synthetic tests passed, covering caller isolation, credential encryption, date ranges, paging, setup requests, and safe disconnect. Real Google sign-in, plugin connection, complete food-history retrieval, iPhone behavior, and a real combined review remain unverified until user setup is finished.
+Deployment and schema provisioning were verified. Nine synthetic tests passed, covering caller isolation, credential encryption, date ranges, paging, setup requests, and safe disconnect. After the domain correction, the in-app browser's Continue with Google button reached the real Google email/phone sign-in form. Completing Google sign-in, plugin connection, complete food-history retrieval, iPhone behavior, and a real combined review remain unverified until user setup is finished.
 
 ## Future reviews
 
