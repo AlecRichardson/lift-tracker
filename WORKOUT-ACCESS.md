@@ -1,5 +1,7 @@
 # Read the latest saved workout
 
+For access directly inside the ChatGPT Health project, including mobile, use the private hosted companion described in [HEALTH-INTEGRATION.md](HEALTH-INTEGRATION.md). The local reader below remains available for this Windows workspace; its saved connection is separate from the hosted connection.
+
 The local reader lets an assistant in this repository retrieve the newest saved workout without an export or access to the phone. It uses the Google account you choose during setup and the existing account access rules. It has no workout write or delete commands. It does not use administrator credentials.
 
 ## One-time setup on this Windows computer
