@@ -53,7 +53,7 @@ Day order must contain every day exactly once. Each day contains 1-40 exercises,
 
 ## Revising in Another Conversation
 
-With **Lift Health Companion** connected, a Health-project conversation can read the template and your saved split directly. Ask it to revise the split and show a full preview. After you approve the preview, it can save a new plan to Lift Tracker. Open **Plans** and choose **Make Active** when ready. The original plan and completed workout history stay saved. See `HEALTH-INTEGRATION.md` for connection setup.
+With **Lift Health Companion** connected, a Health-project conversation can read the template and your saved split directly. Ask it to revise your active split directly, or save a separate new plan. A direct update keeps the same plan active and retains a pre-edit copy; finish your workout before requesting it. For a separate copy, choose **Make Active** in Lift Tracker when ready. Completed workout history stays saved. See `HEALTH-INTEGRATION.md` for connection setup.
 
 Attach your exported plan or starter template and ask:
 
