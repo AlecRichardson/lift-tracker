@@ -34,6 +34,8 @@ When asked to review the latest saved workout, use `node tools/workout-reader.mj
 
 For Health-project reviews combining training and diet, prefer the private **Lift Health Companion** plugin when available. Its setup page is `https://lift-health-companion.tenaciouscanopy3.chatgpt.site`. It supports authenticated, paginated date-range workout reads and references the existing **Daily Tracker** conversation. See `HEALTH-INTEGRATION.md` for the exact Site identity, setup status, and access limits. Do not claim that a food-log reference is an exhaustive food-history read, or that deployment alone proves the user's Google/plugin connections are complete.
 
+The companion also supports split planning: read `get_plan_template` and `get_plan`, validate with `preview_plan`, show the full preview, and use `save_plan_as_new` only after explicit approval of that exact revision. Saves create a new inactive plan, preserving exercise identities/aliases and completed history. The user chooses Make Active in the app; remote tools cannot inspect unfinished phone drafts. Do not claim remote saves overwrite or activate the current plan.
+
 ## Todo Later
 
 - UX overhaul and PWA hardening are implemented; use actual iPhone feedback for follow-up refinements rather than repeating the overhaul.
